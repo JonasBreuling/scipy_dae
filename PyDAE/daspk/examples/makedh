@@ -1,0 +1,26 @@
+#
+# This makefile compiles and loads the DDASPK example program dheat.
+# If necessary, change the constants COMP and FFLAGS below for the
+# compiler to be used.
+
+COMP = f77
+FFLAGS = -O
+
+SOLVR = ../solver
+
+PRECON = ../preconds
+
+OBJS = $(SOLVR)/ddaspk.o $(SOLVR)/daux.o $(SOLVR)/dlinpk.o \
+        $(PRECON)/dbanpre.o
+
+HEAT = dheat.o $(OBJS)
+
+HEAT : $(HEAT)
+	$(COMP) $(FFLAGS) -o heat $(HEAT) -lm
+
+dheat.o: dheat.f
+	$(COMP) $(FFLAGS) -c dheat.f
+
+
+# Rule for compiling a Fortran source file:
+.f.o: ;	$(COMP) $(FFLAGS) -c $*.f -o $*.o

@@ -1,0 +1,26 @@
+#
+# This makefile compiles and loads the DDASPK example program swebilu.
+# If necessary, change the constants COMP and FFLAGS below for the
+# compiler to be used.
+
+COMP = f77
+FFLAGS = -O
+
+SOLVR = ../solver
+
+PRECON = ../preconds
+
+OBJS = $(SOLVR)/sdaspk.o $(SOLVR)/saux.o $(SOLVR)/slinpk.o \
+       $(PRECON)/silupre.o $(PRECON)/ssparsk.o
+
+WEBILU = swebilu.o $(OBJS)
+
+WEBILU : $(WEBILU)
+	$(COMP) $(FFLAGS) -o webilu $(WEBILU) -lm
+
+swebilu.o: swebilu.f
+	$(COMP) $(FFLAGS) -c swebilu.f
+
+
+# Rule for compiling a Fortran source file:
+.f.o: ;	$(COMP) $(FFLAGS) -c $*.f -o $*.o

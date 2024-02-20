@@ -1,0 +1,26 @@
+#
+# This makefile compiles and loads the SDASPK example program sheatilu.
+# If necessary, change the constants COMP and FFLAGS below for the
+# compiler to be used.
+
+COMP = f77
+FFLAGS = -O
+
+SOLVR = ../solver
+
+PRECON = ../preconds
+
+OBJS = $(SOLVR)/sdaspk.o $(SOLVR)/saux.o $(SOLVR)/slinpk.o \
+        $(PRECON)/silupre.o $(PRECON)/ssparsk.o
+
+HEATILU = sheatilu.o $(OBJS)
+
+HEATILU : $(HEATILU)
+	$(COMP) $(FFLAGS) -o heatilu $(HEATILU) -lm
+
+sheatilu.o: sheatilu.f
+	$(COMP) $(FFLAGS) -c sheatilu.f
+
+
+# Rule for compiling a Fortran source file:
+.f.o: ;	$(COMP) $(FFLAGS) -c $*.f -o $*.o

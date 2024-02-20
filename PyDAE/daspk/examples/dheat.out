@@ -1,0 +1,35 @@
+ Heat Equation Example Program for DDASPK
+
+    M+2 by M+2 mesh, M = 10,  System size NEQ = 144
+
+    Linear solver method flag INFO(12) =  1    (0 = direct, 1 = Krylov)
+    Preconditioner is a banded approximation with ML =  1  MU =  1
+
+    Tolerances are RTOL =   0.0E+00   ATOL =   0.1E-02
+
+
+     t            UMAX        NQ        H        STEPS     NNI     NLI
+
+    0.10000E-01  0.8320E+00    2     0.256E-02     12       20      16
+    0.20000E-01  0.6952E+00    2     0.461E-02     15       25      25
+    0.40000E-01  0.4749E+00    3     0.922E-02     18       29      32
+    0.80000E-01  0.2176E+00    4     0.922E-02     23       35      43
+    0.16000E+00  0.4506E-01    4     0.184E-01     28       41      59
+    0.32000E+00  0.1970E-02    4     0.369E-01     36       51      82
+    0.64000E+00  0.4749E-04    1     0.147E+00     41       60     107
+    0.12800E+01  0.6090E-04    1     0.590E+00     43       64     114
+    0.25600E+01  0.6385E-04    1     0.118E+01     44       65     116
+    0.51200E+01  0.6832E-04    1     0.472E+01     46       69     124
+    0.10240E+02  0.4698E-04    1     0.944E+01     47       70     128
+
+
+ Final statistics for this run..
+   RWORK size = 3357   IWORK size = 184
+   Number of time steps ................ =   47
+   Number of residual evaluations ...... =  252
+   Number of preconditioner evaluations  =   18
+   Number of preconditioner solves ..... =  198
+   Number of nonlinear iterations ...... =   70
+   Number of linear iterations ......... =  128
+   Average Krylov subspace dimension =  1.8286
+    0 nonlinear conv. failures,    0 linear conv. failures
