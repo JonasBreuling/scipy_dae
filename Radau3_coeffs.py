@@ -90,6 +90,11 @@ if __name__ == "__main__":
     assert np.allclose(Lambda, TI @ A_inv @ T, rtol=0, atol=1e-8)
     assert np.allclose(Lambda_scipy, TI_scipy @ A_inv @ T_scipy, rtol=0, atol=1e-8)
 
+    from scipy.linalg import schur
+    T, Z, _ = schur(A_inv, output="real", sort="rhp")
+    print(f"T:\n{T}")
+    print(f"Z:\n{Z}")
+
     exit()
 
     # print(f"A_inv:\n{Inverse(A).as_explicit()}")
