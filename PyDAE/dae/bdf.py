@@ -205,7 +205,7 @@ class BDF(OdeSolver):
     """
     def __init__(self, fun, t0, y0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, mass_matrix=None, 
-                 jac=None, jac_sparsity=None,
+                 var_index=None, jac=None, jac_sparsity=None,
                  vectorized=False, first_step=None, **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, t_bound, vectorized,
@@ -249,8 +249,13 @@ class BDF(OdeSolver):
         self.solve_lu = solve_lu
         self.I = I
         self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = self._validate_mass_matrix(mass_matrix)
+        # self.var_index = np.array([0, 0, 1, 1, 3, 3, 3, 3, 3, 3], dtype=int)
+        self.var_index = np.array([0, 0, 0, 0, 0, 3, 3, 3, 3, 3], dtype=int)
+        self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
+        # self.index_algebraic_vars = np.where(self.var_index != 0)[0]
+        # self.nvars_algebraic = self.index_algebraic_vars.size
 
-        kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])
+        kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, MAX_ORDER + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, MAX_ORDER + 2)
@@ -390,6 +395,7 @@ class BDF(OdeSolver):
 
             # TODO: Do we have to multiply by M here?
             y_predict = np.sum(D[:order + 1], axis=0)
+            # y_predict = self.mass_matrix @ np.sum(D[:order + 1], axis=0)
 
             scale = atol + rtol * np.abs(y_predict)
             # psi = np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
@@ -423,9 +429,12 @@ class BDF(OdeSolver):
 
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-            # TODO: Reduce error of algebraic variables.
-            scale = atol + rtol * np.abs(y_new)
             error = error_const[order] * d
+            scale = atol + rtol * np.abs(y_new)
+            # TODO: This sounds strange for me since we divide by h^n -> 0
+            scale /= (h**self.var_exp) # scale for algebraic variables
+            # error *= h**self.var_exp
+            # error[self.index_algebraic_vars] *= h**3
             error_norm = norm(error / scale)
 
             if error_norm > 1:

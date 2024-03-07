@@ -45,13 +45,13 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots(2, 1)
 
-    ax[0].plot(t, y[0], "-k", label="y BDF")
-    ax[0].plot(t_scipy, y_scipy[0], "-.r", label="y scipy")
+    ax[0].plot(t, y[0], "-ok", label="y BDF", mfc="none")
+    ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y scipy")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[1], "-k", label="y_dot BDF")
-    ax[1].plot(t_scipy, y_scipy[1], "-.r", label="y_dot scipy")
+    ax[1].plot(t, y[1], "-ok", label="y_dot BDF", mfc="none")
+    ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
     ax[1].legend()
     ax[1].grid()
 

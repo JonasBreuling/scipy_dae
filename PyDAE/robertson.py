@@ -63,12 +63,12 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots()
 
-    ax.plot(t, y[0], "-ob", label="y1 BDF")
-    ax.plot(t, y[1] * 1e4, "-or", label="y2 BDF")
-    ax.plot(t, y[2], "-oy", label="y3 BDF")
-    ax.plot(t_scipy, y_scipy[0], "xb", label="y1 scipy")
-    ax.plot(t_scipy, y_scipy[1] * 1e4, "xr", label="y2 scipy")
-    ax.plot(t_scipy, y_scipy[2], "xy", label="y3 scipy")
+    ax.plot(t, y[0], "-ok", label="y1 BDF", mfc="none")
+    ax.plot(t, y[1] * 1e4, "-ob", label="y2 BDF", mfc="none")
+    ax.plot(t, y[2], "-og", label="y3 BDF", mfc="none")
+    ax.plot(t_scipy, y_scipy[0], "xr", label="y1 scipy", markersize=7)
+    ax.plot(t_scipy, y_scipy[1] * 1e4, "xy", label="y2 scipy", markersize=7)
+    ax.plot(t_scipy, y_scipy[2], "xm", label="y3 scipy", markersize=7)
     ax.set_xscale("log")
     ax.legend()
     ax.grid()
