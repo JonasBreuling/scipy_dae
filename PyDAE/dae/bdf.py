@@ -250,7 +250,9 @@ class BDF(OdeSolver):
         self.I = I
         self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = self._validate_mass_matrix(mass_matrix)
         # self.var_index = np.array([0, 0, 1, 1, 3, 3, 3, 3, 3, 3], dtype=int)
-        self.var_index = np.array([0, 0, 0, 0, 0, 3, 3, 3, 3, 3], dtype=int)
+        # self.var_index = np.array([0, 0, 0, 0, 0, 3, 3, 3, 3, 3], dtype=int)
+        # self.var_index = np.array([0, 0, 0, 0, 3], dtype=int) # works for index 2
+        self.var_index = np.array([0, 0, 2, 2, 2], dtype=int) # does NOT works for index 3
         self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
         # self.index_algebraic_vars = np.where(self.var_index != 0)[0]
         # self.nvars_algebraic = self.index_algebraic_vars.size
@@ -432,9 +434,11 @@ class BDF(OdeSolver):
             error = error_const[order] * d
             scale = atol + rtol * np.abs(y_new)
             # TODO: This sounds strange for me since we divide by h^n -> 0
-            scale /= (h**self.var_exp) # scale for algebraic variables
+            # scale /= (h**self.var_exp) # scale for algebraic variables
             # error *= h**self.var_exp
             # error[self.index_algebraic_vars] *= h**3
+            # ignore error of algebraic equations
+            error[self.index_algebraic_vars] = 0
             error_norm = norm(error / scale)
 
             if error_norm > 1:
@@ -471,12 +475,14 @@ class BDF(OdeSolver):
 
         if order > 1:
             error_m = error_const[order - 1] * D[order]
+            error_m[self.index_algebraic_vars] = 0
             error_m_norm = norm(error_m / scale)
         else:
             error_m_norm = np.inf
 
         if order < MAX_ORDER:
             error_p = error_const[order + 1] * D[order + 2]
+            error_p[self.index_algebraic_vars] = 0
             error_p_norm = norm(error_p / scale)
         else:
             error_p_norm = np.inf
