@@ -272,11 +272,15 @@ class BDF(OdeSolver):
         self.order = 1
         self.n_equal_steps = 0
         self.LU = None
+
+        # self.hs = []
+        # self.orders = []
     
     def _validate_mass_matrix(self, mass_matrix):
         if mass_matrix is None:
             M = self.I
-            index_algebraic_vars = None
+            # index_algebraic_vars = None
+            index_algebraic_vars = np.array([], dtype=int)
             nvars_algebraic = 0
         elif callable(mass_matrix):
             raise ValueError("`mass_matrix` should be a constant matrix, but is"
@@ -366,6 +370,10 @@ class BDF(OdeSolver):
         else:
             h_abs = self.h_abs
 
+        # self.hs.append(h_abs)
+        # self.orders.append(self.order)
+        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+
         atol = self.atol
         rtol = self.rtol
         order = self.order
@@ -436,9 +444,9 @@ class BDF(OdeSolver):
             # TODO: This sounds strange for me since we divide by h^n -> 0
             # scale /= (h**self.var_exp) # scale for algebraic variables
             # error *= h**self.var_exp
-            # error[self.index_algebraic_vars] *= h**3
             # ignore error of algebraic equations
             error[self.index_algebraic_vars] = 0
+            # error[self.index_algebraic_vars] *= h
             error_norm = norm(error / scale)
 
             if error_norm > 1:
@@ -476,6 +484,7 @@ class BDF(OdeSolver):
         if order > 1:
             error_m = error_const[order - 1] * D[order]
             error_m[self.index_algebraic_vars] = 0
+            # error_m[self.index_algebraic_vars] *= h
             error_m_norm = norm(error_m / scale)
         else:
             error_m_norm = np.inf
@@ -483,6 +492,7 @@ class BDF(OdeSolver):
         if order < MAX_ORDER:
             error_p = error_const[order + 1] * D[order + 2]
             error_p[self.index_algebraic_vars] = 0
+            # error_p[self.index_algebraic_vars] *= h
             error_p_norm = norm(error_p / scale)
         else:
             error_p_norm = np.inf
@@ -493,6 +503,8 @@ class BDF(OdeSolver):
 
         delta_order = np.argmax(factors) - 1
         order += delta_order
+        # # TODO: Do not fall back to first order again
+        # order = max(2, order)
         self.order = order
 
         factor = min(MAX_FACTOR, safety * np.max(factors))

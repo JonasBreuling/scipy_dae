@@ -42,7 +42,8 @@ def make_pendulum(m, g, l, index=3):
         return z_dot
     
     mass_matrix = np.eye(5)
-    mass_matrix[-1, -1] = 0
+    if index > 0:
+        mass_matrix[-1, -1] = 0
     
     def rhs(t, y_dot):
         """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
@@ -59,8 +60,8 @@ def make_pendulum(m, g, l, index=3):
             case 2:
                 vy_dot[4] = 2 * x * x_dot + 2 * y * y_dot
             case 1:
-                vy_dot[4] = la * (x ** 2 + y ** 2) / m  \
-                            + g * y - (x_dot ** 2 + y_dot ** 2)
+                # TODO: This seems to be broken
+                vy_dot[4] = la * (x ** 2 + y ** 2) / m  + g * y - (x_dot ** 2 + y_dot ** 2)
 
         return vy_dot
     
@@ -75,7 +76,7 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 1e2
+    t1 = 5e1
     t_span = (t0, t1)
 
     # initial conditions
@@ -85,8 +86,8 @@ if __name__ == "__main__":
     z0 = y0
 
     # solver options
-    atol = 1e-6
-    rtol = 1e-6
+    atol = 1e-8
+    rtol = 1e-8
 
     # # reference solution
     # mass_matrix, rhs = make_pendulum(DAE=False)
@@ -99,6 +100,12 @@ if __name__ == "__main__":
     sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
     t = sol.t
     z = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
 
     # y = z[:5]
     # y_dot = z[5:]
