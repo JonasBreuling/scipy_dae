@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-from dae.bdf import BDF
+from dae import BDF, Radau
 
 def make_pendulum(m, g, l, index=3):
     assert index in [1, 2, 3]
@@ -45,11 +44,11 @@ def make_pendulum(m, g, l, index=3):
     if index > 0:
         mass_matrix[-1, -1] = 0
     
-    def rhs(t, y_dot):
+    def rhs(t, vy):
         """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
-        x, y, x_dot, y_dot, la = y_dot
+        x, y, x_dot, y_dot, la = vy
 
-        vy_dot = np.zeros(5, dtype=y_dot.dtype)
+        vy_dot = np.zeros(5, dtype=vy.dtype)
         vy_dot[0] = x_dot
         vy_dot[1] = y_dot
         vy_dot[2] = -2 * x * la / m
@@ -60,8 +59,9 @@ def make_pendulum(m, g, l, index=3):
             case 2:
                 vy_dot[4] = 2 * x * x_dot + 2 * y * y_dot
             case 1:
-                # TODO: This seems to be broken
-                vy_dot[4] = la * (x ** 2 + y ** 2) / m  + g * y - (x_dot ** 2 + y_dot ** 2)
+                vy_dot[4] = 2 * la * (x ** 2 + y ** 2) / m  + g * y - (x_dot ** 2 + y_dot ** 2)
+            case default:
+                raise NotImplementedError
 
         return vy_dot
     
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     m = 1
     l = 1
     g = 10
-    index = 2
+    index = 3
 
     # time span
     t0 = 0
@@ -86,8 +86,8 @@ if __name__ == "__main__":
     z0 = y0
 
     # solver options
-    atol = 1e-8
-    rtol = 1e-8
+    atol = 1e-5
+    rtol = 1e-5
 
     # # reference solution
     # mass_matrix, rhs = make_pendulum(DAE=False)
@@ -97,7 +97,8 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
-    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
+    # sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
+    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix)
     t = sol.t
     z = sol.y
     success = sol.success

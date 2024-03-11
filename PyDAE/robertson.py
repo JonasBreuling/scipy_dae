@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-from dae.bdf import BDF
+from dae import BDF, Radau
 
 def make_robertson(DAE=True):
     if DAE == True:
@@ -45,8 +45,8 @@ if __name__ == "__main__":
     y0 = np.array([1, 0, 0], dtype=float)
 
     # solver options
-    atol = 1e-8
-    rtol = 1e-8
+    atol = 5e-8
+    rtol = 1e-12
 
     # reference solution
     mass_matrix, rhs = make_robertson(DAE=False)
@@ -56,9 +56,16 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_robertson(DAE=DAE)
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix)
     t = sol.t
     y = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
 
     # visualization
     fig, ax = plt.subplots()

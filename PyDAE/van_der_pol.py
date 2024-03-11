@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-from dae.bdf import BDF
+from dae import BDF, Radau
 
 def rhs(t, y, mu=1e3):
     """RHS of stiff van der Pol equation, see mathworks.
@@ -39,6 +39,7 @@ if __name__ == "__main__":
 
     # dae solution
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF)
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau)
     t = sol.t
     y = sol.y
 
