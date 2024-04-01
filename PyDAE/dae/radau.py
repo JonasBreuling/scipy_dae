@@ -124,15 +124,13 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
 
-        if (rate is not None and (rate >= 1 or
-                rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
             break
 
         W += dW
         Z = T.dot(W)
 
-        if (dW_norm == 0 or
-                rate is not None and rate / (1 - rate) * dW_norm < tol):
+        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
             break
 
@@ -294,7 +292,8 @@ class Radau(OdeSolver):
     """
     def __init__(self, fun, t0, y0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
-                 vectorized=False, first_step=None, mass_matrix=None, **extraneous):
+                 vectorized=False, first_step=None, mass_matrix=None, 
+                 var_index=None, **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, t_bound, vectorized)
         self.y_old = None
@@ -345,6 +344,9 @@ class Radau(OdeSolver):
 
         self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = \
                           self._validate_mass_matrix(mass_matrix)
+        # TODO: Validate this
+        self.var_index = var_index
+        self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
 
         self.current_jac = True
         self.LU_real = None
@@ -481,6 +483,8 @@ class Radau(OdeSolver):
                 Z0 = self.sol(t + h * C).T - y
 
             scale = atol + np.abs(y) * rtol
+            # TODO: Is this newton scaling good
+            scale /= h**self.var_exp          
 
             converged = False
             while not converged:
@@ -511,36 +515,35 @@ class Radau(OdeSolver):
             ZE = Z.T.dot(E) / h
             error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
+            scale /= h**self.var_exp
             # see [1], chapter IV.8, page 127
             error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+            # error *= h**self.var_exp
             if self.index_algebraic_vars is not None:
                 # correct for the overestimation of the error on
                 # algebraic variables, ideally multiply their errors by
                 # (h ** index)
-                error[self.index_algebraic_vars] = 0.
-                # error[self.index_algebraic_vars] *= h
+                # error[self.index_algebraic_vars] = 0.
+                # # error[self.index_algebraic_vars] *= h
                 error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
                 # we exclude the algebraic components, otherwise
                 # they artificially lower the error norm
             else:
                 error_norm = norm(error / scale)
 
-            safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER
-                                                       + n_iter)
+            safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
             if rejected and error_norm > 1: # try with stabilised error estimate
-                error = self.solve_lu(LU_real, self.fun(t, y + error)
-                                      + self.mass_matrix.dot(ZE))
+                error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
                 if self.index_algebraic_vars is not None:
                     # ideally error*(h**index)
-                    error[self.index_algebraic_vars] = 0.
+                    # error[self.index_algebraic_vars] = 0.
                     error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
                     # again, we exclude the algebraic components
                 else:
                     error_norm = norm(error / scale)
             if error_norm > 1:
-                factor = predict_factor(h_abs, h_abs_old,
-                                        error_norm, error_norm_old)
+                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
                 h_abs *= max(MIN_FACTOR, safety * factor)
 
                 LU_real = None
@@ -550,6 +553,7 @@ class Radau(OdeSolver):
                 step_accepted = True
 
         # Step is converged and accepted
+        # TODO: Make this rate a user defined argument
         recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
 
         factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)

@@ -40,30 +40,30 @@ def make_pendulum(m, g, l, index=3):
         z_dot[5:] = F(t, y, y_dot)
         return z_dot
     
-    mass_matrix = np.eye(5)
-    if index > 0:
-        mass_matrix[-1, -1] = 0
+    # mass_matrix = np.eye(5)
+    # if index > 0:
+    #     mass_matrix[-1, -1] = 0
     
-    def rhs(t, vy):
-        """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
-        x, y, x_dot, y_dot, la = vy
+    # def rhs(t, vy):
+    #     """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
+    #     x, y, x_dot, y_dot, la = vy
 
-        vy_dot = np.zeros(5, dtype=vy.dtype)
-        vy_dot[0] = x_dot
-        vy_dot[1] = y_dot
-        vy_dot[2] = -2 * x * la / m
-        vy_dot[3] = -2 * y * la / m - g
-        match index:
-            case 3:
-                vy_dot[4] = x * x + y * y - l * l
-            case 2:
-                vy_dot[4] = 2 * x * x_dot + 2 * y * y_dot
-            case 1:
-                vy_dot[4] = 2 * la * (x ** 2 + y ** 2) / m  + g * y - (x_dot ** 2 + y_dot ** 2)
-            case default:
-                raise NotImplementedError
+    #     vy_dot = np.zeros(5, dtype=vy.dtype)
+    #     vy_dot[0] = x_dot
+    #     vy_dot[1] = y_dot
+    #     vy_dot[2] = -2 * x * la / m
+    #     vy_dot[3] = -2 * y * la / m - g
+    #     match index:
+    #         case 3:
+    #             vy_dot[4] = x * x + y * y - l * l
+    #         case 2:
+    #             vy_dot[4] = 2 * x * x_dot + 2 * y * y_dot
+    #         case 1:
+    #             vy_dot[4] = 2 * la * (x ** 2 + y ** 2) / m  + g * y - (x_dot ** 2 + y_dot ** 2)
+    #         case default:
+    #             raise NotImplementedError
 
-        return vy_dot
+    #     return vy_dot
     
     return mass_matrix, rhs
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     m = 1
     l = 1
     g = 10
-    index = 3
+    index = 2
 
     # time span
     t0 = 0
@@ -81,11 +81,16 @@ if __name__ == "__main__":
 
     # initial conditions
     y0 = np.array([l, 0, 0, 0, 0], dtype=float)
-    # y_dot0 = np.array([0, 0, 0, -g, 0], dtype=float)
-    # z0 = np.concatenate((y0, y_dot0))
-    z0 = y0
+    # z0 = y0
+    y_dot0 = np.array([0, 0, 0, -g, 0], dtype=float)
+    z0 = np.concatenate((y0, y_dot0))
+    # var_index = np.concatenate((np.zeros(5, dtype=int), index * np.ones(5, dtype=int)), dtype=int)
+    var_index = np.array([0, 0, 0, 0, 0, 2, 2, 2, 2, 2], dtype=int)
+    # var_index = np.array([0, 0, 3, 3, 3, 3, 3, 3, 3, 3], dtype=int)
 
     # solver options
+    # atol = 1e-6
+    # rtol = 1e-6
     atol = 1e-5
     rtol = 1e-5
 
@@ -97,8 +102,8 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
-    # sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
-    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix)
+    # sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix, var_index=var_index)
+    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t
     z = sol.y
     success = sol.success
