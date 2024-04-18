@@ -248,7 +248,7 @@ class BDF(OdeSolver):
         self.I = I
         self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = self._validate_mass_matrix(mass_matrix)
         # TODO: Check this for correctness
-        self.var_index = var_index
+        self.var_index = np.asarray(var_index)
         # self.var_index = np.array([0, 0, 1, 1, 3, 3, 3, 3, 3, 3], dtype=int)
         # self.var_index = np.array([0, 0, 0, 0, 0, 3, 3, 3, 3, 3], dtype=int)
         # self.var_index = np.array([0, 0, 0, 0, 3], dtype=int) # works for index 2

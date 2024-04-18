@@ -38,8 +38,8 @@ if __name__ == "__main__":
     y_scipy = sol.y
 
     # dae solution
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF)
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau)
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, var_index=[0, 0])
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau, var_index=[0, 0])
     t = sol.t
     y = sol.y
 

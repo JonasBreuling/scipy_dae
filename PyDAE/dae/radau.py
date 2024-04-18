@@ -345,7 +345,7 @@ class Radau(OdeSolver):
         self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = \
                           self._validate_mass_matrix(mass_matrix)
         # TODO: Validate this
-        self.var_index = var_index
+        self.var_index = np.asarray(var_index)
         self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
 
         self.current_jac = True

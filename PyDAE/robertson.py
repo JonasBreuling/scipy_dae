@@ -8,8 +8,10 @@ def make_robertson(DAE=True):
     if DAE == True:
         mass_matrix = np.eye(3)
         mass_matrix[-1, -1] = 0
+        var_index = [0, 0, 1]
     else:
         mass_matrix = np.eye(3)
+        var_index = [0, 0, 0]
 
     def rhs(t, y):
         """Robertson problem of semi-stable chemical reaction, see mathworks and Shampine2005.
@@ -31,7 +33,7 @@ def make_robertson(DAE=True):
 
         return y_dot
     
-    return mass_matrix, rhs
+    return mass_matrix, rhs, var_index
 
 if __name__ == "__main__":
     DAE = True
@@ -49,15 +51,15 @@ if __name__ == "__main__":
     rtol = 1e-12
 
     # reference solution
-    mass_matrix, rhs = make_robertson(DAE=False)
+    mass_matrix, rhs, var_index = make_robertson(DAE=False)
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
     t_scipy = sol.t
     y_scipy = sol.y
 
     # dae solution
-    mass_matrix, rhs = make_robertson(DAE=DAE)
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix)
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix)
+    mass_matrix, rhs, var_index = make_robertson(DAE=DAE)
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix, var_index=var_index)
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t
     y = sol.y
     success = sol.success
