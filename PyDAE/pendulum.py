@@ -81,12 +81,15 @@ if __name__ == "__main__":
 
     # initial conditions
     y0 = np.array([l, 0, 0, 0, 0], dtype=float)
+    # var_index = np.array([0, 0, 0, 0, index], dtype=int)
     # z0 = y0
     y_dot0 = np.array([0, 0, 0, -g, 0], dtype=float)
     z0 = np.concatenate((y0, y_dot0))
     # var_index = np.concatenate((np.zeros(5, dtype=int), index * np.ones(5, dtype=int)), dtype=int)
-    var_index = np.array([0, 0, 0, 0, 0, 2, 2, 2, 2, 2], dtype=int)
-    # var_index = np.array([0, 0, 3, 3, 3, 3, 3, 3, 3, 3], dtype=int)
+    # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+    # np.array([0, 0, 3, 3, 3, 0, 0, 3, 3, 3], dtype=int)
+    var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+
 
     # solver options
     # atol = 1e-6

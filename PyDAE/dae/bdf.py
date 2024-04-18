@@ -57,15 +57,13 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, mass_matrix, LU, solve_lu, s
         else:
             rate = dy_norm / dy_norm_old
 
-        if (rate is not None and (rate >= 1 or
-                rate ** (NEWTON_MAXITER - k) / (1 - rate) * dy_norm > tol)):
+        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dy_norm > tol)):
             break
 
         y += dy
         d += dy
 
-        if (dy_norm == 0 or
-                rate is not None and rate / (1 - rate) * dy_norm < tol):
+        if (dy_norm == 0 or rate is not None and rate / (1 - rate) * dy_norm < tol):
             converged = True
             break
 
@@ -410,6 +408,8 @@ class BDF(OdeSolver):
             # y_predict = self.mass_matrix @ np.sum(D[:order + 1], axis=0)
 
             scale = atol + rtol * np.abs(y_predict)
+            # TODO: Is this newton scaling good (yes!)
+            scale /= h**self.var_exp
             # psi = np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
             psi = self.mass_matrix @ np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
 

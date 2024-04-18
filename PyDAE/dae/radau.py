@@ -483,8 +483,8 @@ class Radau(OdeSolver):
                 Z0 = self.sol(t + h * C).T - y
 
             scale = atol + np.abs(y) * rtol
-            # TODO: Is this newton scaling good
-            scale /= h**self.var_exp          
+            # TODO: Is this newton scaling good (yes!)
+            scale /= h**self.var_exp
 
             converged = False
             while not converged:
