@@ -58,8 +58,9 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs, var_index = make_robertson(DAE=DAE)
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix, var_index=var_index)
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix, var_index=var_index)
+    method = BDF
+    method = Radau
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t
     y = sol.y
     success = sol.success
@@ -72,12 +73,12 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots()
 
-    ax.plot(t, y[0], "-ok", label="y1 BDF", mfc="none")
-    ax.plot(t, y[1] * 1e4, "-ob", label="y2 BDF", mfc="none")
-    ax.plot(t, y[2], "-og", label="y3 BDF", mfc="none")
-    ax.plot(t_scipy, y_scipy[0], "xr", label="y1 scipy", markersize=7)
-    ax.plot(t_scipy, y_scipy[1] * 1e4, "xy", label="y2 scipy", markersize=7)
-    ax.plot(t_scipy, y_scipy[2], "xm", label="y3 scipy", markersize=7)
+    ax.plot(t, y[0], "-ok", label="y1 DAE" + f" ({method.__name__})", mfc="none")
+    ax.plot(t, y[1] * 1e4, "-ob", label="y2 DAE" + f" ({method.__name__})", mfc="none")
+    ax.plot(t, y[2], "-og", label="y3 DAE" + f" ({method.__name__})", mfc="none")
+    ax.plot(t_scipy, y_scipy[0], "xr", label="y1 scipy Radau", markersize=7)
+    ax.plot(t_scipy, y_scipy[1] * 1e4, "xy", label="y2 scipy Radau", markersize=7)
+    ax.plot(t_scipy, y_scipy[2], "xm", label="y3 scipy Radau", markersize=7)
     ax.set_xscale("log")
     ax.legend()
     ax.grid()

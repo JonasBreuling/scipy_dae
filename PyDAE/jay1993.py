@@ -51,26 +51,38 @@ def generate_Jay1993():
 
         plt.show()
 
+    def errors(t, y):
+        dt = t[1] - t[0]
+        error_y1 = np.linalg.norm((y[0] - np.exp(t)) * dt)
+        error_y2 = np.linalg.norm((y[1] - np.exp(-2 * t)) * dt)
+        error_y3 = np.linalg.norm((y[2] - np.exp(2 * t))  * dt)
+        print(f"error: [{error_y1}, {error_y2}, {error_y3}]")
+        return error_y1, error_y2, error_y3
+
     # construct singular mass matrix
     mass_matrix = eye(3, format="csr")
     mass_matrix[-1, -1] = 0
 
     # DAE index
-    var_index = [0, 2, 2]
+    # var_index = [0, 2, 2]
+    var_index = [0, 0, 2]
 
     # initial conditions
     y0 = np.ones(3, dtype=float)
 
     # tolerances and t_span
-    rtol = atol = 1.0e-6
-    t_span = (0, 20)
+    rtol = atol = 1.0e-10
+    # t_span = (0, 20)
+    t_span = (0, 10)
 
-    return y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot
+    return y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors
 
 
 if __name__ == "__main__":
-    y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot = generate_Jay1993()
+    y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors = generate_Jay1993()
 
+    method = BDF
+    # method = Radau
     sol = solve_ivp(
         fun=fun,
         t_span=t_span,
@@ -78,8 +90,7 @@ if __name__ == "__main__":
         rtol=rtol,
         atol=atol,
         jac=jac,
-        method=BDF,
-        # method=Radau,
+        method=method,
         mass_matrix=mass_matrix,
         var_index=var_index,
     )
@@ -91,4 +102,5 @@ if __name__ == "__main__":
     success = sol.success
     assert success
 
+    errors(sol.t, sol.y)
     plot(sol.t, sol.y)
