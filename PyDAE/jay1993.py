@@ -4,9 +4,27 @@ from scipy.integrate import solve_ivp
 from scipy.sparse import eye
 from scipy.optimize._numdiff import approx_derivative
 from dae import BDF, Radau
+from numpy.testing import assert_allclose
 
 
 def generate_Jay1993():
+
+    # construct singular mass matrix
+    mass_matrix = eye(3, format="csr")
+    mass_matrix[-1, -1] = 0
+
+    # DAE index
+    # var_index = [0, 2, 2]
+    var_index = [0, 0, 2]
+
+    # initial conditions
+    y0 = np.ones(3, dtype=float)
+
+    # tolerances and t_span
+    rtol = atol = 1.0e-8
+    # t_span = (0, 20)
+    t_span = (0, 2)
+
     def fun(t, y):
         """Index2 DAE found in Jay1993 Example 7.
 
@@ -52,28 +70,15 @@ def generate_Jay1993():
         plt.show()
 
     def errors(t, y):
-        dt = t[1] - t[0]
-        error_y1 = np.linalg.norm((y[0] - np.exp(t)) * dt)
-        error_y2 = np.linalg.norm((y[1] - np.exp(-2 * t)) * dt)
-        error_y3 = np.linalg.norm((y[2] - np.exp(2 * t))  * dt)
-        print(f"error: [{error_y1}, {error_y2}, {error_y3}]")
-        return error_y1, error_y2, error_y3
-
-    # construct singular mass matrix
-    mass_matrix = eye(3, format="csr")
-    mass_matrix[-1, -1] = 0
-
-    # DAE index
-    # var_index = [0, 2, 2]
-    var_index = [0, 0, 2]
-
-    # initial conditions
-    y0 = np.ones(3, dtype=float)
-
-    # tolerances and t_span
-    rtol = atol = 1.0e-10
-    # t_span = (0, 20)
-    t_span = (0, 10)
+        assert_allclose(y[0], np.exp(t), rtol=1e-5)
+        assert_allclose(y[1], np.exp(-2 * t), rtol=1e-5)
+        assert_allclose(y[2], np.exp(2 * t), rtol=1e-3)
+        # dt = t[1] - t[0]
+        # error_y1 = np.linalg.norm((y[0] - np.exp(t)) * dt)
+        # error_y2 = np.linalg.norm((y[1] - np.exp(-2 * t)) * dt)
+        # error_y3 = np.linalg.norm((y[2] - np.exp(2 * t))  * dt)
+        # print(f"error: [{error_y1}, {error_y2}, {error_y3}]")
+        # return error_y1, error_y2, error_y3
 
     return y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors
 

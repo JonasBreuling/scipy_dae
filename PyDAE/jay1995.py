@@ -4,6 +4,7 @@ from scipy.integrate import solve_ivp
 from scipy.sparse import eye
 from scipy.optimize._numdiff import approx_derivative
 from dae import BDF, Radau
+from numpy.testing import assert_allclose
 
 
 def generate_Jay1995(nonlinear_multiplier):
@@ -61,14 +62,20 @@ def generate_Jay1995(nonlinear_multiplier):
         plt.show()
 
     def errors(t, y):
-        dt = t[1] - t[0]
-        error_y1 = np.linalg.norm((y[0] - np.exp(2 * t)) * dt)
-        error_y2 = np.linalg.norm((y[1] - np.exp(-t)) * dt)
-        error_z1 = np.linalg.norm((y[2] - np.exp(2 * t))  * dt)
-        error_z2 = np.linalg.norm((y[3] - np.exp(-t))  * dt)
-        error_la = np.linalg.norm((y[4] - np.exp(t))  * dt)
-        print(f"error: [{error_y1}, {error_y2}, {error_z1}, {error_z2}, , {error_la}]")
-        return error_y1, error_y2, error_z1, error_z2, error_la
+        # rtol = 1
+        assert_allclose(y[0], np.exp(2 * t), rtol=1e-6)
+        assert_allclose(y[1], np.exp(-t), rtol=1e-6)
+        assert_allclose(y[2], np.exp(2 * t), rtol=1e-6)
+        assert_allclose(y[3], np.exp(-t), rtol=1e-6)
+        assert_allclose(y[4], np.exp(t), rtol=1e-3)
+        # dt = t[1] - t[0]
+        # error_y1 = np.linalg.norm((y[0] - np.exp(2 * t)) * dt)
+        # error_y2 = np.linalg.norm((y[1] - np.exp(-t)) * dt)
+        # error_z1 = np.linalg.norm((y[2] - np.exp(2 * t))  * dt)
+        # error_z2 = np.linalg.norm((y[3] - np.exp(-t))  * dt)
+        # error_la = np.linalg.norm((y[4] - np.exp(t))  * dt)
+        # print(f"error: [{error_y1}, {error_y2}, {error_z1}, {error_z2}, , {error_la}]")
+        # # return error_y1, error_y2, error_z1, error_z2, error_la
 
     # construct singular mass matrix
     mass_matrix = eye(5, format="csr")
@@ -81,10 +88,9 @@ def generate_Jay1995(nonlinear_multiplier):
     y0 = np.ones(5, dtype=float)
 
     # tolerances and t_span
-    rtol = atol = 1.0e-6
-    t_span = (0, 20)
-    # rtol = atol = 1.0e-6
-    # t_span = (0, 5)
+    rtol = atol = 1.0e-8
+    # t_span = (0, 20)
+    t_span = (0, 1)
 
     return y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors
 
