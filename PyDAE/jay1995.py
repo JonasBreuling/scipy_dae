@@ -60,6 +60,16 @@ def generate_Jay1995(nonlinear_multiplier):
 
         plt.show()
 
+    def errors(t, y):
+        dt = t[1] - t[0]
+        error_y1 = np.linalg.norm((y[0] - np.exp(2 * t)) * dt)
+        error_y2 = np.linalg.norm((y[1] - np.exp(-t)) * dt)
+        error_z1 = np.linalg.norm((y[2] - np.exp(2 * t))  * dt)
+        error_z2 = np.linalg.norm((y[3] - np.exp(-t))  * dt)
+        error_la = np.linalg.norm((y[4] - np.exp(t))  * dt)
+        print(f"error: [{error_y1}, {error_y2}, {error_z1}, {error_z2}, , {error_la}]")
+        return error_y1, error_y2, error_z1, error_z2, error_la
+
     # construct singular mass matrix
     mass_matrix = eye(5, format="csr")
     mass_matrix[-1, -1] = 0
@@ -73,16 +83,21 @@ def generate_Jay1995(nonlinear_multiplier):
     # tolerances and t_span
     rtol = atol = 1.0e-6
     t_span = (0, 20)
+    # rtol = atol = 1.0e-6
+    # t_span = (0, 5)
 
-    return y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot
+    return y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors
 
 
 if __name__ == "__main__":
-    y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot = generate_Jay1995(
-        nonlinear_multiplier=False,
-        # nonlinear_multiplier=True,
+    nonlinear_multiplier = False
+    # nonlinear_multiplier = True
+    y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors = generate_Jay1995(
+        nonlinear_multiplier=nonlinear_multiplier,
     )
 
+    # method = BDF
+    method = Radau
     sol = solve_ivp(
         fun=fun,
         t_span=t_span,
@@ -90,8 +105,7 @@ if __name__ == "__main__":
         rtol=rtol,
         atol=atol,
         jac=jac,
-        # method=BDF,
-        method=Radau,
+        method=method,
         mass_matrix=mass_matrix,
         var_index=var_index,
     )
@@ -103,4 +117,5 @@ if __name__ == "__main__":
     success = sol.success
     assert success
 
+    errors(sol.t, sol.y)
     plot(sol.t, sol.y)

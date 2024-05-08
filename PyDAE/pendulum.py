@@ -72,7 +72,8 @@ if __name__ == "__main__":
     m = 1
     l = 1
     g = 10
-    index = 2
+    # index = 2
+    index = 3
 
     # time span
     t0 = 0
@@ -88,7 +89,8 @@ if __name__ == "__main__":
     # var_index = np.concatenate((np.zeros(5, dtype=int), index * np.ones(5, dtype=int)), dtype=int)
     # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
     # np.array([0, 0, 3, 3, 3, 0, 0, 3, 3, 3], dtype=int)
-    var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+    # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+    var_index = np.concatenate((np.zeros(7, dtype=int), (index - 1) * np.ones(2, dtype=int), index * np.ones(1, dtype=int)), dtype=int)
 
 
     # solver options
@@ -105,8 +107,9 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
-    # sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=BDF, mass_matrix=mass_matrix, var_index=var_index)
-    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=Radau, mass_matrix=mass_matrix, var_index=var_index)
+    method = Radau
+    # method = BDF
+    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t
     z = sol.y
     success = sol.success
@@ -142,7 +145,7 @@ if __name__ == "__main__":
 
     # ax[3].plot(t, y[4], "-k", label="la dt")
     # ax[3].plot(t, y_dot[4], "-k", label="la")
-    ax[3].plot(t, y[4], "-k", label="la")
+    ax[3].plot(t, y[9], "-k", label="la")
     ax[3].legend()
     ax[3].grid()
 
