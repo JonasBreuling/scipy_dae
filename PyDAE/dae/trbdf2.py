@@ -10,9 +10,9 @@ from scipy.integrate._ivp.common import (
 )
 
 
-NEWTON_MAXITER = 4
-MIN_FACTOR = 0.2
-MAX_FACTOR = 10
+NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
+MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
+MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 # Parameters of the method
 # Butcher Tableau Coefficients of the method
@@ -31,7 +31,7 @@ pd1 = 2.5 + 2 * np.sqrt(2)
 pd2 = -(6 + 4.5 * np.sqrt(2))
 
 
-def solve_trbdf2_system(fun, z0, scale, tol, LU, solve_lu):
+def solve_trbdf2_system(fun, z0, scale, tol, LU, solve_lu, mass_matrix):
     z = z0.copy() # why is this mandatory?
     dz_norm_old = None
     converged = False
@@ -62,6 +62,7 @@ def solve_trbdf2_system(fun, z0, scale, tol, LU, solve_lu):
     return converged, k + 1, z, rate
 
 
+# TODO: Which exponent should we use?
 def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     """Predict by which factor to increase/decrease the step size.
 
@@ -94,10 +95,10 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 3)
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 2)
 
     with np.errstate(divide='ignore'):
-        factor = min(1, multiplier) * error_norm ** (-1 / 3)
+        factor = min(1, multiplier) * error_norm ** (-1 / 2)
 
     return factor
 
@@ -180,6 +181,10 @@ class TRBDF2(OdeSolver):
         is assumed to be dense.
     vectorized : bool, optional
         Whether `fun` is implemented in a vectorized fashion. Default is False.
+    mass_matrix : {None, array_like, sparse_matrix}, optional
+        Defined the constant mass matrix of the system, with shape (n,n).
+        It may be singular, thus defining a problem of the differential-
+        algebraic type (DAE), see [1]. The default value is None.
 
     Attributes
     ----------
@@ -220,7 +225,8 @@ class TRBDF2(OdeSolver):
 
     def __init__(self, fun, t0, y0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
-                 vectorized=False, first_step=None, **extraneous):
+                 vectorized=False, first_step=None, mass_matrix=None, 
+                 var_index=None, **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, t_bound, vectorized)
         self.y_old = None
@@ -265,12 +271,42 @@ class TRBDF2(OdeSolver):
         self.lu = lu
         self.solve_lu = solve_lu
         self.I = I
+        
+        self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = \
+                          self._validate_mass_matrix(mass_matrix)
+        # TODO: Validate this
+        self.var_index = np.asarray(var_index)
+        self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
 
         self.current_jac = True
         self.LU = None
 
         # variables for implementing first-same-as-last
         self.z_scaled = self.f
+    
+    def _validate_mass_matrix(self, mass_matrix):
+        if mass_matrix is None:
+            M = self.I
+            # index_algebraic_vars = None
+            index_algebraic_vars = np.array([], dtype=int)
+            nvars_algebraic = 0
+        elif callable(mass_matrix):
+            raise ValueError("`mass_matrix` should be a constant matrix, but is"
+                             " callable")
+        else:
+            if issparse(mass_matrix):
+                M = csc_matrix(mass_matrix)
+                index_algebraic_vars = np.where(np.all(M.toarray()==0, axis=1))[0]
+            else:
+                M = np.asarray(mass_matrix, dtype=float)
+                index_algebraic_vars = np.where(np.all(M==0, axis=1))[0]
+            if M.shape != (self.n, self.n):
+                raise ValueError("`mass_matrix` is expected to have shape {}, "
+                                 "but actually has {}."
+                                 .format((self.n, self.n), M.shape))
+            nvars_algebraic = index_algebraic_vars.size
+
+        return M, index_algebraic_vars, nvars_algebraic
 
     def _validate_jac(self, jac, sparsity):
         t0 = self.t
@@ -377,28 +413,31 @@ class TRBDF2(OdeSolver):
 
             # we iterate on the variable z = hf(t, y), as explained in [1]
             z0 = h_abs * self.z_scaled
+            # z0 = h_abs * self.fun(t, y) # TODO: This is inefficient!
 
             # TODO: scaling, see Hairer ???
-            scale = atol + rtol * np.abs(z0)
+            scale_newton = atol + rtol * np.abs(z0)
             # # TODO: Is this newton scaling good (yes!)
-            # scale /= h**self.var_exp
+            # scale_newton /= h**self.var_exp
 
             converged_tr = False
             # TR stage
             while not converged_tr:
                 if LU is None:
-                    LU = self.lu(self.I - d * h_abs * J)
-                    # TODO: Add mass matrix
-                    # LU = self.lu(self.mass_matrix - d * h_abs * J)
+                    # LU = self.lu(self.I - d * h_abs * J)
+                    LU = self.lu(self.mass_matrix - d * h_abs * J)
 
                 t_gm = t + h * gm
-                fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - z
-                converged_tr, n_iter_tr, z_tr, rate_tr = solve_trbdf2_system(fun_TR, z0, scale, self.newton_tol, LU, self.solve_lu)
+                # TODO: y + d * z0 can be computed only once here and be passed as some y0 to the solve_trbdf2_system function.
+                # fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - z
+                fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - np.dot(self.mass_matrix, z)
+                converged_tr, n_iter_tr, z_tr, rate_tr = solve_trbdf2_system(
+                    fun_TR, z0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
+                )
 
                 if not converged_tr:
                     if current_jac:
                         break
-
                     J = self.jac(t, y, f)
                     current_jac = True
                     LU = None
@@ -413,16 +452,23 @@ class TRBDF2(OdeSolver):
             # BDF stage
             converged_bdf = False
             while not converged_bdf:
-                z_bdf0 = pd0 * z0 + pd1 * z_tr + pd2 * (y_tr - y)
-                f_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - z
+                if LU is None:
+                    # LU = self.lu(self.I - d * h_abs * J)
+                    LU = self.lu(self.mass_matrix - d * h_abs * J)
 
-                converged_bdf, n_iter_bdf, z_bdf, rate_bdf = solve_trbdf2_system(f_bdf, z_bdf0, scale, self.newton_tol, LU, self.solve_lu)
-                y_new = y + w * z0 + w * z_tr + d * z_bdf
+                # TODO: Find reference for this predictor. Is there a predictor for the TR step as well?
+                z_bdf0 = pd0 * z0 + pd1 * z_tr + pd2 * (y_tr - y)
+                # fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - z
+                fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - np.dot(self.mass_matrix, z)
+
+                converged_bdf, n_iter_bdf, z_bdf, rate_bdf = solve_trbdf2_system(
+                    fun_bdf, z_bdf0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
+                )
 
                 if not converged_bdf:
                     if current_jac:
                         break
-                    J = self.jac(t_gm, y_tr)
+                    J = self.jac(t_gm, y_tr, f)
                     LU = None
                     current_jac = True
 
@@ -431,60 +477,90 @@ class TRBDF2(OdeSolver):
                 LU = None
                 continue
 
-            n_iter = max(n_iter_tr, n_iter_bdf)
+            y_new = y + w * z0 + w * z_tr + d * z_bdf
 
+            n_iter = max(n_iter_tr, n_iter_bdf)
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-            scale = atol + rtol * np.abs(y_new)
+            # scale = atol + rtol * np.abs(y_new)
+            scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
+            # TODO:
+            # scale /= h**self.var_exp
             # error = 0.5 * (y + e0 * z0 + e1 * z_tr + e2 * z_bdf - y_new)
             error = ((e0 - w) * z0 + (e1 - w) * z_tr + (e2 - d) * z_bdf)
-            # TODO: Only use this when no convergence is obtained
-            stabilised_error = error
-            # stabilised_error = self.solve_lu(LU, error)
+
+            # always use stabilized error, see Hosea ???
+            stabilised_error = self.solve_lu(LU, error)
+            # stabilised_error = self.solve_lu(LU, self.mass_matrix.dot(error))
+            # stabilised_error = self.solve_lu(LU, f + self.mass_matrix.dot(error))
+            # stabilised_error = error
+            # # see [1], chapter IV.8, page 127
+            # stabilised_error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
             error_norm = norm(stabilised_error / scale)
 
+            if rejected and error_norm > 1: # try with stabilised error estimate
+                print("second stabilized error")
+                stabilised_error = self.solve_lu(LU, stabilised_error)
+                # stabilised_error = self.solve_lu(LU, stabilised_error + self.mass_matrix.dot(z_bdf))
+                # stabilised_error = error
+                error_norm = norm(stabilised_error / scale)
+
             if error_norm > 1:
-                # factor = max(MIN_FACTOR,
-                #             #  safety * error_norm ** (-1 / 3))
-                #              safety * error_norm ** (-1 / 2))
-                # h_abs *= factor
                 factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
                 h_abs *= max(MIN_FACTOR, safety * factor)
+
+                LU = None
+                rejected = True
             else:
-                if error_norm == 0:
-                    factor = MAX_FACTOR
-                else:
-                    # factor = min(MAX_FACTOR,
-                    #             #  safety * error_norm ** (-1 / 3))
-                    #              safety * error_norm ** (-1 / 2))
-                    factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
-                    factor = min(MAX_FACTOR, safety * factor)
-                h_abs_old = h_abs
-                h_abs *= factor
                 step_accepted = True
-                error_norm_old = error_norm
+
+        # Step is converged and accepted
+        rate = min(rate_tr, rate_bdf)
+        recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
+
+        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+        factor = min(MAX_FACTOR, safety * factor)
+
+        if not recompute_jac and factor < 1.2:
+            factor = 1
+        else:
+            LU = None
+
+        f_new = self.fun(t_new, y_new)
+        if recompute_jac:
+            J = jac(t_new, y_new, f_new)
+            current_jac = True
+        elif jac is not None:
+            current_jac = False
 
         self.h_abs_old = self.h_abs
         self.error_norm_old = error_norm
 
-        self.t_old = self.t
+        self.h_abs = h_abs * factor
+
         self.y_old = y
+
         self.t = t_new
         self.y = y_new
+        self.f = f_new
 
-        self.h_abs = h_abs
-        self.J = J
+        self.z_scaled = z_bdf / self.h_abs_old
+
         self.LU = LU
-        self.z_scaled = z_bdf / h_abs_old
+        self.current_jac = current_jac
+        self.J = J
+
+        self.t_old = t
+        # self.sol = self._compute_dense_output()
 
         # variables for dense output
-        self.h_old = h_abs_old * self.direction
+        self.h_old = self.h_abs_old * self.direction
         self.z0 = z0
         self.z_tr = z_tr
         self.z_bdf = z_bdf
         self.y_tr = y_tr
 
-        return True, None
+        return step_accepted, message
 
     def _dense_output_impl(self):
         return Trbdf2DenseOutput(self.t_old, self.t, self.h_old,

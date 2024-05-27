@@ -48,10 +48,10 @@ if __name__ == "__main__":
     y0 = np.array([1, 0, 0], dtype=float)
 
     # solver options
-    # atol = 5e-8
+    atol = 5e-8
+    rtol = 1e-12
+    # atol = 1e-8
     # rtol = 1e-12
-    atol = 1e-5
-    rtol = 1e-3
 
     # reference solution
     mass_matrix, rhs, var_index = make_robertson(DAE=False)
@@ -64,7 +64,11 @@ if __name__ == "__main__":
     # method = BDF
     # method = Radau
     method = TRBDF2
+    import time
+    start = time.time()
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    end = time.time()
+    print(f"elapsed time: {end - start}")    
     t = sol.t
     y = sol.y
     success = sol.success
@@ -73,6 +77,21 @@ if __name__ == "__main__":
     print(f"success: {success}")
     print(f"status: {status}")
     print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
+    # TRBDF2:
+    # - nfev: 3409
+    # - njev: 17
+    # - nlu: 86
+    # Radau:
+    # - nfev: 1397
+    # - njev: 16
+    # - nlu: 110
+    # BDF:
+    # - nfev: 633
+    # - njev: 6
+    # - nlu: 55
 
     # visualization
     fig, ax = plt.subplots()
