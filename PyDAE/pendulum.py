@@ -77,7 +77,8 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 5e1
+    # t1 = 5e1
+    t1 = 5e0
     t_span = (t0, t1)
 
     # initial conditions
@@ -107,22 +108,28 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
-    method = Radau
-    # method = BDF
-    # method = TRBDF2
-    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
-    t = sol.t
-    z = sol.y
-    success = sol.success
-    status = sol.status
-    message = sol.message
-    print(f"success: {success}")
-    print(f"status: {status}")
-    print(f"message: {message}")
+    # method = Radau
+    # # method = BDF
+    # # method = TRBDF2
+    # sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    # t = sol.t
+    # z = sol.y
+    # success = sol.success
+    # status = sol.status
+    # message = sol.message
+    # print(f"success: {success}")
+    # print(f"status: {status}")
+    # print(f"message: {message}")
 
-    # y = z[:5]
-    # y_dot = z[5:]
-    y = z
+    # # y = z[:5]
+    # # y_dot = z[5:]
+    # y = z
+
+    from dae.euler import euler
+    rtol = 1e-3
+    atol = 1e-6
+    t, y = euler(rhs, z0, t_span, rtol, atol, mass_matrix, var_index)
+    y = y.T
 
     # visualization
     fig, ax = plt.subplots(4, 1)

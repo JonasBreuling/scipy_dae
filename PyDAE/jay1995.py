@@ -103,27 +103,34 @@ if __name__ == "__main__":
         nonlinear_multiplier=nonlinear_multiplier,
     )
 
-    # method = BDF
-    # method = Radau
-    method = TRBDF2
-    sol = solve_ivp(
-        fun=fun,
-        t_span=t_span,
-        y0=y0,
-        rtol=rtol,
-        atol=atol,
-        jac=jac,
-        method=method,
-        mass_matrix=mass_matrix,
-        var_index=var_index,
-    )
-    print(f"sol: {sol}")
+    # # method = BDF
+    # # method = Radau
+    # method = TRBDF2
+    # sol = solve_ivp(
+    #     fun=fun,
+    #     t_span=t_span,
+    #     y0=y0,
+    #     rtol=rtol,
+    #     atol=atol,
+    #     jac=jac,
+    #     method=method,
+    #     mass_matrix=mass_matrix,
+    #     var_index=var_index,
+    # )
+    # print(f"sol: {sol}")
 
-    nfev = sol.nfev
-    njev = sol.njev
-    nlu = sol.nlu
-    success = sol.success
-    assert success
+    # nfev = sol.nfev
+    # njev = sol.njev
+    # nlu = sol.nlu
+    # success = sol.success
+    # assert success
 
-    # errors(sol.t, sol.y)
-    plot(sol.t, sol.y)
+    # # errors(sol.t, sol.y)
+    # plot(sol.t, sol.y)
+
+    from dae.euler import euler
+    rtol = 1e-4
+    atol = 1e-4
+    t, y = euler(fun, y0, t_span, rtol, atol, mass_matrix)
+    y = y.T
+    plot(t, y)

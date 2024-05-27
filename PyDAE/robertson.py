@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 from dae import BDF, Radau, TRBDF2
+from dae.euler import euler
 
 def make_robertson(DAE=True):
     if DAE == True:
@@ -13,7 +14,7 @@ def make_robertson(DAE=True):
         mass_matrix = np.eye(3)
         var_index = [0, 0, 0]
 
-    def rhs(t, y):
+    def rhs(t, y, *args):
         """Robertson problem of semi-stable chemical reaction, see mathworks and Shampine2005.
 
         References:
@@ -36,8 +37,8 @@ def make_robertson(DAE=True):
     return mass_matrix, rhs, var_index
 
 if __name__ == "__main__":
-    # DAE = True
-    DAE = False
+    DAE = True
+    # DAE = False
 
     # time span
     t0 = 0
@@ -50,7 +51,7 @@ if __name__ == "__main__":
     # solver options
     atol = 5e-8
     rtol = 1e-12
-    atol = 1e-5
+    atol = 1e-7
     rtol = 1e-12
 
     # reference solution
@@ -62,24 +63,26 @@ if __name__ == "__main__":
     # dae solution
     mass_matrix, rhs, var_index = make_robertson(DAE=DAE)
     # method = BDF
-    # method = Radau
-    method = TRBDF2
+    method = Radau
+    # method = TRBDF2
     import time
     start = time.time()
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    t, y = euler(rhs, y0, t_span, rtol, atol, mass_matrix)
+    y = y.T
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     end = time.time()
     print(f"elapsed time: {end - start}")    
-    t = sol.t
-    y = sol.y
-    success = sol.success
-    status = sol.status
-    message = sol.message
-    print(f"success: {success}")
-    print(f"status: {status}")
-    print(f"message: {message}")
-    print(f"nfev: {sol.nfev}")
-    print(f"njev: {sol.njev}")
-    print(f"nlu: {sol.nlu}")
+    # t = sol.t
+    # y = sol.y
+    # success = sol.success
+    # status = sol.status
+    # message = sol.message
+    # print(f"success: {success}")
+    # print(f"status: {status}")
+    # print(f"message: {message}")
+    # print(f"nfev: {sol.nfev}")
+    # print(f"njev: {sol.njev}")
+    # print(f"nlu: {sol.nlu}")
     # TRBDF2:
     # # - nfev: 3409
     # # - njev: 17

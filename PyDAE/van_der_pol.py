@@ -42,11 +42,15 @@ if __name__ == "__main__":
 
     # dae solution
     # method = BDF
-    # method = Radau
-    method = TRBDF2
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
-    t = sol.t
-    y = sol.y
+    method = Radau
+    # method = TRBDF2
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
+    # t = sol.t
+    # y = sol.y
+
+    from dae.euler import euler
+    t, y = euler(rhs, y0, t_span, rtol, atol)
+    y = y.T
 
     # visualization
     fig, ax = plt.subplots(2, 1)
