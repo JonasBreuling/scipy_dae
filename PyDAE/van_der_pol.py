@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-from dae import BDF, Radau
+from dae import BDF, Radau, TRBDF2
 
 def rhs(t, y, mu=1e3):
     """RHS of stiff van der Pol equation, see mathworks.
@@ -22,15 +22,18 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 3e3
+    # t1 = 3e3
+    t1 = 1e3
     t_span = (t0, t1)
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
 
     # solver options
-    atol = 1e-7
-    rtol = 1e-7
+    # atol = 1e-7
+    # rtol = 1e-7
+    atol = 1e-6
+    rtol = 1e-6
 
     # reference solution
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
@@ -38,20 +41,22 @@ if __name__ == "__main__":
     y_scipy = sol.y
 
     # dae solution
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=BDF, var_index=[0, 0])
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=Radau, var_index=[0, 0])
+    # method = BDF
+    # method = Radau
+    method = TRBDF2
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
     t = sol.t
     y = sol.y
 
     # visualization
     fig, ax = plt.subplots(2, 1)
 
-    ax[0].plot(t, y[0], "-ok", label="y BDF", mfc="none")
+    ax[0].plot(t, y[0], "-ok", label=f"y ({method.__name__})", mfc="none")
     ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y scipy")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[1], "-ok", label="y_dot BDF", mfc="none")
+    ax[1].plot(t, y[1], "-ok", label=f"y_dot ({method.__name__})", mfc="none")
     ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
     ax[1].legend()
     ax[1].grid()

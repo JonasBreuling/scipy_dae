@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-from dae import BDF, Radau
+from dae import BDF, Radau, TRBDF2
 
 def make_robertson(DAE=True):
     if DAE == True:
@@ -36,7 +36,8 @@ def make_robertson(DAE=True):
     return mass_matrix, rhs, var_index
 
 if __name__ == "__main__":
-    DAE = True
+    # DAE = True
+    DAE = False
 
     # time span
     t0 = 0
@@ -47,8 +48,10 @@ if __name__ == "__main__":
     y0 = np.array([1, 0, 0], dtype=float)
 
     # solver options
-    atol = 5e-8
-    rtol = 1e-12
+    # atol = 5e-8
+    # rtol = 1e-12
+    atol = 1e-5
+    rtol = 1e-3
 
     # reference solution
     mass_matrix, rhs, var_index = make_robertson(DAE=False)
@@ -58,8 +61,9 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs, var_index = make_robertson(DAE=DAE)
-    method = BDF
-    method = Radau
+    # method = BDF
+    # method = Radau
+    method = TRBDF2
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t
     y = sol.y

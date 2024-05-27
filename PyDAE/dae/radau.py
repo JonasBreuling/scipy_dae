@@ -377,6 +377,9 @@ class Radau(OdeSolver):
 
         return M, index_algebraic_vars, nvars_algebraic
       
+    def _validate_var_index(self, mass_matrix):
+        pass
+
     def _validate_jac(self, jac, sparsity):
         t0 = self.t
         y0 = self.y
