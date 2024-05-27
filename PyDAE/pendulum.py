@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from dae import BDF, Radau
+from dae import BDF, Radau, TRBDF2
 
 def make_pendulum(m, g, l, index=3):
     assert index in [1, 2, 3]
@@ -72,8 +72,8 @@ if __name__ == "__main__":
     m = 1
     l = 1
     g = 10
-    # index = 2
-    index = 3
+    index = 2
+    # index = 3
 
     # time span
     t0 = 0
@@ -109,6 +109,7 @@ if __name__ == "__main__":
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
     method = Radau
     # method = BDF
+    # method = TRBDF2
     sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t
     z = sol.y

@@ -31,13 +31,14 @@ pd1 = 2.5 + 2 * np.sqrt(2)
 pd2 = -(6 + 4.5 * np.sqrt(2))
 
 
-def solve_trbdf2_system(fun, z0, scale, tol, LU, solve_lu, mass_matrix):
+def solve_trbdf2_system(fun, t, h, y0, z0, scale, tol, LU, solve_lu, mass_matrix):
     z = z0.copy() # why is this mandatory?
     dz_norm_old = None
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        f = fun(z)
+        # f = fun(z)
+        f = h * fun(t, y0 + d * z) - mass_matrix @ z
         if not np.all(np.isfinite(f)):
             break
 
@@ -432,8 +433,11 @@ class TRBDF2(OdeSolver):
                 # fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - z
                 # fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - np.dot(self.mass_matrix, z)
                 fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - self.mass_matrix @ z
+                # converged_tr, n_iter_tr, z_tr, rate_tr = solve_trbdf2_system(
+                #     fun_TR, z0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
+                # )
                 converged_tr, n_iter_tr, z_tr, rate_tr = solve_trbdf2_system(
-                    fun_TR, z0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
+                    self.fun, t_gm, h, y + d * z0, z0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
                 )
 
                 if not converged_tr:
@@ -463,8 +467,11 @@ class TRBDF2(OdeSolver):
                 # fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - np.dot(self.mass_matrix, z)
                 fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - self.mass_matrix @ z
 
+                # converged_bdf, n_iter_bdf, z_bdf, rate_bdf = solve_trbdf2_system(
+                #     fun_bdf, z_bdf0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
+                # )
                 converged_bdf, n_iter_bdf, z_bdf, rate_bdf = solve_trbdf2_system(
-                    fun_bdf, z_bdf0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
+                    self.fun, t_new, h, y + w * z0 + w * z_tr, z_bdf0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
                 )
 
                 if not converged_bdf:
