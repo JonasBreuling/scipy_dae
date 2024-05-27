@@ -412,8 +412,8 @@ class TRBDF2(OdeSolver):
             # TODO: Is there an extrapolation strategy as in Radau?
 
             # we iterate on the variable z = hf(t, y), as explained in [1]
-            z0 = h_abs * self.z_scaled
-            # z0 = h_abs * self.fun(t, y) # TODO: This is inefficient!
+            # z0 = h_abs * self.z_scaled
+            z0 = h_abs * self.fun(t, y) # TODO: This is inefficient!
 
             # TODO: scaling, see Hairer ???
             scale_newton = atol + rtol * np.abs(z0)
@@ -490,9 +490,8 @@ class TRBDF2(OdeSolver):
             error = ((e0 - w) * z0 + (e1 - w) * z_tr + (e2 - d) * z_bdf)
 
             # always use stabilized error, see Hosea ???
-            stabilised_error = self.solve_lu(LU, error)
-            # stabilised_error = self.solve_lu(LU, self.mass_matrix.dot(error))
-            # stabilised_error = self.solve_lu(LU, f + self.mass_matrix.dot(error))
+            # stabilised_error = self.solve_lu(LU, error)
+            stabilised_error = self.solve_lu(LU, self.mass_matrix.dot(error))
             # stabilised_error = error
             # # see [1], chapter IV.8, page 127
             # stabilised_error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
@@ -500,8 +499,8 @@ class TRBDF2(OdeSolver):
 
             if rejected and error_norm > 1: # try with stabilised error estimate
                 print("second stabilized error")
-                stabilised_error = self.solve_lu(LU, stabilised_error)
-                # stabilised_error = self.solve_lu(LU, stabilised_error + self.mass_matrix.dot(z_bdf))
+                # stabilised_error = self.solve_lu(LU, stabilised_error)
+                stabilised_error = self.solve_lu(LU, self.mass_matrix.dot(stabilised_error))
                 # stabilised_error = error
                 error_norm = norm(stabilised_error / scale)
 
