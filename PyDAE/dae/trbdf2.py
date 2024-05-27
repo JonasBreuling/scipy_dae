@@ -95,10 +95,10 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 2)
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 3)
 
     with np.errstate(divide='ignore'):
-        factor = min(1, multiplier) * error_norm ** (-1 / 2)
+        factor = min(1, multiplier) * error_norm ** (-1 / 3)
 
     return factor
 
@@ -412,13 +412,13 @@ class TRBDF2(OdeSolver):
             # TODO: Is there an extrapolation strategy as in Radau?
 
             # we iterate on the variable z = hf(t, y), as explained in [1]
-            # z0 = h_abs * self.z_scaled
-            z0 = h_abs * self.fun(t, y) # TODO: This is inefficient!
+            z0 = h_abs * self.z_scaled
+            # z0 = h_abs * self.fun(t, y) # TODO: This is inefficient!
 
             # TODO: scaling, see Hairer ???
             scale_newton = atol + rtol * np.abs(z0)
-            # # TODO: Is this newton scaling good (yes!)
-            # scale_newton /= h**self.var_exp
+            # TODO: Is this newton scaling good (yes!)
+            scale_newton /= h**self.var_exp
 
             converged_tr = False
             # TR stage
@@ -430,7 +430,8 @@ class TRBDF2(OdeSolver):
                 t_gm = t + h * gm
                 # TODO: y + d * z0 can be computed only once here and be passed as some y0 to the solve_trbdf2_system function.
                 # fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - z
-                fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - np.dot(self.mass_matrix, z)
+                # fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - np.dot(self.mass_matrix, z)
+                fun_TR = lambda z: h * self.fun(t_gm, y + d * z0 + d * z) - self.mass_matrix @ z
                 converged_tr, n_iter_tr, z_tr, rate_tr = solve_trbdf2_system(
                     fun_TR, z0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
                 )
@@ -459,7 +460,8 @@ class TRBDF2(OdeSolver):
                 # TODO: Find reference for this predictor. Is there a predictor for the TR step as well?
                 z_bdf0 = pd0 * z0 + pd1 * z_tr + pd2 * (y_tr - y)
                 # fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - z
-                fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - np.dot(self.mass_matrix, z)
+                # fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - np.dot(self.mass_matrix, z)
+                fun_bdf = lambda z: h * self.fun(t_new, y + w * z0 + w * z_tr + d * z) - self.mass_matrix @ z
 
                 converged_bdf, n_iter_bdf, z_bdf, rate_bdf = solve_trbdf2_system(
                     fun_bdf, z_bdf0, scale_newton, self.newton_tol, LU, self.solve_lu, self.mass_matrix,
@@ -485,9 +487,10 @@ class TRBDF2(OdeSolver):
             # scale = atol + rtol * np.abs(y_new)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # TODO:
-            # scale /= h**self.var_exp
+            scale /= h**self.var_exp
             # error = 0.5 * (y + e0 * z0 + e1 * z_tr + e2 * z_bdf - y_new)
             error = ((e0 - w) * z0 + (e1 - w) * z_tr + (e2 - d) * z_bdf)
+            error *= 0.5 # TODO: Why is this correct?
 
             # always use stabilized error, see Hosea ???
             # stabilised_error = self.solve_lu(LU, error)

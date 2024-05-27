@@ -3,7 +3,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.sparse import eye
 from scipy.optimize._numdiff import approx_derivative
-from dae import BDF, Radau
+from dae import BDF, Radau, TRBDF2
 from numpy.testing import assert_allclose
 
 
@@ -88,7 +88,8 @@ def generate_Jay1995(nonlinear_multiplier):
     y0 = np.ones(5, dtype=float)
 
     # tolerances and t_span
-    rtol = atol = 1.0e-8
+    # rtol = atol = 1.0e-8
+    rtol = atol = 1.0e-5
     # t_span = (0, 20)
     t_span = (0, 1)
 
@@ -103,7 +104,8 @@ if __name__ == "__main__":
     )
 
     # method = BDF
-    method = Radau
+    # method = Radau
+    method = TRBDF2
     sol = solve_ivp(
         fun=fun,
         t_span=t_span,
@@ -123,5 +125,5 @@ if __name__ == "__main__":
     success = sol.success
     assert success
 
-    errors(sol.t, sol.y)
+    # errors(sol.t, sol.y)
     plot(sol.t, sol.y)

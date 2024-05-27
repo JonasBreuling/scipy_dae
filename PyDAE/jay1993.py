@@ -3,7 +3,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.sparse import eye
 from scipy.optimize._numdiff import approx_derivative
-from dae import BDF, Radau
+from dae import BDF, Radau, TRBDF2
 from numpy.testing import assert_allclose
 
 
@@ -86,8 +86,9 @@ def generate_Jay1993():
 if __name__ == "__main__":
     y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors = generate_Jay1993()
 
-    method = BDF
+    # method = BDF
     # method = Radau
+    method = TRBDF2
     sol = solve_ivp(
         fun=fun,
         t_span=t_span,
@@ -107,5 +108,5 @@ if __name__ == "__main__":
     success = sol.success
     assert success
 
-    errors(sol.t, sol.y)
+    # errors(sol.t, sol.y)
     plot(sol.t, sol.y)

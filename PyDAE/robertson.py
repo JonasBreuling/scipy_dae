@@ -36,8 +36,8 @@ def make_robertson(DAE=True):
     return mass_matrix, rhs, var_index
 
 if __name__ == "__main__":
-    DAE = True
-    # DAE = False
+    # DAE = True
+    DAE = False
 
     # time span
     t0 = 0
@@ -48,10 +48,10 @@ if __name__ == "__main__":
     y0 = np.array([1, 0, 0], dtype=float)
 
     # solver options
-    # atol = 5e-8
-    # rtol = 1e-12
-    atol = 1e-6
-    rtol = 1e-8
+    atol = 5e-8
+    rtol = 1e-12
+    atol = 1e-5
+    rtol = 1e-12
 
     # reference solution
     mass_matrix, rhs, var_index = make_robertson(DAE=False)
@@ -81,9 +81,18 @@ if __name__ == "__main__":
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
     # TRBDF2:
-    # - nfev: 3409
-    # - njev: 17
-    # - nlu: 86
+    # # - nfev: 3409
+    # # - njev: 17
+    # # - nlu: 86
+    # - nfev: 2442
+    # - njev: 41
+    # - nlu: 104
+    # - nfev: 1987
+    # - njev: 45
+    # - nlu: 110
+    # - nfev: 1674
+    # - njev: 26
+    # - nlu: 85
     # Radau:
     # - nfev: 1397
     # - njev: 16
