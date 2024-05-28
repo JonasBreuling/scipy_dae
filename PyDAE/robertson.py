@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
+import time
 from dae import BDF, Radau, TRBDF2
 from dae.euler import euler
 
@@ -65,24 +66,23 @@ if __name__ == "__main__":
     # method = BDF
     method = Radau
     # method = TRBDF2
-    import time
     start = time.time()
-    t, y = euler(rhs, y0, t_span, rtol, atol, mass_matrix)
-    y = y.T
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    # t, y = euler(rhs, y0, t_span, rtol, atol, mass_matrix)
+    # y = y.T
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     end = time.time()
-    print(f"elapsed time: {end - start}")    
-    # t = sol.t
-    # y = sol.y
-    # success = sol.success
-    # status = sol.status
-    # message = sol.message
-    # print(f"success: {success}")
-    # print(f"status: {status}")
-    # print(f"message: {message}")
-    # print(f"nfev: {sol.nfev}")
-    # print(f"njev: {sol.njev}")
-    # print(f"nlu: {sol.nlu}")
+    print(f"elapsed time: {end - start}")
+    t = sol.t
+    y = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
     # TRBDF2:
     # # - nfev: 3409
     # # - njev: 17

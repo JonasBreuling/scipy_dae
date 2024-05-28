@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
+import time
 from dae import BDF, Radau, TRBDF2
 
 def rhs(t, y, mu=1e3):
@@ -44,13 +45,25 @@ if __name__ == "__main__":
     # method = BDF
     method = Radau
     # method = TRBDF2
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
-    # t = sol.t
-    # y = sol.y
+    start = time.time()
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
+    end = time.time()
+    print(f"elapsed time: {end - start}")
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
+    t = sol.t
+    y = sol.y
 
-    from dae.euler import euler
-    t, y = euler(rhs, y0, t_span, rtol, atol)
-    y = y.T
+    # from dae.euler import euler
+    # t, y = euler(rhs, y0, t_span, rtol, atol)
+    # y = y.T
 
     # visualization
     fig, ax = plt.subplots(2, 1)

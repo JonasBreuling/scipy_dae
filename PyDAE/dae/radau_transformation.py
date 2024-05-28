@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import schur, rsf2csf, eig, hessenberg, null_space
+from scipy.linalg import eig, hessenberg, orth
 
 def RadauIIA(s):
     # solve zeros of Radau polynomial, see Hairer1999 (7)
@@ -23,72 +23,94 @@ def RadauIIA(s):
     p = 2 * s - 1
     return A, b, c, p
 
+gamma = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
+alpha = 3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
+beta = 0.5 * (3 ** (5 / 6) + 3 ** (7 / 6))
+
 s = 3
 A, b, c, p = RadauIIA(s)
 print(f"A:\n{A}")
 
 A_inv = np.linalg.inv(A)
 print(f"A_inv:\n{A_inv}")
-
-H, Q = hessenberg(A_inv, calc_q=True)
-print(f"H:\n{H}")
-print(f"Q:\n{Q}")
-print(f"A_inv = Q @ H @ Q^H:\n{Q @ H @ Q.conj()}")
-
-# Lambda, V = schur(H)
-# print(f"Lambda:\n{Lambda}")
-# print(f"V:\n{V}")
-
+print(f"A_inv @ A:\n{A_inv @ A}")
 # exit()
 
-# w, vl = eig(A_inv)
+H, Q = hessenberg(A_inv, calc_q=True)
+# TODO: hessenberg form seems to be not necessary!
+H, Q = A_inv, np.eye(s)
+print(f"H:\n{H}")
+print(f"Q:\n{Q}")
+print(f"A_inv = Q @ H @ Q.T:\n{Q @ H @ Q.T}")
+print(f"A_inv - Q @ H @ Q.T:\n{A_inv - Q @ H @ Q.T}")
+print(f"Q.T @ Q:\n{Q.T @ Q}")
+# exit()
+
 lambdas, V = eig(H)
+
+# scale eigenvectors to get a "nice" transformation matrix
+# TODO: This gives the best results in Radau method
+for i in range(s):
+    V[:, i] /= V[-1, i]
+# # normalize eigenvectors
+# V /= np.linalg.norm(V, axis=0)
+
 V_inv = np.linalg.inv(V)
 Lambdas = np.diag(lambdas)
-
-# rearrange values such that first entry is the real eigenvalue
-# w = np.roll(w, 1)
-# vl = np.roll(vl, 1, axis=1) # roll columns
 print(f"Lambdas:\n{Lambdas}")
 print(f"V:\n{V}")
-rank = np.linalg.matrix_rank(V)
-print(f"{rank= }")
 H_reconstructed = V @ Lambdas @ V_inv
 H_reconstructed = H_reconstructed.real # prune zero imaginary parts
 print(f"H = V @ Lambdas @ V_inv:\n{H_reconstructed}")
+print(f"H - V @ Lambdas @ V_inv:\n{H - H_reconstructed}")
+# exit()
 
 P = np.array([
     [1j, -1j, 0],
     [1, 1, 0],
     [0, 0, 1]
 ])
-# P = np.eye(3)
-# Lambdas_real = Lambdas
 P_inv = np.linalg.inv(P)
 Lambdas_real = P @ Lambdas @ P_inv
 Lambdas_real = Lambdas_real.real # prune zero imaginary parts
 print(f"P:\n{P}")
 print(f"P_inv:\n{P_inv}")
 print(f"Lambdas_real:\n{Lambdas_real}")
+print(f"Lambdas - P_inv @ Lambdas_real @ P:\n{Lambdas - P_inv @ Lambdas_real @ P}")
+# exit()
 
+# fortran/ julia ordering
 R = np.array([
     [0, 0, 1],
     [1, 0, 0],
     [0, 1, 0]
 ])
+# scipy ordering
+R = np.array([
+    [0, 0, 1],
+    [1, 0, 0],
+    [0, -1, 0]
+])
+# R = np.eye(3)
 
 Mus = R @ Lambdas_real @ R.T
 print(f"Mus:\n{Mus}")
+print(f"Lambdas_real - R.T @ Mus @ R:\n{Lambdas_real - R.T @ Mus @ R}")
+# exit()
 
-# T = Q.conj().T @ V @ P @ R
-T = R.T @ P_inv @ V_inv @ Q.T
-# T = R @ P @ V @ Q
-# Mus2 = R.T @ P_inv @ V_inv @ Q.T @ A_inv @ Q.conj().T @ V @ P @ R
-Mus2 = R.T @ P_inv @ V_inv @ Q.T @ A_inv @ Q.conj().T @ V @ P @ R
+T = Q @ V @ P_inv @ R.T
+T = T.real # prune zero imaginary parts
+# T[:, 0] /= T[-1, 0]
+# T[:, 1] /= T[0, 1]
+# T[:, 2] /= T[-1, 2]
+T_inv = np.linalg.inv(T)
+Mus2 = T_inv @ A_inv @ T
 Mus2 = Mus2.real # prune zero imaginary parts
-# print(f"Mus2:\n{Mus2}")
-# print(f"T:\n{T}")
-# print(f"T_inv:\n{np.linalg.inv(T)}")
+print(f"Mus2:\n{Mus2}")
+np.set_printoptions(20)
+print(f"T:\n{T}")
+# print(f"T_inv:\n{T_inv}")
+exit()
 
 # radau.py
 T_scipy = np.array([
@@ -99,6 +121,7 @@ TI_scipy = np.array([
     [4.17871859155190428, 0.32768282076106237, 0.52337644549944951],
     [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
+print(f"T_scipy:\n{T_scipy}")
 
 # radau5.f
 T11=9.12323948708929427920e-02
@@ -118,27 +141,14 @@ T31=0.96604818261509293619e+00
 # T22 = 0.20412935229379993199e0
 # T23 = 0.38294211275726193779e0
 # T31 = 0.96604818261509293619e0
-# TI11 = 4.3255798900631553510e0
-# TI12 = 0.33919925181580986954e0
-# TI13 = 0.54177053993587487119e0
-# TI21 = -4.1787185915519047273e0
-# TI22 = -0.32768282076106238708e0
-# TI23 = 0.47662355450055045196e0
-# TI31 = -0.50287263494578687595e0
-# TI32 = 2.5719269498556054292e0
-# TI33 = -0.59603920482822492497e0
 
 T_fortran_julia = np.array([
     [T11, T12, T13],
     [T21, T22, T23],
     [T31, 1.0, 0.0],
 ], dtype=float)
-# TI = np.array([
-#     [TI11, TI12, TI13],
-#     [TI21, TI22, TI23],
-#     [TI31, TI32, TI33],
-# ], dtype=float)
 TI_fortran_julia = np.linalg.inv(T_fortran_julia)
+print(f"T_fortran_julia:\n{T_fortran_julia}")
 
 gamma = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
 alpha = 3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))

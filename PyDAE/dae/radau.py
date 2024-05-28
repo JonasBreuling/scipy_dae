@@ -30,6 +30,56 @@ TI = np.array([
     [4.17871859155190428, 0.32768282076106237, 0.52337644549944951],
     [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
+
+# # Breuling
+# # - with hessenberg
+# # T = np.array([[ 0.09123239, -0.02791897,  0.1283268],
+# #  [ 0.24171793, -0.24113524, -0.31239687],
+# #  [ 0.96604818,  0.37388266, -0.82899126]])
+# # - without hessenberg
+# # T = np.array([[ 0.09123239,  0.02730865,  0.12845806],
+# #        [ 0.24171793, -0.3482489 , -0.18563595],
+# #        [ 0.96604818,  0.        , -0.90940352]])
+# # - without hessenberg and eigenvectors scaled by last entry and fortran/julia ordering
+# # T = np.array([[ 0.09443876,  0.03002919, -0.1412553 ],
+# #  [ 0.25021312, -0.38294211,  0.20412935],
+# #  [ 1.,          0.,          1.        ]])
+# # - without hessenberg and eigenvectors scaled by last entry and scipy ordering
+# T = np.array([[ 0.09443876,  0.03002919,  0.1412553 ],
+#  [ 0.25021312, -0.38294211, -0.20412935],
+#  [ 1.,          0.,         -1.        ]])
+
+# # # - without hessenberg and eigenvectors normalized and scipy ordering
+# # # TODO: This is better for robertson example but slightly worse for van der pol
+# # T = np.array([[ 0.09123239, -0.02730865, -0.12845806],
+# #  [ 0.24171793,  0.3482489,   0.18563595],
+# #  [ 0.96604818,  0.,          0.90940352]])
+# T = np.array([[ 0.0944387624889758,   0.03002919410514694,  0.14125529502095394],
+#  [ 0.25021312296533277, -0.3829421127572625,  -0.20412935229380003],
+#  [ 1.,                   0.,                  -1.0 ]])
+
+# TI = np.linalg.inv(T)
+
+# # radau5.f
+# # TODO: This yields slightly more jacobian evaluations compared to scipy values
+# T11=9.12323948708929427920e-02
+# T12=-0.1412552950209542084e+00
+# T13=-3.0029194105147424492e-02
+# T21=0.24171793270710701896e+00
+# T22=0.20412935229379993199e+00
+# T23=0.38294211275726193779e+00
+# T31=0.96604818261509293619e+00
+# T = np.array([
+#     [T11, T12, T13],
+#     [T21, T22, T23],
+#     [T31, 1.0, 0.0],
+# ], dtype=float)
+# TI = np.linalg.inv(T)
+# # TODO: This requires the other complexe eigenvalue:
+# MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
+#               + 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
+
+
 # These linear combinations are used in the algorithm.
 TI_REAL = TI[0]
 TI_COMPLEX = TI[1] + 1j * TI[2]
