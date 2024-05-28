@@ -48,10 +48,14 @@ print(f"Q.T @ Q:\n{Q.T @ Q}")
 
 lambdas, V = eig(H)
 
-# scale eigenvectors to get a "nice" transformation matrix
-# TODO: This gives the best results in Radau method
-for i in range(s):
-    V[:, i] /= V[-1, i]
+# # scale eigenvectors to get a "nice" transformation matrix (used by scipy)
+# for i in range(s):
+#     V[:, i] /= V[-1, i]
+
+# scale only the first two eigenvectors (used by Hairer)
+V[:, 0] /= V[-1, 0]
+V[:, 1] /= V[-1, 1]
+
 # # normalize eigenvectors
 # V /= np.linalg.norm(V, axis=0)
 
@@ -65,11 +69,18 @@ print(f"H = V @ Lambdas @ V_inv:\n{H_reconstructed}")
 print(f"H - V @ Lambdas @ V_inv:\n{H - H_reconstructed}")
 # exit()
 
+# fortran/ julia ordering
 P = np.array([
-    [1j, -1j, 0],
+    [-1j, 1j, 0],
     [1, 1, 0],
     [0, 0, 1]
 ])
+# scipy ordering
+# P = np.array([
+#     [1j, -1j, 0],
+#     [1, 1, 0],
+#     [0, 0, 1]
+# ])
 P_inv = np.linalg.inv(P)
 Lambdas_real = P @ Lambdas @ P_inv
 Lambdas_real = Lambdas_real.real # prune zero imaginary parts
@@ -88,10 +99,9 @@ R = np.array([
 # scipy ordering
 R = np.array([
     [0, 0, 1],
+    [0, 1, 0],
     [1, 0, 0],
-    [0, -1, 0]
 ])
-# R = np.eye(3)
 
 Mus = R @ Lambdas_real @ R.T
 print(f"Mus:\n{Mus}")
@@ -107,10 +117,10 @@ T_inv = np.linalg.inv(T)
 Mus2 = T_inv @ A_inv @ T
 Mus2 = Mus2.real # prune zero imaginary parts
 print(f"Mus2:\n{Mus2}")
-np.set_printoptions(20)
+# np.set_printoptions(20)
 print(f"T:\n{T}")
 # print(f"T_inv:\n{T_inv}")
-exit()
+# exit()
 
 # radau.py
 T_scipy = np.array([
