@@ -17,15 +17,39 @@ def tableau():
     p = 1
     return A, b, c, p
 
-def tableau():
-    A = np.array([
-        [5 / 12, -1 / 12],
-        [3 / 4, 1 / 4],
-    ])
+def RadauIIA(s):
+    # A = np.array([
+    #     [5 / 12, -1 / 12],
+    #     [3 / 4, 1 / 4],
+    # ])
+    # b = A[-1, :]
+    # c = np.array([1 / 3, 1])
+    # p = 3
+    # return A, b, c, p
+
+    # solve zeros of Radau polynomial, see Hairer1999 (7)
+    from numpy.polynomial import Polynomial as P
+
+    poly = P([0, 1]) ** (s - 1) * P([-1, 1]) ** s
+    poly_der = poly.deriv(s - 1)
+    c = poly_der.roots()
+
+    # compute coefficients a_ij, see Hairer1999 (11)
+    A = np.zeros((s, s), dtype=float)
+    for i in range(s):
+        Mi = np.zeros((s, s), dtype=float)
+        ri = np.zeros(s, dtype=float)
+        for q in range(s):
+            Mi[q] = c**q
+            ri[q] = c[i] ** (q + 1) / (q + 1)
+        A[i] = np.linalg.solve(Mi, ri)
+
     b = A[-1, :]
-    c = np.array([1 / 3, 1])
-    p = 3
+    p = 2 * s - 1
     return A, b, c, p
+
+def tableau():
+    return RadauIIA(s=3)
 
 def euler(
         fun, y0, t_span, rtol=1e-3, atol=1e-6, mass_matrix=None, var_index=None
@@ -55,14 +79,14 @@ def euler(
             ]).reshape(-1)
 
         Y0 = np.tile(y0, s)
-        sol = fsolve(R, Y0, options=SolverOptions(numerical_jacobian_method="2-point"))
+        sol = fsolve(R, Y0, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
         Y = sol.x
         Y = Y.reshape(s, -1, order="C")
-        y = Y[-1]
-        t = t0 + h
+        y1 = Y[-1]
+        t1 = t0 + h
         nit = sol.nit
         success = sol.success
-        return t, y, nit, success
+        return t1, y1, nit, success
     
     t = t_start
     y = y0.copy()
@@ -106,11 +130,11 @@ def euler(
 
             # # advance with half-step method
             # # TODO: This is no good idea
-            t = t2
-            y = y2.copy()
-            # # use full step to get correct error estmate!
-            # t = t1
-            # y = y1.copy()
+            # t = t2
+            # y = y2.copy()
+            # use full step to get correct error estmate!
+            t = t1
+            y = y1.copy()
             print(f"t: {t:0.2e}/{t_finish:0.2e}; h: {h:0.2e}")
             
             sol_t.append(t)
