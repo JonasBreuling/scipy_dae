@@ -79,6 +79,7 @@ def radau_constants(s):
     print(f"Mus:\n{Mus}")
 
     T = V_real @ R.T
+    TI = np.linalg.inv(T)
     print(f"T:\n{T}")
 
     if s == 3:
@@ -117,6 +118,74 @@ def radau_constants(s):
         print(f"cond(T_sicpy):   {np.linalg.cond(T_scipy)}")
         print(f"cond(T_fortran): {np.linalg.cond(T_fortran_julia)}")
     print(f"cond(T):         {np.linalg.cond(T)}")
+
+    # extract real and complex eigenvalues
+    real_idx = lambdas.imag == 0
+    n_real = len(real_idx)
+    complex_idx = ~real_idx
+    gammas = lambdas[real_idx].real
+    alphas_betas = lambdas[complex_idx]
+    alphas = alphas_betas[::2].real
+    betas = alphas_betas[::2].imag
+    print(f"gammas: {gammas}")
+    print(f"alphas: {alphas}")
+    print(f"betas: {betas}")
+    if s == 3:
+        gamma_scipy = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
+        alpha_scipy = 3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
+        beta_scipy = 0.5 * (3 ** (5 / 6) + 3 ** (7 / 6))
+        print(f"gamma_scipy: {gamma_scipy}")
+        print(f"alpha_scipy: {alpha_scipy}")
+        print(f"beta_scipy: {beta_scipy}")
+
+    # compute embedded method for error estimate,
+    # see https://arxiv.org/abs/1306.2392
+    # equation (10)
+    # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
+    vander = np.vander(c, increasing=True).T
+    # TODO: This is correct, document this extended tableau!
+    c_hat = np.array([0, *c])
+    vander = np.vander(c_hat, increasing=True).T[1:, 1:]
+    # rhs = 1 / np.arange(1, s + 1)
+    rhs = 1 / np.arange(2, s + 2)
+    # gamma0 = 1 / gammas[0]
+    gamma0 = gammas[0]
+    rhs[0] -= gamma0
+    b_hat = np.linalg.solve(vander, rhs)
+    # b_hat *= gamma0 * 100
+    # b_hat /= gamma0
+
+    E = b - b_hat
+    E = b_hat - b
+    # E = np.array([-1, 1 - (7 / 12) * 6**0.5, 1 + (7 / 16) * 6**0.5]) / 3
+    # E = np.array([1 - (7 / 12) * 6**0.5, 1 + (7 / 16) * 6**0.5, -1])# / 3
+    # E *= -1
+    # E *= 3
+    # E *= gamma0
+    E /= gamma0
+    print(f"c: {c}")
+    print(f"vander:\n{vander}")
+    print(f"rhs:\n{rhs}")
+    print(f"b_hat:\n{b_hat}")
+    print(f"E:\n{E}")
+    print(f"b_hat - b: {b_hat - b}")
+    print(f"b - b_hat: {b - b_hat}")
+    if s == 3:
+        S6 = 6 ** 0.5
+        # TODO: This is something different. But what is different???
+        E_scipy = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
+        # E_scipy *= gamma0
+        # E_scipy = np.array([2 + 3 * S6, 2 - 3 * S6, 2]) * gamma0 / 6
+        b_hat_scipy = E_scipy - b
+        # print(f"b_hat_scipy:\n{b_hat_scipy}")
+        print(f"E_scipy:\n{E_scipy}")
+        # assert np.allclose(E, E_scipy)
+
+        # c_scipy = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
+        # print(f"c: {c}")
+        # print(f"c_scipy: {c_scipy}")
+
+    return alphas, betas, gammas, T, TI, c, E
 
 
 if __name__ == "__main__":

@@ -79,11 +79,18 @@ TI = np.array([
 # MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
 #               - 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
 
-# New generic version
-T = np.array([[ 0.09443876, -0.03002919, -0.1412553 ],
- [ 0.25021312,  0.38294211,  0.20412935],
- [ 1.,          0.,          1.        ]])
-TI = np.linalg.inv(T)
+# # New generic version
+# T = np.array([[ 0.09443876, -0.03002919, -0.1412553 ],
+#  [ 0.25021312,  0.38294211,  0.20412935],
+#  [ 1.,          0.,          1.        ]])
+# TI = np.linalg.inv(T)
+
+from .radau_transformation import radau_constants
+s = 3
+# TODO: E is still wrong...
+alphas, betas, gammas, T, TI, C, E = radau_constants(s)
+MU_REAL = gammas[0]
+MU_COMPLEX = alphas[0] - 1j * betas[0]
 
 
 # These linear combinations are used in the algorithm.
