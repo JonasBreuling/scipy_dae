@@ -77,7 +77,13 @@ TI = np.array([
 # TI = np.linalg.inv(T)
 # # TODO: This requires the other complexe eigenvalue:
 # MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
-#               + 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
+#               - 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
+
+# New generic version
+T = np.array([[ 0.09443876, -0.03002919, -0.1412553 ],
+ [ 0.25021312,  0.38294211,  0.20412935],
+ [ 1.,          0.,          1.        ]])
+TI = np.linalg.inv(T)
 
 
 # These linear combinations are used in the algorithm.
@@ -160,6 +166,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if not np.all(np.isfinite(F)):
             break
 
+        # TODO: understand this computation!
         f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
         f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
 
@@ -566,10 +573,12 @@ class Radau(OdeSolver):
 
             y_new = y + Z[-1]
             ZE = Z.T.dot(E) / h
-            error = self.solve_lu(LU_real, f + ZE)
+            # error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             scale /= h**self.var_exp
             # see [1], chapter IV.8, page 127
+            # TODO: Hairer1996, (8.20)
+            # TODO: Hairer1996, (8.19a)
             error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
             # error *= h**self.var_exp
             if self.index_algebraic_vars is not None:
