@@ -87,16 +87,21 @@ TI = np.array([
 
 from .radau_transformation import radau_constants
 s = 3
-# TODO: E is still wrong...
+# s = 5
 alphas, betas, gammas, T, TI, C, E = radau_constants(s)
 MU_REAL = gammas[0]
 MU_COMPLEX = alphas[0] - 1j * betas[0]
+# # TODO: Check this
+# MU_COMPLEX = alphas -1j * betas
 
 
 # These linear combinations are used in the algorithm.
 TI_REAL = TI[0]
 TI_COMPLEX = TI[1] + 1j * TI[2]
+# # TODO: Check this
+# TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
+# TODO: Compute these
 # Interpolator coefficients.
 P = np.array([
     [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
@@ -173,8 +178,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if not np.all(np.isfinite(F)):
             break
 
-        # TODO: understand this computation!
         f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
+        # TODO: Move on here for all complex eigenvalue paris
         f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
 
         dW_real = solve_lu(LU_real, f_real)
@@ -545,7 +550,8 @@ class Radau(OdeSolver):
             h_abs = np.abs(h)
 
             if self.sol is None:
-                Z0 = np.zeros((3, y.shape[0]))
+                # Z0 = np.zeros((3, y.shape[0]))
+                Z0 = np.zeros((s, y.shape[0]))
             else:
                 Z0 = self.sol(t + h * C).T - y
 

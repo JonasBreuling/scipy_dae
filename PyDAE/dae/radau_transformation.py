@@ -73,7 +73,7 @@ def radau_constants(s):
 
     # transform to get scipy's/ Hairer's ordering
     R = np.fliplr(np.eye(s))
-    R = np.eye(3)
+    R = np.eye(s)
     Mus = R @ lambdas_real @ R.T
     print(f"R:\n{R}")
     print(f"Mus:\n{Mus}")
@@ -148,7 +148,6 @@ def radau_constants(s):
     vander = np.vander(c_hat, increasing=True).T[1:, 1:]
     # rhs = 1 / np.arange(1, s + 1)
     rhs = 1 / np.arange(2, s + 2)
-    # gamma0 = 1 / gammas[0]
     gamma0 = gammas[0]
     rhs[0] -= gamma0
     b_hat = np.linalg.solve(vander, rhs)
@@ -162,7 +161,7 @@ def radau_constants(s):
     # E *= -1
     # E *= 3
     # E *= gamma0
-    E /= gamma0
+    E /= gamma0 # TODO: Why is this done in scipy?
     print(f"c: {c}")
     print(f"vander:\n{vander}")
     print(f"rhs:\n{rhs}")
@@ -176,7 +175,7 @@ def radau_constants(s):
         E_scipy = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
         # E_scipy *= gamma0
         # E_scipy = np.array([2 + 3 * S6, 2 - 3 * S6, 2]) * gamma0 / 6
-        b_hat_scipy = E_scipy - b
+        # b_hat_scipy = E_scipy - b
         # print(f"b_hat_scipy:\n{b_hat_scipy}")
         print(f"E_scipy:\n{E_scipy}")
         # assert np.allclose(E, E_scipy)
@@ -184,6 +183,8 @@ def radau_constants(s):
         # c_scipy = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
         # print(f"c: {c}")
         # print(f"c_scipy: {c_scipy}")
+
+    # TODO Compute collocation weights?
 
     return alphas, betas, gammas, T, TI, c, E
 

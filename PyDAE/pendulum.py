@@ -3,41 +3,63 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 from dae import BDF, Radau, TRBDF2
 
-def make_pendulum(m, g, l, index=3):
-    assert index in [1, 2, 3]
 
+def make_pendulum(m, g, l, index=3):
+    assert index in [1, 2, 3, "GGL"]
+
+    # TODO: Add step size to the rhs that we can scale constraint equations by 
+    # h in order to make the Jacobian well behaved for h -> 0. I think this is 
+    # important for BDF.
     def F(t, vy, vy_dot):
         """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
-        x, y, x_dot, y_dot, _ = vy
-        u, v, u_dot, v_dot, la = vy_dot
-        # TODO: Why is this so bad?
-        # x, y, x_dot, y_dot, la = vy
-        # u, v, u_dot, v_dot, _ = vy_dot
+        if index == "GGL":
+            # stabilized index 1
+            x, y, x_dot, y_dot, _, _ = vy
+            u, v, u_dot, v_dot, la, mu = vy_dot
+            # # stabilized index 2
+            # x, y, x_dot, y_dot, la, mu = vy
+            # u, v, u_dot, v_dot, _, _ = vy_dot
 
-        R = np.zeros(5, dtype=np.common_type(vy, vy_dot))
-        R[0] = u - x_dot
-        R[1] = v - y_dot
-        R[2] = m * u_dot + 2 * x * la
-        R[3] = m * v_dot + 2 * y * la + m * g
-        match index:
-            case 3:
-                R[4] = x * x + y * y - l * l
-            case 2:
-                R[4] = 2 * x * x_dot + 2 * y * y_dot
-            case 1:
-                R[4] = 2 * x * u_dot + 2 * y * v_dot + 2 * u * u + 2 * v * v
+            R = np.zeros(6, dtype=np.common_type(vy, vy_dot))
+            R[0] = u - x_dot + 2 * x * mu
+            R[1] = v - y_dot + 2 * y * mu
+            R[2] = m * u_dot + 2 * x * la
+            R[3] = m * v_dot + 2 * y * la + m * g
+            R[4] = x * x + y * y - l * l
+            R[5] = 2 * x * x_dot + 2 * y * y_dot
+        else:
+            x, y, x_dot, y_dot, _ = vy
+            u, v, u_dot, v_dot, la = vy_dot
+            # TODO: Why is this so bad?
+            # x, y, x_dot, y_dot, la = vy
+            # u, v, u_dot, v_dot, _ = vy_dot
+
+            R = np.zeros(5, dtype=np.common_type(vy, vy_dot))
+            R[0] = u - x_dot
+            R[1] = v - y_dot
+            R[2] = m * u_dot + 2 * x * la
+            R[3] = m * v_dot + 2 * y * la + m * g
+            match index:
+                case 3:
+                    R[4] = x * x + y * y - l * l
+                case 2:
+                    R[4] = 2 * x * x_dot + 2 * y * y_dot
+                case 1:
+                    R[4] = 2 * x * u_dot + 2 * y * v_dot + 2 * u * u + 2 * v * v
 
         return R
     
-    mass_matrix = np.diag(np.concatenate([np.ones(5), np.zeros(5)]))
+    n = 6 if index == "GGL" else 5
+
+    mass_matrix = np.diag(np.concatenate([np.ones(n), np.zeros(n)]))
     
     # Hairer1999 Remark above 5.1
     def rhs(t, z):
-        y = z[:5]
-        y_dot = z[5:]
+        y = z[:n]
+        y_dot = z[n:]
         z_dot = np.zeros_like(z)
-        z_dot[:5] = y_dot
-        z_dot[5:] = F(t, y, y_dot)
+        z_dot[:n] = y_dot
+        z_dot[n:] = F(t, y, y_dot)
         return z_dot
     
     # mass_matrix = np.eye(5)
@@ -72,33 +94,43 @@ if __name__ == "__main__":
     m = 1
     l = 1
     g = 10
-    index = 2
+    # index = 2
     # index = 3
+    index = "GGL"
 
     # time span
     t0 = 0
-    # t1 = 5e1
-    t1 = 5e0
+    t1 = 5e1
+    # t1 = 5e0
     t_span = (t0, t1)
 
     # initial conditions
-    y0 = np.array([l, 0, 0, 0, 0], dtype=float)
-    # var_index = np.array([0, 0, 0, 0, index], dtype=int)
-    # z0 = y0
-    y_dot0 = np.array([0, 0, 0, -g, 0], dtype=float)
-    z0 = np.concatenate((y0, y_dot0))
-    # var_index = np.concatenate((np.zeros(5, dtype=int), index * np.ones(5, dtype=int)), dtype=int)
-    # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
-    # np.array([0, 0, 3, 3, 3, 0, 0, 3, 3, 3], dtype=int)
-    # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
-    var_index = np.concatenate((np.zeros(7, dtype=int), (index - 1) * np.ones(2, dtype=int), index * np.ones(1, dtype=int)), dtype=int)
+    if index == "GGL":
+        y0 = np.array([l, 0, 0, 0, 0, 0], dtype=float)
+        y_dot0 = np.array([0, 0, 0, -g, 0, 0], dtype=float)
+        # var_index = np.concatenate((np.zeros(6, dtype=int), np.ones(6, dtype=int)), dtype=int)
+        # var_index = np.concatenate((np.zeros(6, dtype=int), 2 * np.ones(6, dtype=int)), dtype=int)
+        # TODO: This works for BDF since it scales the error in Newton for the constraint equations.
+        var_index = np.concatenate((np.zeros(6, dtype=int), np.ones(4, dtype=int), 2 * np.ones(2, dtype=int)), dtype=int)
+    else:
+        y0 = np.array([l, 0, 0, 0, 0], dtype=float)
+        y_dot0 = np.array([0, 0, 0, -g, 0], dtype=float)
 
+        # var_index = np.concatenate((np.zeros(5, dtype=int), index * np.ones(5, dtype=int)), dtype=int)
+        # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+        # np.array([0, 0, 3, 3, 3, 0, 0, 3, 3, 3], dtype=int)
+        # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+        var_index = np.concatenate((np.zeros(7, dtype=int), (index - 1) * np.ones(2, dtype=int), index * np.ones(1, dtype=int)), dtype=int)
+
+    z0 = np.concatenate((y0, y_dot0))
 
     # solver options
     # atol = 1e-6
     # rtol = 1e-6
-    atol = 1e-5
-    rtol = 1e-5
+    # atol = 1e-5
+    # rtol = 1e-5
+    atol = 1e-6
+    rtol = 1e-6
 
     # # reference solution
     # mass_matrix, rhs = make_pendulum(DAE=False)
@@ -108,28 +140,28 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
-    # method = Radau
-    # # method = BDF
-    # # method = TRBDF2
-    # sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
-    # t = sol.t
-    # z = sol.y
-    # success = sol.success
-    # status = sol.status
-    # message = sol.message
-    # print(f"success: {success}")
-    # print(f"status: {status}")
-    # print(f"message: {message}")
+    method = Radau
+    # method = BDF
+    # method = TRBDF2
+    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    t = sol.t
+    z = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
 
-    # # y = z[:5]
-    # # y_dot = z[5:]
-    # y = z
+    # y = z[:5]
+    # y_dot = z[5:]
+    y = z
 
-    from dae.euler import euler
-    rtol = 1e-3
-    atol = 1e-6
-    t, y = euler(rhs, z0, t_span, rtol, atol, mass_matrix, var_index)
-    y = y.T
+    # from dae.euler import euler
+    # rtol = 1e-3
+    # atol = 1e-6
+    # t, y = euler(rhs, z0, t_span, rtol, atol, mass_matrix, var_index)
+    # y = y.T
 
     # visualization
     fig, ax = plt.subplots(4, 1)
@@ -153,7 +185,8 @@ if __name__ == "__main__":
 
     # ax[3].plot(t, y[4], "-k", label="la dt")
     # ax[3].plot(t, y_dot[4], "-k", label="la")
-    ax[3].plot(t, y[9], "-k", label="la")
+    ax[3].plot(t, y[10], "-k", label="la")
+    ax[3].plot(t, y[11], "-k", label="mu")
     ax[3].legend()
     ax[3].grid()
 
