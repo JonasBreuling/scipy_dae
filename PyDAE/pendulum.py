@@ -10,7 +10,7 @@ def make_pendulum(m, g, l, index=3):
     # TODO: Add step size to the rhs that we can scale constraint equations by 
     # h in order to make the Jacobian well behaved for h -> 0. I think this is 
     # important for BDF.
-    def F(t, vy, vy_dot):
+    def F(t, vy, vy_dot, h=1):
         """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
         if index == "GGL":
             # stabilized index 1
@@ -25,8 +25,10 @@ def make_pendulum(m, g, l, index=3):
             R[1] = v - y_dot + 2 * y * mu
             R[2] = m * u_dot + 2 * x * la
             R[3] = m * v_dot + 2 * y * la + m * g
-            R[4] = x * x + y * y - l * l
-            R[5] = 2 * x * x_dot + 2 * y * y_dot
+            R[4] = 2 * x * x_dot + 2 * y * y_dot
+            R[5] = x * x + y * y - l * l
+            # R[4] /= h
+            # R[5] /= h
         else:
             x, y, x_dot, y_dot, _ = vy
             u, v, u_dot, v_dot, la = vy_dot
@@ -54,12 +56,12 @@ def make_pendulum(m, g, l, index=3):
     mass_matrix = np.diag(np.concatenate([np.ones(n), np.zeros(n)]))
     
     # Hairer1999 Remark above 5.1
-    def rhs(t, z):
+    def rhs(t, z, h=1):
         y = z[:n]
         y_dot = z[n:]
         z_dot = np.zeros_like(z)
         z_dot[:n] = y_dot
-        z_dot[n:] = F(t, y, y_dot)
+        z_dot[n:] = F(t, y, y_dot, h)
         return z_dot
     
     # mass_matrix = np.eye(5)
@@ -100,8 +102,8 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 5e1
-    # t1 = 5e0
+    # t1 = 5e1
+    t1 = 10
     t_span = (t0, t1)
 
     # initial conditions
@@ -110,8 +112,12 @@ if __name__ == "__main__":
         y_dot0 = np.array([0, 0, 0, -g, 0, 0], dtype=float)
         # var_index = np.concatenate((np.zeros(6, dtype=int), np.ones(6, dtype=int)), dtype=int)
         # var_index = np.concatenate((np.zeros(6, dtype=int), 2 * np.ones(6, dtype=int)), dtype=int)
-        # TODO: This works for BDF since it scales the error in Newton for the constraint equations.
-        var_index = np.concatenate((np.zeros(6, dtype=int), np.ones(4, dtype=int), 2 * np.ones(2, dtype=int)), dtype=int)
+        # works for BDF and Radau
+        var_index = np.concatenate((np.zeros(10, dtype=int), np.ones(2, dtype=int)), dtype=int)
+        # works for BDF and Radau
+        # var_index = np.concatenate((np.zeros(10, dtype=int), 2 * np.ones(2, dtype=int)), dtype=int)
+        # # TODO: This works for BDF since it scales the error in Newton for the constraint equations.
+        # var_index = np.concatenate((np.zeros(6, dtype=int), np.ones(4, dtype=int), 2 * np.ones(2, dtype=int)), dtype=int)
     else:
         y0 = np.array([l, 0, 0, 0, 0], dtype=float)
         y_dot0 = np.array([0, 0, 0, -g, 0], dtype=float)
@@ -119,18 +125,19 @@ if __name__ == "__main__":
         # var_index = np.concatenate((np.zeros(5, dtype=int), index * np.ones(5, dtype=int)), dtype=int)
         # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
         # np.array([0, 0, 3, 3, 3, 0, 0, 3, 3, 3], dtype=int)
-        # var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
-        var_index = np.concatenate((np.zeros(7, dtype=int), (index - 1) * np.ones(2, dtype=int), index * np.ones(1, dtype=int)), dtype=int)
+        var_index = np.concatenate((np.zeros(7, dtype=int), index * np.ones(3, dtype=int)), dtype=int)
+        # var_index = np.concatenate((np.zeros(7, dtype=int), (index - 1) * np.ones(2, dtype=int), index * np.ones(1, dtype=int)), dtype=int)
 
     z0 = np.concatenate((y0, y_dot0))
 
     # solver options
+    rtol = atol = 1e-6
+    # atol = 1e-8
+    # rtol = 1e-8
     # atol = 1e-6
     # rtol = 1e-6
     # atol = 1e-5
     # rtol = 1e-5
-    atol = 1e-6
-    rtol = 1e-6
 
     # # reference solution
     # mass_matrix, rhs = make_pendulum(DAE=False)
@@ -140,8 +147,8 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs = make_pendulum(m, g, l, index=index)
-    method = Radau
-    # method = BDF
+    # method = Radau
+    method = BDF
     # method = TRBDF2
     sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
     t = sol.t

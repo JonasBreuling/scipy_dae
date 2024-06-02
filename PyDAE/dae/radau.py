@@ -174,6 +174,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     for k in range(NEWTON_MAXITER):
         for i in range(3):
             F[i] = fun(t + ch[i], y + Z[i])
+            # F[i] = fun(t + ch[i], y + Z[i], h)
 
         if not np.all(np.isfinite(F)):
             break
@@ -407,6 +408,20 @@ class Radau(OdeSolver):
 
             I = np.identity(self.n)
 
+        
+        # ######################################
+        # # TODO: Hack step-size to the function
+        # ######################################
+        # def new_fun(t, y, h):
+        #     self.nfev += 1
+        #     return fun(t, y, h=h)
+        # self.fun = new_fun
+
+        # from cardillo.math.approx_fprime import approx_fprime
+        # self.jac = lambda t, y, f, h: approx_fprime(y, lambda y: self.fun(t, y, h), method="2-point")
+        # ######################################
+        # ######################################
+
         self.lu = lu
         self.solve_lu = solve_lu
         self.I = I
@@ -574,6 +589,7 @@ class Radau(OdeSolver):
                         break
 
                     J = self.jac(t, y, f)
+                    # J = self.jac(t, y, f, h)
                     current_jac = True
                     LU_real = None
                     LU_complex = None
@@ -610,6 +626,7 @@ class Radau(OdeSolver):
 
             if rejected and error_norm > 1: # try with stabilised error estimate
                 error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
+                # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
                 if self.index_algebraic_vars is not None:
                     # ideally error*(h**index)
                     # error[self.index_algebraic_vars] = 0.
@@ -641,8 +658,10 @@ class Radau(OdeSolver):
             LU_complex = None
 
         f_new = self.fun(t_new, y_new)
+        # f_new = self.fun(t_new, y_new, h)
         if recompute_jac:
             J = jac(t_new, y_new, f_new)
+            # J = jac(t_new, y_new, f_new, h)
             current_jac = True
         elif jac is not None:
             current_jac = False
