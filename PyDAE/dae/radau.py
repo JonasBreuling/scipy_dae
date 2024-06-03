@@ -113,6 +113,23 @@ NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
+# print(f"P:\n{P}")
+
+# Construct the Vandermonde matrix for the nodes
+# V = np.array([
+#     [1, c0, c0**2, c0**3],
+#     [1, c1, c1**2, c1**3],
+#     [1, c2, c2**2, c2**3],
+#     [1, c3, c3**2, c3**3]
+# ]).T
+V = np.vander(np.array([0, *C]), increasing=True).T
+print(f"V:\n{V}")
+
+# Compute the inverse of the Vandermonde matrix to get the interpolation matrix P
+P = np.linalg.inv(V)[1:, 1:]
+
+# exit()
+
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu, mass_matrix):
@@ -695,7 +712,6 @@ class Radau(OdeSolver):
 
     def _dense_output_impl(self):
         return self.sol
-
 
 class RadauDenseOutput(DenseOutput):
     def __init__(self, t_old, t, y_old, Q):

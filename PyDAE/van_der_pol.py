@@ -41,8 +41,8 @@ if __name__ == "__main__":
     y_scipy = sol.y
 
     # dae solution
-    method = BDF
-    # method = Radau
+    # method = BDF
+    method = Radau
     # method = TRBDF2
     start = time.time()
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])

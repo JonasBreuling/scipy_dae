@@ -167,10 +167,10 @@ if __name__ == "__main__":
     # solver options
     # rtol = atol = 1e-12
     # rtol = atol = 1e-10
-    # rtol = atol = 1e-8
+    rtol = atol = 1e-8
     # rtol = atol = 1e-6
     # rtol = atol = 1e-5
-    rtol = atol = 1e-4
+    # rtol = atol = 1e-4
     # rtol = atol = 1e-3
     # atol = 1e-8
     # rtol = 1e-8
@@ -187,8 +187,8 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs, jac = make_pendulum(m, g, l, index=index)
-    # method = Radau
-    method = BDF
+    method = Radau
+    # method = BDF
     # method = TRBDF2
     start = time.time()
     sol = solve_ivp(rhs, t_span, z0, jac=jac, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
