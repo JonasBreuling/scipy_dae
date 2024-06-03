@@ -1,4 +1,5 @@
 import numpy as np
+import time
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 from dae import BDF, Radau, TRBDF2
@@ -14,27 +15,24 @@ def make_pendulum(m, g, l, index=3):
         """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
         if index == "GGL":
             # stabilized index 1
-            x, y, x_dot, y_dot, _, _ = vy
-            u, v, u_dot, v_dot, la, mu = vy_dot
-            # # stabilized index 2
-            # x, y, x_dot, y_dot, la, mu = vy
-            # u, v, u_dot, v_dot, _, _ = vy_dot
+            x, y, u, v, _, _ = vy
+            x_dot, y_dot, u_dot, v_dot, la, mu = vy_dot
+            # # # stabilized index 2
+            # x, y, u, v, la, mu = vy
+            # x_dot, y_dot, u_dot, v_dot, _, _ = vy_dot
 
             R = np.zeros(6, dtype=np.common_type(vy, vy_dot))
-            R[0] = u - x_dot + 2 * x * mu
-            R[1] = v - y_dot + 2 * y * mu
-            R[2] = m * u_dot + 2 * x * la
-            R[3] = m * v_dot + 2 * y * la + m * g
-            R[4] = 2 * x * x_dot + 2 * y * y_dot
+            R[0] = x_dot - u - 2 * x * mu
+            R[1] = y_dot - v - 2 * y * mu
+            R[2] = m * u_dot - 2 * x * la
+            R[3] = m * v_dot - 2 * y * la + m * g
+            R[4] = 2 * x * u + 2 * y * v
             R[5] = x * x + y * y - l * l
             # R[4] /= h
             # R[5] /= h
         else:
             x, y, x_dot, y_dot, _ = vy
             u, v, u_dot, v_dot, la = vy_dot
-            # TODO: Why is this so bad?
-            # x, y, x_dot, y_dot, la = vy
-            # u, v, u_dot, v_dot, _ = vy_dot
 
             R = np.zeros(5, dtype=np.common_type(vy, vy_dot))
             R[0] = u - x_dot
@@ -51,6 +49,50 @@ def make_pendulum(m, g, l, index=3):
 
         return R
     
+    def F_y(t, vy, vy_dot):
+        assert index == "GGL"
+
+        # stabilized index 1
+        x, y, u, v, _, _ = vy
+        x_dot, y_dot, u_dot, v_dot, la, mu = vy_dot
+        # # # stabilized index 2
+        # x, y, u, v, la, mu = vy
+        # x_dot, y_dot, u_dot, v_dot, _, _ = vy_dot
+
+        # fmt: off
+        J = np.array([
+            [-2 * mu,       0,    -1,      0, 0, 0],
+            [      0, -2 * mu,     0,     -1, 0, 0],
+            [-2 * la,       0,     0,      0, 0, 0],
+            [      0, -2 * la,     0,      0, 0, 0],
+            [  2 * u,   2 * v, 2 * x,  2 * y, 0, 0],
+            [  2 * x,   2 * y,     0,      0, 0, 0],
+        ])
+        # fmt: on
+        return J
+
+    def F_y_dot(t, vy, vy_dot):
+        assert index == "GGL"
+
+        # stabilized index 1
+        x, y, u, v, _, _ = vy
+        x_dot, y_dot, u_dot, v_dot, la, mu = vy_dot
+        # # # stabilized index 2
+        # x, y, u, v, la, mu = vy
+        # x_dot, y_dot, u_dot, v_dot, _, _ = vy_dot
+
+        # fmt: off
+        J = np.array([
+            [1, 0, 0, 0,      0, -2 * x],
+            [0, 1, 0, 0,      0, -2 * y],
+            [0, 0, m, 0, -2 * x,      0],
+            [0, 0, 0, m, -2 * y,      0],
+            [0, 0, 0, 0,      0,      0],
+            [0, 0, 0, 0,      0,      0],
+        ])
+        # fmt: on
+        return J
+    
     n = 6 if index == "GGL" else 5
 
     mass_matrix = np.diag(np.concatenate([np.ones(n), np.zeros(n)]))
@@ -64,32 +106,24 @@ def make_pendulum(m, g, l, index=3):
         z_dot[n:] = F(t, y, y_dot, h)
         return z_dot
     
-    # mass_matrix = np.eye(5)
-    # if index > 0:
-    #     mass_matrix[-1, -1] = 0
-    
-    # def rhs(t, vy):
-    #     """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
-    #     x, y, x_dot, y_dot, la = vy
+    def jac(t, z):
+        y = z[:n]
+        y_dot = z[n:]
 
-    #     vy_dot = np.zeros(5, dtype=vy.dtype)
-    #     vy_dot[0] = x_dot
-    #     vy_dot[1] = y_dot
-    #     vy_dot[2] = -2 * x * la / m
-    #     vy_dot[3] = -2 * y * la / m - g
-    #     match index:
-    #         case 3:
-    #             vy_dot[4] = x * x + y * y - l * l
-    #         case 2:
-    #             vy_dot[4] = 2 * x * x_dot + 2 * y * y_dot
-    #         case 1:
-    #             vy_dot[4] = 2 * la * (x ** 2 + y ** 2) / m  + g * y - (x_dot ** 2 + y_dot ** 2)
-    #         case default:
-    #             raise NotImplementedError
+        jac = np.zeros((2 * n, 2 * n))
+        jac[:n, n:] = np.eye(n)
+        jac[n:, :n] = F_y(t, y, y_dot)
+        jac[n:, n:] = F_y_dot(t, y, y_dot)
+        return jac
 
-    #     return vy_dot
-    
-    return mass_matrix, rhs
+        from cardillo.math.approx_fprime import approx_fprime
+        jac_num = approx_fprime(z, lambda z: rhs(t, z), eps=1e-20, method="cs")
+        diff = jac - jac_num
+        error = np.linalg.norm(diff)
+        print(f"error jac: {error}")
+        return jac_num
+        
+    return mass_matrix, rhs, jac
 
 
 if __name__ == "__main__":
@@ -131,7 +165,12 @@ if __name__ == "__main__":
     z0 = np.concatenate((y0, y_dot0))
 
     # solver options
+    # rtol = atol = 1e-12
+    # rtol = atol = 1e-10
+    # rtol = atol = 1e-8
     rtol = atol = 1e-6
+    # rtol = atol = 1e-5
+    # rtol = atol = 1e-4
     # atol = 1e-8
     # rtol = 1e-8
     # atol = 1e-6
@@ -146,11 +185,14 @@ if __name__ == "__main__":
     # y_scipy = sol.y
 
     # dae solution
-    mass_matrix, rhs = make_pendulum(m, g, l, index=index)
+    mass_matrix, rhs, jac = make_pendulum(m, g, l, index=index)
     # method = Radau
     method = BDF
     # method = TRBDF2
-    sol = solve_ivp(rhs, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    start = time.time()
+    sol = solve_ivp(rhs, t_span, z0, jac=jac, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix, var_index=var_index)
+    end = time.time()
+    print(f"elapsed time: {end - start}")
     t = sol.t
     z = sol.y
     success = sol.success

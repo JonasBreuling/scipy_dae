@@ -258,6 +258,7 @@ class BDF(OdeSolver):
         # self.nvars_algebraic = self.index_algebraic_vars.size
 
         kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
+        # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, MAX_ORDER + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, MAX_ORDER + 2)
@@ -372,7 +373,7 @@ class BDF(OdeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
