@@ -23,15 +23,16 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    # t1 = 3e3
-    t1 = 1e3
+    t1 = 3e3
+    # t1 = 1e3
     t_span = (t0, t1)
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
 
     # solver options
-    rtol = atol = 1e-6
+    rtol = atol = 1e-3
+    # rtol = atol = 1e-6
     # rtol = atol = 1e-8
     # rtol = atol = 1e-10
 

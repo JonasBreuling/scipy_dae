@@ -167,8 +167,8 @@ if __name__ == "__main__":
     # solver options
     # rtol = atol = 1e-12
     # rtol = atol = 1e-10
-    rtol = atol = 1e-8
-    # rtol = atol = 1e-6
+    # rtol = atol = 1e-8
+    rtol = atol = 1e-6
     # rtol = atol = 1e-5
     # rtol = atol = 1e-4
     # rtol = atol = 1e-3

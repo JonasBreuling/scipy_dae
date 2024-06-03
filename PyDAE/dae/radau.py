@@ -31,6 +31,14 @@ TI = np.array([
     [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
 
+# Interpolator coefficients.
+P = np.array([
+    [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
+    [13/3 - 7*S6/3, -23/3 + 22*S6/3, 10/3 - 5 * S6],
+    [1/3, -8/3, 10/3]])
+
+print(f"P:\n{P}")
+
 # # Breuling
 # # - with hessenberg
 # # T = np.array([[ 0.09123239, -0.02791897,  0.1283268],
@@ -85,35 +93,21 @@ TI = np.array([
 #  [ 1.,          0.,          1.        ]])
 # TI = np.linalg.inv(T)
 
+
+
 from .radau_transformation import radau_constants
-s = 3
-# s = 5
+# s = 1
+# s = 3
+s = 5
+# s = 7
+# s = 9
+# s = 11
+assert s % 2 == 1
 alphas, betas, gammas, T, TI, C, E = radau_constants(s)
 MU_REAL = gammas[0]
-MU_COMPLEX = alphas[0] - 1j * betas[0]
-# # TODO: Check this
-# MU_COMPLEX = alphas -1j * betas
-
-
-# These linear combinations are used in the algorithm.
-TI_REAL = TI[0]
-TI_COMPLEX = TI[1] + 1j * TI[2]
-# # TODO: Check this
-# TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
-
-# TODO: Compute these
-# Interpolator coefficients.
-P = np.array([
-    [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
-    [13/3 - 7*S6/3, -23/3 + 22*S6/3, 10/3 - 5 * S6],
-    [1/3, -8/3, 10/3]])
-
-
-NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
-MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
-MAX_FACTOR = 10  # Maximum allowed increase in a step size.
-
-# print(f"P:\n{P}")
+# MU_COMPLEX = alphas[0] - 1j * betas[0]
+# TODO: Check this
+MU_COMPLEX = alphas -1j * betas
 
 # Construct the Vandermonde matrix for the nodes
 # V = np.array([
@@ -123,12 +117,21 @@ MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 #     [1, c3, c3**2, c3**3]
 # ]).T
 V = np.vander(np.array([0, *C]), increasing=True).T
-print(f"V:\n{V}")
+# print(f"V:\n{V}")
 
 # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P
 P = np.linalg.inv(V)[1:, 1:]
+print(f"P:\n{P}")
 
-# exit()
+# These linear combinations are used in the algorithm.
+TI_REAL = TI[0]
+# TI_COMPLEX = TI[1] + 1j * TI[2]
+# TODO: Check this
+TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
+
+NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
+MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
+MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -181,7 +184,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     W = TI.dot(Z0)
     Z = Z0
 
-    F = np.empty((3, n))
+    # F = np.empty((3, n))
+    F = np.empty((s, n))
     ch = h * C
 
     dW_norm_old = None
@@ -189,7 +193,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        for i in range(3):
+        # for i in range(3):
+        for i in range(s):
             F[i] = fun(t + ch[i], y + Z[i])
             # F[i] = fun(t + ch[i], y + Z[i], h)
 
@@ -197,15 +202,25 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             break
 
         f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
-        # TODO: Move on here for all complex eigenvalue paris
-        f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+        # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+
+        ncs = s // 2
+        f_complex = np.empty((ncs, n), dtype=M_complex.dtype)
+        for i in range(ncs):
+            f_complex[i] = F.T.dot(TI_COMPLEX[i]) - M_complex[i] * mass_matrix.dot(W[2 * i + 1] + 1j * W[2 * i + 2])
 
         dW_real = solve_lu(LU_real, f_real)
-        dW_complex = solve_lu(LU_complex, f_complex)
+        # dW_complex = solve_lu(LU_complex, f_complex)
+        dW_complex = np.empty_like(f_complex)
+        for i in range(ncs):
+            dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
 
         dW[0] = dW_real
-        dW[1] = dW_complex.real
-        dW[2] = dW_complex.imag
+        # dW[1] = dW_complex.real
+        # dW[2] = dW_complex.imag
+        for i in range(ncs):
+            dW[2 * i + 1] = dW_complex[i].real
+            dW[2 * i + 2] = dW_complex[i].imag
 
         dW_norm = norm(dW / scale)
         if dW_norm_old is not None:
@@ -258,10 +273,12 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / (s + 1))
 
     with np.errstate(divide='ignore'):
-        factor = min(1, multiplier) * error_norm ** -0.25
+        # factor = min(1, multiplier) * error_norm ** -0.25
+        factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
 
     return factor
 
@@ -392,7 +409,8 @@ class Radau(OdeSolver):
         if first_step is None:
             self.h_abs = select_initial_step(
                 self.fun, self.t, self.y, self.f, self.direction,
-                3, self.rtol, self.atol)
+                # 3, self.rtol, self.atol)
+                s, self.rtol, self.atol)
         else:
             self.h_abs = validate_first_step(first_step, t0, t_bound)
         self.h_abs_old = None
@@ -595,7 +613,8 @@ class Radau(OdeSolver):
             while not converged:
                 if LU_real is None or LU_complex is None:
                     LU_real = self.lu(MU_REAL / h * self.mass_matrix - J)
-                    LU_complex = self.lu(MU_COMPLEX / h * self.mass_matrix - J)
+                    # LU_complex = self.lu(MU_COMPLEX / h * self.mass_matrix - J)
+                    LU_complex = [self.lu(MU / h * self.mass_matrix - J) for MU in MU_COMPLEX]
 
                 converged, n_iter, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,

@@ -28,7 +28,7 @@ def RadauIIA(s):
 
 def radau_constants(s):
     # compute Butcher tableau
-    A, b, c, p = RadauIIA(s)
+    A, b, c, order = RadauIIA(s)
     print(f"A:\n{A}")
 
     # compute inverse coefficient matrix
