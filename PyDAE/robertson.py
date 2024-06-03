@@ -50,10 +50,15 @@ if __name__ == "__main__":
     y0 = np.array([1, 0, 0], dtype=float)
 
     # solver options
-    atol = 5e-8
-    rtol = 1e-12
-    atol = 1e-7
-    rtol = 1e-12
+    # atol = 5e-8
+    # rtol = 1e-12
+    # atol = 1e-7
+    # rtol = 1e-12
+    # atol = 1e-3
+    # rtol = 1e-6
+    atol = rtol = 1e-8
+    # atol = rtol = 1e-6
+    # atol = rtol = 1e-4
 
     # reference solution
     mass_matrix, rhs, var_index = make_robertson(DAE=False)

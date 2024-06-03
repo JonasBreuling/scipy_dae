@@ -31,10 +31,9 @@ if __name__ == "__main__":
     y0 = np.array([2, 0], dtype=float)
 
     # solver options
-    # atol = 1e-7
-    # rtol = 1e-7
-    atol = 1e-6
-    rtol = 1e-6
+    rtol = atol = 1e-6
+    # rtol = atol = 1e-8
+    # rtol = atol = 1e-10
 
     # reference solution
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
