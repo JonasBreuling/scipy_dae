@@ -168,9 +168,10 @@ if __name__ == "__main__":
     # rtol = atol = 1e-12
     # rtol = atol = 1e-10
     # rtol = atol = 1e-8
-    rtol = atol = 1e-6
+    # rtol = atol = 1e-6
     # rtol = atol = 1e-5
-    # rtol = atol = 1e-4
+    rtol = atol = 1e-4
+    # rtol = atol = 1e-3
     # atol = 1e-8
     # rtol = 1e-8
     # atol = 1e-6

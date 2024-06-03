@@ -86,8 +86,8 @@ def generate_Jay1993():
 if __name__ == "__main__":
     y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors = generate_Jay1993()
 
-    # method = BDF
-    method = Radau
+    method = BDF
+    # method = Radau
     # method = TRBDF2
     sol = solve_ivp(
         fun=fun,

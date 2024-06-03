@@ -13,7 +13,8 @@ from scipy.integrate._ivp.common import (
 from scipy.integrate._ivp.base import OdeSolver, DenseOutput
 
 
-MAX_ORDER = 5
+# MAX_ORDER = 5
+MAX_ORDER = 6
 NEWTON_MAXITER = 4
 MIN_FACTOR = 0.2
 MAX_FACTOR = 10
@@ -257,8 +258,13 @@ class BDF(OdeSolver):
         # self.index_algebraic_vars = np.where(self.var_index != 0)[0]
         # self.nvars_algebraic = self.index_algebraic_vars.size
 
-        kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
-        # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
+        # kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
+        kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0, 0])[:MAX_ORDER + 1]
+        # # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
+        # kappa = np.array([0, -0.1850, -1/9, 0, 0, 0])[:MAX_ORDER + 1]
+        # # Klopfenstein1971: maximized A(alpha)-stability
+        # kappa = np.array([0, 0, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1]
+        kappa = np.array([0, -0.1850, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1] # with optimized first-order method of Shampine
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, MAX_ORDER + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, MAX_ORDER + 2)
@@ -373,7 +379,7 @@ class BDF(OdeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol

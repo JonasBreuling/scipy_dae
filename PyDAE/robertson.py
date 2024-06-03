@@ -63,8 +63,8 @@ if __name__ == "__main__":
 
     # dae solution
     mass_matrix, rhs, var_index = make_robertson(DAE=DAE)
-    # method = BDF
-    method = Radau
+    method = BDF
+    # method = Radau
     # method = TRBDF2
     start = time.time()
     # t, y = euler(rhs, y0, t_span, rtol, atol, mass_matrix)
