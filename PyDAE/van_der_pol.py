@@ -32,8 +32,8 @@ if __name__ == "__main__":
 
     # solver options
     # rtol = atol = 1e-2
-    # rtol = atol = 1e-3
-    rtol = atol = 1e-6
+    rtol = atol = 1e-3
+    # rtol = atol = 1e-6
     # rtol = atol = 1e-8
     # rtol = atol = 1e-10
 

@@ -57,8 +57,8 @@ if __name__ == "__main__":
     # atol = 1e-3
     # rtol = 1e-6
     # atol = rtol = 1e-8
-    # atol = rtol = 1e-6
-    atol = rtol = 1e-4
+    atol = rtol = 1e-6
+    # atol = rtol = 1e-4
 
     # reference solution
     mass_matrix, rhs, var_index = make_robertson(DAE=False)

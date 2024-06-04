@@ -70,9 +70,9 @@ def generate_Jay1993():
         plt.show()
 
     def errors(t, y):
-        assert_allclose(y[0], np.exp(t), rtol=1e-5)
-        assert_allclose(y[1], np.exp(-2 * t), rtol=1e-5)
-        assert_allclose(y[2], np.exp(2 * t), rtol=1e-3)
+        assert_allclose(y[0], np.exp(t), rtol=1e-8)
+        assert_allclose(y[1], np.exp(-2 * t), rtol=1e-8)
+        assert_allclose(y[2], np.exp(2 * t), rtol=1e-8)
         # dt = t[1] - t[0]
         # error_y1 = np.linalg.norm((y[0] - np.exp(t)) * dt)
         # error_y2 = np.linalg.norm((y[1] - np.exp(-2 * t)) * dt)
@@ -86,8 +86,8 @@ def generate_Jay1993():
 if __name__ == "__main__":
     y0, mass_matrix, var_index, fun, jac, rtol, atol, t_span, plot, errors = generate_Jay1993()
 
-    method = BDF
-    # method = Radau
+    # method = BDF
+    method = Radau
     # method = TRBDF2
     sol = solve_ivp(
         fun=fun,

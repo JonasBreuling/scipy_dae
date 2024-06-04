@@ -67,7 +67,7 @@ def generate_Jay1995(nonlinear_multiplier):
         assert_allclose(y[1], np.exp(-t), rtol=1e-6)
         assert_allclose(y[2], np.exp(2 * t), rtol=1e-6)
         assert_allclose(y[3], np.exp(-t), rtol=1e-6)
-        assert_allclose(y[4], np.exp(t), rtol=1e-3)
+        assert_allclose(y[4], np.exp(t), rtol=1e-6)
         # dt = t[1] - t[0]
         # error_y1 = np.linalg.norm((y[0] - np.exp(2 * t)) * dt)
         # error_y2 = np.linalg.norm((y[1] - np.exp(-t)) * dt)
@@ -88,8 +88,8 @@ def generate_Jay1995(nonlinear_multiplier):
     y0 = np.ones(5, dtype=float)
 
     # tolerances and t_span
-    # rtol = atol = 1.0e-8
-    rtol = atol = 1.0e-5
+    rtol = atol = 1.0e-9
+    # rtol = atol = 1.0e-5
     # t_span = (0, 20)
     t_span = (0, 1)
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     success = sol.success
     assert success
 
-    # errors(sol.t, sol.y)
+    errors(sol.t, sol.y)
     plot(sol.t, sol.y)
 
     # from dae.euler import euler

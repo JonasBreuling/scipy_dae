@@ -168,8 +168,8 @@ if __name__ == "__main__":
     # rtol = atol = 1e-12
     # rtol = atol = 1e-10
     # rtol = atol = 1e-8
-    rtol = atol = 1e-6
-    # rtol = atol = 1e-5
+    # rtol = atol = 1e-6
+    rtol = atol = 1e-5
     # rtol = atol = 1e-4
     # rtol = atol = 1e-3
     # rtol = atol = 1e-2
@@ -217,13 +217,13 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots(4, 1)
 
-    ax[0].plot(t, y[0], "-k", label="x")
-    ax[0].plot(t, y[1], "--k", label="y")
+    ax[0].plot(t, y[0], "-ok", label="x")
+    ax[0].plot(t, y[1], "--xk", label="y")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[2], "-k", label="u")
-    ax[1].plot(t, y[3], "--k", label="v")
+    ax[1].plot(t, y[2], "-ok", label="u")
+    ax[1].plot(t, y[3], "--xk", label="v")
     # ax[1].plot(t, y_dot[0], "-.r", label="x_dot")
     # ax[1].plot(t, y_dot[1], ":r", label="u_dot")
     ax[1].legend()
@@ -236,8 +236,8 @@ if __name__ == "__main__":
 
     # ax[3].plot(t, y[4], "-k", label="la dt")
     # ax[3].plot(t, y_dot[4], "-k", label="la")
-    ax[3].plot(t, y[10], "-k", label="la")
-    ax[3].plot(t, y[11], "-k", label="mu")
+    ax[3].plot(t, y[10], "-ok", label="la")
+    ax[3].plot(t, y[11], "--xk", label="mu")
     ax[3].legend()
     ax[3].grid()
 
