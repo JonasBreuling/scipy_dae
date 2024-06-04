@@ -2,6 +2,23 @@ import numpy as np
 from functools import cmp_to_key
 from scipy.linalg import eig, hessenberg, orth, cdf2rdf
 
+# from scipy.optimize import root_scalar
+
+# f = lambda kL: 1 - np.cosh(kL) * np.cos(kL)
+
+# kL0 = 4
+# kL1 = 2e1
+# num = 10
+# span = np.linspace(kL0, kL1, num=num)
+# method = "secant"
+
+# for i in range(num - 1):
+#     bracket = [span[i], span[i + 1]]
+#     sol = root_scalar(f, x0=0.5 * np.sum(bracket), method=method)
+#     print(f"kL: {sol.root}")
+
+# exit()
+
 
 def RadauIIA(s):
     # solve zeros of Radau polynomial, see Hairer1999 (7)
@@ -139,61 +156,110 @@ def radau_constants(s):
         print(f"beta_scipy: {beta_scipy}")
 
     # compute embedded method for error estimate,
-    # see https://arxiv.org/abs/1306.2392
-    # equation (10)
-    # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
-    vander = np.vander(c, increasing=True).T
+    # see https://arxiv.org/abs/1306.2392 equation (10)
+    # # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
     # TODO: This is correct, document this extended tableau!
     c_hat = np.array([0, *c])
-    vander = np.vander(c_hat, increasing=True).T[1:, 1:]
-    # rhs = 1 / np.arange(1, s + 1)
-    rhs = 1 / np.arange(2, s + 2)
+    print(f"c_hat: {c_hat}")
+
+    vander = np.vander(c_hat, increasing=True).T
+    print(f"vander:\n{vander}")
+    vander = vander[1:, 1:]
+    print(f"vander:\n{vander}")
+
+    # de Swart1997
+    vander = np.zeros((s, s))
+    for i in range(s):
+        for j in range(s):
+            vander[i, j] = c[j]**i
+    print(f"vander:\n{vander}")
+
+    rhs = 1 / np.arange(1, s + 1)
+    # rhs = 1 / np.arange(2, s + 2)
+    # rhs = 1 / np.arange(1, s + 2)
+    # if s > 1:
+    #     # TODO: Why is this required???
+    #     rhs = 1 / np.arange(2, s + 2)
+    # else:
+    #     rhs = 1 / np.arange(1, s + 1)
+    print(f"rhs:\n{rhs}")
+
     gamma0 = gammas[0]
     rhs[0] -= gamma0
-    b_hat = np.linalg.solve(vander, rhs)
-    # b_hat *= gamma0 * 100
-    # b_hat /= gamma0
-
-    E = b - b_hat
-    E = b_hat - b
-    # E = np.array([-1, 1 - (7 / 12) * 6**0.5, 1 + (7 / 16) * 6**0.5]) / 3
-    # E = np.array([1 - (7 / 12) * 6**0.5, 1 + (7 / 16) * 6**0.5, -1])# / 3
-    # E *= -1
-    # E *= 3
-    # E *= gamma0
-    E /= gamma0 # TODO: Why is this done in scipy?
-    print(f"c: {c}")
-    print(f"vander:\n{vander}")
     print(f"rhs:\n{rhs}")
-    print(f"b_hat:\n{b_hat}")
-    print(f"E:\n{E}")
-    print(f"b_hat - b: {b_hat - b}")
-    print(f"b - b_hat: {b - b_hat}")
-    if s == 3:
-        S6 = 6 ** 0.5
-        # TODO: This is something different. But what is different???
-        E_scipy = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
-        # E_scipy *= gamma0
-        # E_scipy = np.array([2 + 3 * S6, 2 - 3 * S6, 2]) * gamma0 / 6
-        # b_hat_scipy = E_scipy - b
-        # print(f"b_hat_scipy:\n{b_hat_scipy}")
-        print(f"E_scipy:\n{E_scipy}")
-        # assert np.allclose(E, E_scipy)
 
-        # c_scipy = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
-        # print(f"c: {c}")
-        # print(f"c_scipy: {c_scipy}")
+    b_hat = np.linalg.solve(vander, rhs)
+    print(f"b_hat:\n{b_hat}")
+    b_hat = b_hat @ A_inv
+    print(f"b_hat:\n{b_hat}")
+    # b_hat = b_hat + b
+    # b_hat = np.linalg.pinv(vander) @ rhs
+    # b_hat = np.linalg.solve(vander.T @ vander, vander.T @ rhs)
+
+    # E = b_hat[-s:] - b
+    E = b_hat - b @ A_inv
+    E /= gamma0 # TODO: Why is this done in scipy?
+
+    print(f"c: {c}")
+    print(f"E:\n{E}")
+
+    # exit()
+
+    if s in [1, 3, 5, 7, 9]:
+
+        if s == 1:
+            E_scipy = np.array([
+                -1.0e0,
+            ])
+        elif s == 3:
+            S6 = 6 ** 0.5
+            E_scipy = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
+        elif s == 5:
+            E_scipy = np.array([
+                -0.2778093394406463730479e+02,
+                 0.3641478498049213152712e+01,
+                -0.1252547721169118720491e+01,
+                 0.5920031671845428725662e+00,
+                -0.2000000000000000000000e+00,
+            ])
+        elif s == 7:
+            E_scipy = np.array([
+                -0.5437443689412861451458e+02,
+                 0.7000024004259186512041e+01,
+                -0.2355661091987557192256e+01,
+                 0.1132289066106134386384e+01,
+                -0.6468913267673587118673e+00,
+                 0.3875333853753523774248e+00,
+                -0.1428571428571428571429e+00,
+            ])
+        elif s == 9:
+            E_scipy = np.array([
+                -89.831539704037684586502729e+00,
+                 11.474276609468772159022261e+00,
+                -3.81419058476042873698615187e+00,
+                 1.81155300867853110911564243e+00,
+                -1.03663781378817415276482837e+00,
+                 0.66086568819371648375769004e+00,
+                -0.44418925628052673008702343e+00,
+                 0.29097316363690556555625116e+00,
+                -0.11111111111111111111111111e+00,
+            ])
+        
+        print(f"E_scipy:\n{E_scipy}")
+        print(f"E / E_scipy: {E / E_scipy}")
 
     # TODO Compute collocation weights?
+    # exit()
 
     return alphas, betas, gammas, T, TI, c, E
 
 
 if __name__ == "__main__":
-    # s = 2
+    # s = 1
     s = 3
-    # s = 4
     # s = 5
+    # s = 7
+    # s = 9
     radau_constants(s)
     exit()
 

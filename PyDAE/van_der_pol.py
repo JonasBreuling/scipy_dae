@@ -31,8 +31,9 @@ if __name__ == "__main__":
     y0 = np.array([2, 0], dtype=float)
 
     # solver options
-    rtol = atol = 1e-3
-    # rtol = atol = 1e-6
+    # rtol = atol = 1e-2
+    # rtol = atol = 1e-3
+    rtol = atol = 1e-6
     # rtol = atol = 1e-8
     # rtol = atol = 1e-10
 
@@ -45,8 +46,10 @@ if __name__ == "__main__":
     # method = BDF
     method = Radau
     # method = TRBDF2
+    t_eval = np.linspace(*t_span, num=int(1e2))
+    t_eval = None
     start = time.time()
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
+    sol = solve_ivp(rhs, t_span, y0, t_eval=t_eval, atol=atol, rtol=rtol, method=method, var_index=[0, 0])
     end = time.time()
     print(f"elapsed time: {end - start}")
     success = sol.success

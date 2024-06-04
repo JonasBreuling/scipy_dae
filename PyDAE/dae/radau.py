@@ -9,6 +9,12 @@ from scipy.integrate._ivp.common import (
 )
 from scipy.integrate._ivp.base import OdeSolver, DenseOutput
 
+# TODO: - Incorporate improved error estimate proposed by de Swart and Söderlind, 
+#         see https://www.sciencedirect.com/science/article/pii/S0377042797001660
+#       - variable order as introduced by Hairer, 
+#         see https://www.sciencedirect.com/science/article/pii/S037704279900134X
+#         and https://www.sciencedirect.com/science/article/pii/S0898122109007925
+
 S6 = 6 ** 0.5
 
 # Butcher tableau. A is not used directly, see below.
@@ -636,6 +642,7 @@ class Radau(OdeSolver):
                 LU_complex = None
                 continue
 
+            # Hairer1996 (8.2b)
             y_new = y + Z[-1]
             ZE = Z.T.dot(E) / h
             # error = self.solve_lu(LU_real, f + ZE)
@@ -661,6 +668,7 @@ class Radau(OdeSolver):
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
             if rejected and error_norm > 1: # try with stabilised error estimate
+            # if True:
                 error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
                 # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
                 if self.index_algebraic_vars is not None:

@@ -13,8 +13,8 @@ from scipy.integrate._ivp.common import (
 from scipy.integrate._ivp.base import OdeSolver, DenseOutput
 
 
-# MAX_ORDER = 5
-MAX_ORDER = 6
+MAX_ORDER = 5
+# MAX_ORDER = 6
 NEWTON_MAXITER = 4
 MIN_FACTOR = 0.2
 MAX_FACTOR = 10
