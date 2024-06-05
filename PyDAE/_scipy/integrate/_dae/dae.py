@@ -9,7 +9,7 @@ import numpy as np
 # from .radau import Radau
 from scipy.optimize import OptimizeResult
 # from scipy.integrate._ivp.ivp import prepare_events, solve_event_equation, handle_events, find_active_events
-from scipy.integrate._ivp.ivp import prepare_events, solve_event_equation, handle_events, find_active_events
+from scipy.integrate._ivp.ivp import OdeResult, prepare_events, solve_event_equation, handle_events, find_active_events
 from scipy.integrate._ivp.common import EPS, OdeSolution
 # from .common import EPS, DaeSolution
 from .base import DaeSolver
@@ -23,10 +23,6 @@ METHODS = {
 
 MESSAGES = {0: "The solver successfully reached the end of the integration interval.",
             1: "A termination event occurred."}
-
-
-class DaeResult(OptimizeResult):
-    pass
 
 
 # TODO:
@@ -277,7 +273,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
     if args is not None:
         # Wrap the user's fun (and jac, if given) in lambdas to hide the
-        # additional parameters.  Pass in the original fun as a keyword
+        # additional parameters. Pass in the original fun as a keyword
         # argument to keep it in the scope of the lambda.
         try:
             _ = [*(args)]
@@ -290,6 +286,8 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
         def fun(t, x, x_dot, fun=fun):
             return fun(t, x, x_dot, *args)
+        
+        # TODO: Add validate jac here already, since Jacobians are required for all methods!
         jac = options.get('jac')
         if callable(jac):
             options['jac'] = lambda t, x, x_dot: jac(t, x, x_dot, *args)
@@ -317,7 +315,8 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     if method in METHODS:
         method = METHODS[method]
 
-    solver = method(fun, t0, y0, y_dot0, tf, var_index, vectorized=vectorized, **options)
+    solver = method(fun, t0, y0, y_dot0, tf, #vectorized=vectorized, 
+                    **options)
 
     if t_eval is None:
         ts = [t0]
@@ -343,6 +342,8 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
             events = [lambda t, x, event=event: event(t, x, *args)
                       for event in events]
         g = [event(t0, y0) for event in events]
+        # TODO: Why not:
+        # t_events = [[] * len(events)]
         t_events = [[] for _ in range(len(events))]
         y_events = [[] for _ in range(len(events))]
     else:
@@ -431,17 +432,16 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
     if dense_output:
         if t_eval is None:
-            sol = DaeSolution(
+            sol = OdeSolution(
                 ts, interpolants, alt_segment=True if method is [BDF,] else False
             )
         else:
-            sol = DaeSolution(
+            sol = OdeSolution(
                 ti, interpolants, alt_segment=True if method in [BDF,] else False
             )
     else:
         sol = None
 
-    # TODO: Can we pass y_dot=y_dots to OptimizeResult?
     return DaeResult(t=ts, y=ys, sol=sol, t_events=t_events, y_events=y_events,
                      nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
                      status=status, message=message, success=status>=0)
