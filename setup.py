@@ -8,7 +8,7 @@ setup(
     version="0.0.1",
     author="Jonas Breuling",
     author_email="jonas.breuling@inm.uni-stuttgart.de",
-    description="Python interface to Radau5 and DASSL high-performance stiff ODE / DAE solvers",
+    description="Python implementation of DAE solvers",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/TODO",
@@ -19,5 +19,5 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    install_requires=["numpy", "scipy"],
+    install_requires=["numpy", "scipy", "matplotlib"],
 )

@@ -5,19 +5,16 @@
 
 import inspect
 import numpy as np
-# from .bdf import BDF
-# from .radau import Radau
-from scipy.optimize import OptimizeResult
-# from scipy.integrate._ivp.ivp import prepare_events, solve_event_equation, handle_events, find_active_events
-from scipy.integrate._ivp.ivp import OdeResult, prepare_events, solve_event_equation, handle_events, find_active_events
+from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, find_active_events
 from scipy.integrate._ivp.common import EPS, OdeSolution
-# from .common import EPS, DaeSolution
 from .base import DaeSolver
+# from .bdf import BDF
+from .radau import Radau
 
 
 METHODS = {
     "Radau": Radau,
-    "BDF": BDF,
+    # "BDF": BDF,
 }
 
 
@@ -30,7 +27,7 @@ MESSAGES = {0: "The solver successfully reached the end of the integration inter
 # - add events depending on y'(t)?
 # - return y' and interpolate y' somehow?
 def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
-              dense_output=False, events=None, #vectorized=False, 
+              dense_output=False, events=None, vectorized=False, 
               args=None, **options):
     """Solve an initial value problem for a system of differential algebraic 
     equations (DAE's).

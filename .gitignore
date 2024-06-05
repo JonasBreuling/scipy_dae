@@ -1,0 +1,4 @@
+myvenv
+*.egg-info
+*.pyvc
+*.pyc
