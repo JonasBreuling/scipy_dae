@@ -1,14 +1,24 @@
+######################################
+# derived from
+# from scipy.integrate._ivp import ivp
+######################################
+
 import inspect
 import numpy as np
-from .bdf import BDF
-from .radau import Radau
+# from .bdf import BDF
+# from .radau import Radau
 from scipy.optimize import OptimizeResult
-from .common import EPS, DaeSolution
+# from scipy.integrate._ivp.ivp import prepare_events, solve_event_equation, handle_events, find_active_events
+from scipy.integrate._ivp.ivp import prepare_events, solve_event_equation, handle_events, find_active_events
+from scipy.integrate._ivp.common import EPS, OdeSolution
+# from .common import EPS, DaeSolution
 from .base import DaeSolver
 
 
-METHODS = {'Radau': Radau,
-           'BDF': BDF}
+METHODS = {
+    "Radau": Radau,
+    "BDF": BDF,
+}
 
 
 MESSAGES = {0: "The solver successfully reached the end of the integration interval.",
@@ -19,144 +29,12 @@ class DaeResult(OptimizeResult):
     pass
 
 
-def prepare_events(events):
-    """Standardize event functions and extract is_terminal and direction."""
-    if callable(events):
-        events = (events,)
-
-    if events is not None:
-        is_terminal = np.empty(len(events), dtype=bool)
-        direction = np.empty(len(events))
-        for i, event in enumerate(events):
-            try:
-                is_terminal[i] = event.terminal
-            except AttributeError:
-                is_terminal[i] = False
-
-            try:
-                direction[i] = event.direction
-            except AttributeError:
-                direction[i] = 0
-    else:
-        is_terminal = None
-        direction = None
-
-    return events, is_terminal, direction
-
-
-# TODO: Add event(t, y(t), yp(t)) = 0
-def solve_event_equation(event, sol, t_old, t):
-    """Solve an equation corresponding to an ODE event.
-
-    The equation is ``event(t, y(t)) = 0``, here ``y(t)`` is known from an
-    ODE solver using some sort of interpolation. It is solved by
-    `scipy.optimize.brentq` with xtol=atol=4*EPS.
-
-    Parameters
-    ----------
-    event : callable
-        Function ``event(t, y)``.
-    sol : callable
-        Function ``sol(t)`` which evaluates an ODE solution between `t_old`
-        and  `t`.
-    t_old, t : float
-        Previous and new values of time. They will be used as a bracketing
-        interval.
-
-    Returns
-    -------
-    root : float
-        Found solution.
-    """
-    raise NotImplementedError
-    from scipy.optimize import brentq
-    return brentq(lambda t: event(t, sol(t)), t_old, t,
-                  xtol=4 * EPS, rtol=4 * EPS)
-
-
-# TODO: Adapt accordingly
-def handle_events(sol, events, active_events, is_terminal, t_old, t):
-    """Helper function to handle events.
-
-    Parameters
-    ----------
-    sol : DenseOutput
-        Function ``sol(t)`` which evaluates an ODE solution between `t_old`
-        and  `t`.
-    events : list of callables, length n_events
-        Event functions with signatures ``event(t, y)``.
-    active_events : ndarray
-        Indices of events which occurred.
-    is_terminal : ndarray, shape (n_events,)
-        Which events are terminal.
-    t_old, t : float
-        Previous and new values of time.
-
-    Returns
-    -------
-    root_indices : ndarray
-        Indices of events which take zero between `t_old` and `t` and before
-        a possible termination.
-    roots : ndarray
-        Values of t at which events occurred.
-    terminate : bool
-        Whether a terminal event occurred.
-    """
-    raise NotImplementedError
-    roots = [solve_event_equation(events[event_index], sol, t_old, t)
-             for event_index in active_events]
-
-    roots = np.asarray(roots)
-
-    if np.any(is_terminal[active_events]):
-        if t > t_old:
-            order = np.argsort(roots)
-        else:
-            order = np.argsort(-roots)
-        active_events = active_events[order]
-        roots = roots[order]
-        t = np.nonzero(is_terminal[active_events])[0][0]
-        active_events = active_events[:t + 1]
-        roots = roots[:t + 1]
-        terminate = True
-    else:
-        terminate = False
-
-    return active_events, roots, terminate
-
-
-# TODO: Adapt accordingly
-def find_active_events(g, g_new, direction):
-    """Find which event occurred during an integration step.
-
-    Parameters
-    ----------
-    g, g_new : array_like, shape (n_events,)
-        Values of event functions at a current and next points.
-    direction : ndarray, shape (n_events,)
-        Event "direction" according to the definition in `solve_ivp`.
-
-    Returns
-    -------
-    active_events : ndarray
-        Indices of events which occurred during the step.
-    """
-    raise NotImplementedError
-    g, g_new = np.asarray(g), np.asarray(g_new)
-    up = (g <= 0) & (g_new >= 0)
-    down = (g >= 0) & (g_new <= 0)
-    either = up | down
-    mask = (up & (direction > 0) |
-            down & (direction < 0) |
-            either & (direction == 0))
-
-    return np.nonzero(mask)[0]
-
-
 # TODO:
 # - expect consistent initial conditions and add a helper function that computes them as done by matlab?
-def solve_dae(fun, t_span, y0, y_dot0, method='Radau', t_eval=None, 
-              dense_output=False, events=None, vectorized=False, 
+# - add events depending on y'(t)?
+# - return y' and interpolate y' somehow?
+def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
+              dense_output=False, events=None, #vectorized=False, 
               args=None, **options):
     """Solve an initial value problem for a system of differential algebraic 
     equations (DAE's).
@@ -226,18 +104,20 @@ def solve_dae(fun, t_span, y0, y_dot0, method='Radau', t_eval=None,
     events : callable, or list of callables, optional
         Events to track. If None (default), no events will be tracked.
         Each event occurs at the zeros of a continuous function of time and
-        state. Each function must have the signature ``event(t, y, y')`` where
+        state. Each function must have the signature ``event(t, y)`` where
         additional argument have to be passed if ``args`` is used (see
         documentation of ``args`` argument). Each function must return a
         float. The solver will find an accurate value of `t` at which
-        ``event(t, y(t), y'(t)) = 0`` using a root-finding algorithm. By 
-        default, all zeros will be found. The solver looks for a sign change 
-        over each step, so if multiple zero crossings occur within one step,
-        events may be missed. Additionally each `event` function might have 
-        the following attributes:
+        ``event(t, y(t)) = 0`` using a root-finding algorithm. By default,
+        all zeros will be found. The solver looks for a sign change over
+        each step, so if multiple zero crossings occur within one step,
+        events may be missed. Additionally each `event` function might
+        have the following attributes:
 
-            terminal: bool, optional
-                Whether to terminate integration if this event occurs.
+            terminal: bool or int, optional
+                When boolean, whether to terminate integration if this event occurs.
+                When integral, termination occurs after the specified the number of
+                occurences of this event.
                 Implicitly False if not assigned.
             direction: float, optional
                 Direction of a zero crossing. If `direction` is positive,
@@ -247,22 +127,22 @@ def solve_dae(fun, t_span, y0, y_dot0, method='Radau', t_eval=None,
 
         You can assign attributes like ``event.terminal = True`` to any
         function in Python.
-    vectorized : bool, optional
-        Whether `fun` can be called in a vectorized fashion. Default is False.
+    # vectorized : bool, optional
+    #     Whether `fun` can be called in a vectorized fashion. Default is False.
 
-        If ``vectorized`` is False, `fun` will always be called with ``y`` of
-        shape ``(n,)``, where ``n = len(y0)``.
+    #     If ``vectorized`` is False, `fun` will always be called with ``y`` of
+    #     shape ``(n,)``, where ``n = len(y0)``.
 
-        If ``vectorized`` is True, `fun` may be called with ``y`` of shape
-        ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
-        such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
-        the returned array is the time derivative of the state corresponding
-        with a column of ``y``).
+    #     If ``vectorized`` is True, `fun` may be called with ``y`` of shape
+    #     ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
+    #     such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
+    #     the returned array is the time derivative of the state corresponding
+    #     with a column of ``y``).
 
-        Setting ``vectorized=True`` allows for faster finite difference
-        approximation of the Jacobian by methods 'Radau' and 'BDF', but
-        will result in slower execution for other methods and for 'Radau' and
-        'BDF' in some circumstances (e.g. small ``len(y0)``).
+    #     Setting ``vectorized=True`` allows for faster finite difference
+    #     approximation of the Jacobian by methods 'Radau' and 'BDF', but
+    #     will result in slower execution for other methods and for 'Radau' and
+    #     'BDF' in some circumstances (e.g. small ``len(y0)``).
     args : tuple, optional
         Additional arguments to pass to the user-defined functions.  If given,
         the additional arguments are passed to all user-defined functions.
@@ -292,24 +172,26 @@ def solve_dae(fun, t_span, y0, y_dot0, method='Radau', t_eval=None,
         beneficial to set different `atol` values for different components by
         passing array_like with shape (n,) for `atol`. Default values are
         1e-3 for `rtol` and 1e-6 for `atol`.
-    jac : array_like, sparse_matrix, callable or None, optional
-        Jacobian matrix of the right-hand side of the system with respect
-        to y, required by the 'Radau', 'BDF' and 'LSODA' method. The
-        Jacobian matrix has shape (n, n) and its element (i, j) is equal to
-        ``d f_i / d y_j``.  There are three ways to define the Jacobian:
+    jac : (array_like, array_like), (sparse_matrix, sparse_matrix), callable or None, optional
+        Jacobian matrices of the right-hand side of the system with respect
+        to y and y', required by the 'Radau' and 'BDF' method. The
+        Jacobian matrices have shape (n, n) and their elements (i, j) are equal to
+        ``d f_i / d y_j`` and ``d f_i / d y_j'``, respectively.  There are 
+        three ways to define the Jacobian:
 
-            * If array_like or sparse_matrix, the Jacobian is assumed to
-              be constant. Not supported by 'LSODA'.
-            * If callable, the Jacobian is assumed to depend on both
-              t and y; it will be called as ``jac(t, y)``, as necessary.
+            * If (array_like, array_like) or (sparse_matrix, sparse_matrix) 
+              the Jacobian matrices are assumed to be constant.
+            # TODO: Add constant J_y'!
+            * If callable, the Jacobians are assumed to depend on both
+              t, y and y'; it will be called as ``jac(t, y, y')``, as necessary.
               Additional arguments have to be passed if ``args`` is
               used (see documentation of ``args`` argument).
               For 'Radau' and 'BDF' methods, the return value might be a
-              sparse matrix.
-            * If None (default), the Jacobian will be approximated by
+              tuple of sparse matrices.
+            * If None (default), the Jacobians will be approximated by
               finite differences.
 
-        It is generally recommended to provide the Jacobian rather than
+        It is generally recommended to provide the Jacobians rather than
         relying on a finite-difference approximation.
     jac_sparsity : array_like, sparse matrix or None, optional
         Defines a sparsity structure of the Jacobian matrix for a finite-
@@ -319,20 +201,6 @@ def solve_dae(fun, t_span, y0, y_dot0, method='Radau', t_eval=None,
         will greatly speed up the computations [10]_. A zero entry means that
         a corresponding element in the Jacobian is always zero. If None
         (default), the Jacobian is assumed to be dense.
-        Not supported by 'LSODA', see `lband` and `uband` instead.
-    lband, uband : int or None, optional
-        Parameters defining the bandwidth of the Jacobian for the 'LSODA'
-        method, i.e., ``jac[i, j] != 0 only for i - lband <= j <= i + uband``.
-        Default is None. Setting these requires your jac routine to return the
-        Jacobian in the packed format: the returned array must have ``n``
-        columns and ``uband + lband + 1`` rows in which Jacobian diagonals are
-        written. Specifically ``jac_packed[uband + i - j , j] = jac[i, j]``.
-        The same format is used in `scipy.linalg.solve_banded` (check for an
-        illustration).  These parameters can be also used with ``jac=None`` to
-        reduce the number of Jacobian elements estimated by finite differences.
-    min_step : float, optional
-        The minimum allowed step size for 'LSODA' method.
-        By default `min_step` is zero.
 
     Returns
     -------
@@ -356,6 +224,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method='Radau', t_eval=None,
         Number of evaluations of the Jacobian.
     nlu : int
         Number of LU decompositions.
+    # TODO: Add number of solve LGS's as done by matlab.
     status : int
         Reason for algorithm termination:
 
