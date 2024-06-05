@@ -1,23 +1,5 @@
 import numpy as np
-from functools import cmp_to_key
-from scipy.linalg import eig, hessenberg, orth, cdf2rdf
-
-# from scipy.optimize import root_scalar
-
-# f = lambda kL: 1 - np.cosh(kL) * np.cos(kL)
-
-# kL0 = 4
-# kL1 = 2e1
-# num = 10
-# span = np.linspace(kL0, kL1, num=num)
-# method = "secant"
-
-# for i in range(num - 1):
-#     bracket = [span[i], span[i + 1]]
-#     sol = root_scalar(f, x0=0.5 * np.sum(bracket), method=method)
-#     print(f"kL: {sol.root}")
-
-# exit()
+from scipy.linalg import eig, cdf2rdf
 
 
 def RadauIIA(s):
@@ -190,20 +172,42 @@ def radau_constants(s):
 
     b_hat = np.linalg.solve(vander, rhs)
     print(f"b_hat:\n{b_hat}")
-    b_hat = b_hat @ A_inv
-    print(f"b_hat:\n{b_hat}")
-    # b_hat = b_hat + b
-    # b_hat = np.linalg.pinv(vander) @ rhs
-    # b_hat = np.linalg.solve(vander.T @ vander, vander.T @ rhs)
 
-    # E = b_hat[-s:] - b
-    E = b_hat - b @ A_inv
+    E = (b_hat - b) @ A_inv
     E /= gamma0 # TODO: Why is this done in scipy?
 
     print(f"c: {c}")
     print(f"E:\n{E}")
 
-    # exit()
+    # from nodepy.runge_kutta_method import RungeKuttaMethod
+
+    # A_hat = np.zeros((s + 1, s + 1))
+    # A_hat[1:, 1:] = A
+    # b_hat = np.zeros(s + 1)
+    # b_hat[0] = gamma0
+    # b_hat[1:] = np.linalg.solve(vander, rhs)
+
+    # A = A_hat
+    # b = A[-1, :]
+
+    # method = RungeKuttaMethod(A, b)
+    # embedded_method = RungeKuttaMethod(A_hat, b_hat)
+
+    # print(f"order:            {method.order()}")
+    # print(f"order (embedded): {embedded_method.order()}")
+
+    # print(f"stage order:            {method.stage_order()}")
+    # print(f"stage order (embedded): {embedded_method.stage_order()}")
+
+    # print(f"zero-stable:            {method.is_zero_stable()}")
+    # print(f"zero-stable (embedded): {embedded_method.is_zero_stable()}")
+
+    # left = -40
+    # method.plot_stability_function([left, 0])
+    # embedded_method.plot_stability_function([left, 0])
+
+    # import matplotlib.pyplot as plt
+    # plt.show()
 
     if s in [1, 3, 5, 7, 9]:
 
