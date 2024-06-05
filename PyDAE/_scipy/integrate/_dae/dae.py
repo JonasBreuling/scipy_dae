@@ -266,7 +266,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
             inspect.isclass(method) and issubclass(method, DaeSolver)):
         raise ValueError(f"`method` must be one of {METHODS} or DaeSolver class.")
 
-    t0, tf = map(float, t_span)
+    t0, t_bound = map(float, t_span)
 
     if args is not None:
         # Wrap the user's fun (and jac, if given) in lambdas to hide the
@@ -294,14 +294,14 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         if t_eval.ndim != 1:
             raise ValueError("`t_eval` must be 1-dimensional.")
 
-        if np.any(t_eval < min(t0, tf)) or np.any(t_eval > max(t0, tf)):
+        if np.any(t_eval < min(t0, t_bound)) or np.any(t_eval > max(t0, t_bound)):
             raise ValueError("Values in `t_eval` are not within `t_span`.")
 
         d = np.diff(t_eval)
-        if tf > t0 and np.any(d <= 0) or tf < t0 and np.any(d >= 0):
+        if t_bound > t0 and np.any(d <= 0) or t_bound < t0 and np.any(d >= 0):
             raise ValueError("Values in `t_eval` are not properly sorted.")
 
-        if tf > t0:
+        if t_bound > t0:
             t_eval_i = 0
         else:
             # Make order of t_eval decreasing to use np.searchsorted.
@@ -312,8 +312,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     if method in METHODS:
         method = METHODS[method]
 
-    solver = method(fun, t0, y0, y_dot0, tf, #vectorized=vectorized, 
-                    **options)
+    solver = method(fun, t0, y0, y_dot0, t_bound, vectorized=vectorized, **options)
 
     if t_eval is None:
         ts = [t0]

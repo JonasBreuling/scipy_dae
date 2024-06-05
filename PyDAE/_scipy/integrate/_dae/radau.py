@@ -4,11 +4,12 @@ from scipy.sparse import csc_matrix, issparse, eye
 from scipy.sparse.linalg import splu
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
-    validate_max_step, validate_tol, select_initial_step,
-    norm, num_jac, EPS, warn_extraneous, validate_first_step,
+    validate_max_step, validate_tol, norm, num_jac, 
+    EPS, warn_extraneous, validate_first_step,
 )
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
+from .common import select_initial_step
 
 
 S6 = 6 ** 0.5
@@ -306,6 +307,7 @@ class Radau(DaeSolver):
            sparse Jacobian matrices", Journal of the Institute of Mathematics
            and its Applications, 13, pp. 117-120, 1974.
     """
+    # solver = method(fun, t0, y0, y_dot0, tf, vectorized=vectorized, **options)
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
                  vectorized=False, first_step=None, **extraneous):
@@ -314,16 +316,12 @@ class Radau(DaeSolver):
         self.y_old = None
         self.max_step = validate_max_step(max_step)
         self.rtol, self.atol = validate_tol(rtol, atol, self.n)
-        print(f"here :)")
-        exit()
-        self.f = self.fun(self.t, self.y)
-        # Select initial step assuming the same order which is used to control
-        # the error.
+        self.f = self.fun(self.t, self.y, self.yp)
+    
         if first_step is None:
             self.h_abs = select_initial_step(
-                self.fun, self.t, self.y, self.f, self.direction,
-                # 3, self.rtol, self.atol)
-                s, self.rtol, self.atol)
+                self.t, self.y, self.yp, self.t_bound, 
+                self.rtol, self.atol, self.max_step)
         else:
             self.h_abs = validate_first_step(first_step, t0, t_bound)
         self.h_abs_old = None
@@ -331,6 +329,9 @@ class Radau(DaeSolver):
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
         self.sol = None
+
+        print(f"h_abs: {self.h_abs}")
+        raise RuntimeError("move on here ;)")
 
         self.jac_factor = None
         self.jac, self.J = self._validate_jac(jac, jac_sparsity)
