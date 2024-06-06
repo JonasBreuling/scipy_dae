@@ -1,15 +1,7 @@
 import numpy as np
-from scipy.linalg import lu_factor, lu_solve
-from scipy.sparse import csc_matrix, issparse, eye
-from scipy.sparse.linalg import splu
-from scipy.optimize._numdiff import group_columns
-from scipy.integrate._ivp.common import (
-    validate_max_step, validate_tol, norm, num_jac, 
-    EPS, warn_extraneous, validate_first_step,
-)
+from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
-# from .common import select_initial_step
 
 
 S6 = 6 ** 0.5
@@ -139,26 +131,26 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
     # ch = h * C
     tau = t + h * C
 
-    def F_composite(Yp):
-        Yp = Yp.reshape(3, -1, order="C")
-        Y = y + h * A @ Yp
-        F = np.empty((3, n))
-        for i in range(3):
-            F[i] = fun(tau[i], Y[i], Yp[i])
-        F = F.reshape(-1, order="C")
-        return F
+    # def F_composite(Yp):
+    #     Yp = Yp.reshape(3, -1, order="C")
+    #     Y = y + h * A @ Yp
+    #     F = np.empty((3, n))
+    #     for i in range(3):
+    #         F[i] = fun(tau[i], Y[i], Yp[i])
+    #     F = F.reshape(-1, order="C")
+    #     return F
     
-    from cardillo.math.fsolve import fsolve
-    from cardillo.solver import SolverOptions
-    Yp0 = Yp0.reshape(-1, order="C")
-    sol = fsolve(F_composite, Yp0, options=SolverOptions(numerical_jacobian_method="2-point"))
-    Yp = sol.x
-    Yp = Yp.reshape(3, -1, order="C")
-    converged = sol.success
-    nit = sol.nit
-    Y = y + h * A @ Yp
-    rate = 1
-    return converged, nit, Y, Yp, rate
+    # from cardillo.math.fsolve import fsolve
+    # from cardillo.solver import SolverOptions
+    # Yp0 = Yp0.reshape(-1, order="C")
+    # sol = fsolve(F_composite, Yp0, options=SolverOptions(numerical_jacobian_method="2-point"))
+    # Yp = sol.x
+    # Yp = Yp.reshape(3, -1, order="C")
+    # converged = sol.success
+    # nit = sol.nit
+    # Y = y + h * A @ Yp
+    # rate = 1
+    # return converged, nit, Y, Yp, rate
 
     # dW_norm_old = None
     # dW = np.empty_like(W)
@@ -167,8 +159,7 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        Y = y + h * TLA @ Wp
-        # Y = y + h * A @ Yp
+        Y = y + h * A @ T @ Wp
         for i in range(3):
             F[i] = fun(tau[i], Y[i], Yp[i])
 
@@ -177,13 +168,12 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
 
         # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
         # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-        # TODO: Check this here
-        # raise RuntimeError("move on here ;)")
-        # f_real = -M_real * F.T.dot(TI_REAL)
-        # f_complex = -M_complex * F.T.dot(TI_COMPLEX)
-        TIF = TI @ F
-        f_real = -M_real * TIF[0]
-        f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
+        # TODO: Both formulations are equivalend
+        f_real = -M_real * F.T.dot(TI_REAL)
+        f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+        # TIF = TI @ F
+        # f_real = -M_real * TIF[0]
+        # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
 
         dWp_real = solve_lu(LU_real, f_real)
         dWp_complex = solve_lu(LU_complex, f_complex)
