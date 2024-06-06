@@ -23,8 +23,8 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 3e3
     # t1 = 1e3
+    t1 = 3e3
     t_span = (t0, t1)
 
     # initial conditions

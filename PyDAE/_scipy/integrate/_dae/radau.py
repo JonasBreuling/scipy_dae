@@ -199,12 +199,12 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / (s + 1))
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / (s + 1))
 
     with np.errstate(divide='ignore'):
-        # factor = min(1, multiplier) * error_norm ** -0.25
-        factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
+        factor = min(1, multiplier) * error_norm ** -0.25
+        # factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
 
     return factor
 
@@ -423,9 +423,8 @@ class Radau(DaeSolver):
                 if not converged:
                     if current_jac:
                         break
-
-                    J = self.jac(t, y, f)
-                    # J = self.jac(t, y, f, h)
+                    Jy, Jyp = self.jac(t, y, yp, f)
+                    # J = self.jac(t, y, f)
                     current_jac = True
                     LU_real = None
                     LU_complex = None
@@ -445,53 +444,36 @@ class Radau(DaeSolver):
             # error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
 
-            # b0_hat = 1 / MU_REAL
-            # y_new_hat = y + h * (b0_hat * yp + b @ yp_new)
+            if True:
+                # compute embedded formula
+                b0_hat = 1 / MU_REAL
+                y_new_hat = y + h * (b0_hat * yp + b @ Yp)
 
-            # error = y_new_hat - y_new
-            # error_norm = norm(error / scale)
+                error = y_new_hat - y_new
+                error_norm = norm(error / scale)
 
-            if False:
-                # see [1], chapter IV.8, page 127
-                # TODO: Hairer1996, (8.20)
-                # TODO: Hairer1996, (8.19a)
-                # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
-                # de Swart1997 (15)
-                # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
-                b0_hat = 0.02
-                # b0_hat = 0.02 * MU_REAL
-                # b0_hat = 0.02 / MU_REAL
-                # b0_hat = 1
-                # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
-                error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
-                # error *= h**self.var_exp
-                if self.index_algebraic_vars is not None:
-                    # correct for the overestimation of the error on
-                    # algebraic variables, ideally multiply their errors by
-                    # (h ** index)
-                    # error[self.index_algebraic_vars] = 0.
-                    # # error[self.index_algebraic_vars] *= h
-                    error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
-                    # we exclude the algebraic components, otherwise
-                    # they artificially lower the error norm
-                else:
-                    error_norm = norm(error / scale)
+                # # see [1], chapter IV.8, page 127
+                # # TODO: Hairer1996, (8.20)
+                # # TODO: Hairer1996, (8.19a)
+                # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+                # # de Swart1997 (15)
+                # # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
+                # b0_hat = 0.02
+                # # b0_hat = 0.02 * MU_REAL
+                # # b0_hat = 0.02 / MU_REAL
+                # # b0_hat = 1
+                # # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
+                # error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
+                # error_norm = norm(error / scale)
 
                 safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-                # if False:
-                if rejected and error_norm > 1: # try with stabilised error estimate
-                # if True:
-                    # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
-                    error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
-                    # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
-                    if self.index_algebraic_vars is not None:
-                        # ideally error*(h**index)
-                        # error[self.index_algebraic_vars] = 0.
-                        error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
-                        # again, we exclude the algebraic components
-                    else:
-                        error_norm = norm(error / scale)
+                # if rejected and error_norm > 1: # try with stabilised error estimate
+                #     # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
+                #     error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
+                #     # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
+                #     error_norm = norm(error / scale)
+
                 if error_norm > 1:
                     factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
                     h_abs *= max(MIN_FACTOR, safety * factor)
@@ -504,7 +486,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if False:
+        if True:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
@@ -518,11 +500,10 @@ class Radau(DaeSolver):
                 LU_real = None
                 LU_complex = None
 
-            f_new = self.fun(t_new, y_new)
-            # f_new = self.fun(t_new, y_new, h)
+            f_new = self.fun(t_new, y_new, yp_new)
             if recompute_jac:
-                J = jac(t_new, y_new, f_new)
-                # J = jac(t_new, y_new, f_new, h)
+                # J = jac(t_new, y_new, f_new)
+                Jy, Jyp = self.jac(t_new, y_new, yp_new, f_new)
                 current_jac = True
             elif jac is not None:
                 current_jac = False
