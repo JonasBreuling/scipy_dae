@@ -206,12 +206,12 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
         # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-        # # TODO: Both formulations are equivalend
+        # TODO: Both formulations are equivalend
         f_real = -M_real * F.T.dot(TI_REAL)
         f_complex = -M_complex * F.T.dot(TI_COMPLEX)
-        # # TIF = TI @ F
-        # # f_real = -M_real * TIF[0]
-        # # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
+        # TIF = TI @ F
+        # f_real = -M_real * TIF[0]
+        # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
 
         # f_real = -MU_REAL * F.T.dot(TI_REAL)
         # f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
@@ -239,7 +239,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         Wp += dW
         Yp = T.dot(Wp)
         Z = h * A @ Yp
-        Y = y + Z
+        Y = y + h * A @ Yp
+        # Y = y + Z
 
         if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
@@ -247,10 +248,9 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         dW_norm_old = dW_norm
 
-    Y = y + Z
+    # Y = y + Z
     # Yp = (1 / h) * A_inv @ Z
-    Yp = T.dot(Wp)
-    Z = h * A @ Yp
+
     return converged, k + 1, Y, Yp, Z, rate
 
 
@@ -432,7 +432,7 @@ class Radau(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
-        print(f"t: {t}")
+        # print(f"t: {t}")
 
         max_step = self.max_step
         atol = self.atol
@@ -528,22 +528,28 @@ class Radau(DaeSolver):
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if False:
+            if True:
                 # compute embedded formula
                 gamma0 = 1 / MU_REAL
+                gamma0 = MU_REAL
                 # b0_hat = MU_REAL
                 y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
                 # y_new_hat = y + (h * gamma0 * yp + b_hat @ Z * h)
 
+                # # embedded trapezoidal step
+                # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
+
                 # y_new = y + h * (b @ Yp)
                 error = y_new_hat - y_new
-                ZE = Z.T.dot(E) / h
-                error = ZE * h + gamma0 * yp * h
-                # error = self.solve_lu(LU_real, ZE)
-                # error = h / MU_REAL * yp + h * Z.T.dot(E) #/ h
-                # error = h * (b0_hat * yp + (b_hat - b) @ Yp)
-                # error = (b0_hat * yp + (b_hat - b) @ Zp)
-                # error = self.solve_lu(LU_real, error)
+                # ZE = Z.T.dot(E) / h
+                # error = ZE * h + gamma0 * yp * h
+                    
+                # ZE = Z.T.dot(E) / h
+                # error = self.solve_lu(LU_real, f / h + ZE)
+
+                # b0_hat = 0.02
+                # # error = b0_hat / MU_REAL * (yp + Jyp.dot(ZE))
+                # error = b0_hat / MU_REAL * (yp + ZE)
 
                 # error = self.solve_lu(LU_real, f + Z.T.dot(E) / h)
 
@@ -590,7 +596,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if False:
+        if True:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3

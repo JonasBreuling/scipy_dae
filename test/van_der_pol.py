@@ -41,7 +41,7 @@ if __name__ == "__main__":
     yp0 = f(t0, y0)
 
     # solver options
-    atol = rtol = 1e-3
+    atol = rtol = 1e-5
 
     ####################
     # reference solution
