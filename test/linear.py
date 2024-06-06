@@ -28,14 +28,23 @@ if __name__ == "__main__":
     yp0 = f(t0, y0)
 
     # solver options
-    atol = rtol = 1e-3
+    atol = rtol = 1e-2
 
     ####################
     # reference solution
     ####################
-    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau", start_step=1e-2)
     t_scipy = sol.t
     y_scipy = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
 
     ##############
     # dae solution

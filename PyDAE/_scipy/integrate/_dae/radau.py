@@ -52,6 +52,7 @@ Lambda_inv = np.array([
     [0, alpha, -beta],
     [0, beta, alpha],
 ]) / denom
+
 TLA = T @ Lambda
 A_inv = T @ Lambda @ TI
 A = T @ Lambda_inv @ TI
@@ -77,7 +78,7 @@ MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
-def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
+def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu):
     """Solve the collocation system.
 
@@ -120,12 +121,12 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
     M_real = MU_REAL / h
     M_complex = MU_COMPLEX / h
 
+    Z = Z0
+    Yp = (1 / h) * A_inv @ Z
+    Wp = TI.dot(Yp)
+
     # W = TI.dot(Z0)
     # Z = Z0
-    # TODO: Pass Yp0 here instead of Z0
-    Yp0 = Z0
-    Wp = TI.dot(Yp0)
-    Yp = Yp0
 
     F = np.empty((3, n))
     # ch = h * C
@@ -139,67 +140,118 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
     #         F[i] = fun(tau[i], Y[i], Yp[i])
     #     F = F.reshape(-1, order="C")
     #     return F
+
+    # # def F_composite(W):
+    # #     W = W.reshape(3, -1, order="C")
+    # #     Z = T.dot(W)
+    # #     Y = y + Z
+    # #     Yp = (1 / h) * A_inv @ Z
+    # #     F = np.empty((3, n))
+    # #     for i in range(3):
+    # #         F[i] = fun(tau[i], Y[i], Yp[i])
+    # #     F = F.reshape(-1, order="C")
+    # #     return F
     
     # from cardillo.math.fsolve import fsolve
     # from cardillo.solver import SolverOptions
+
     # Yp0 = Yp0.reshape(-1, order="C")
     # sol = fsolve(F_composite, Yp0, options=SolverOptions(numerical_jacobian_method="2-point"))
     # Yp = sol.x
     # Yp = Yp.reshape(3, -1, order="C")
+    # Y = y + h * A @ Yp
+    # Z = h * A @ Yp
+
+    # # Z0 = Z0.reshape(-1, order="C")
+    # # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
+    # # W = sol.x
+    # # W = W.reshape(3, -1, order="C")
+    # # Z = T.dot(W)
+    # # Y = y + Z
+    # # Yp = (1 / h) * A_inv @ Z
+
     # converged = sol.success
     # nit = sol.nit
-    # Y = y + h * A @ Yp
     # rate = 1
-    # return converged, nit, Y, Yp, rate
+    # return converged, nit, Y, Yp, Z, rate
 
     # dW_norm_old = None
     # dW = np.empty_like(W)
-    dWp_norm_old = None
-    dWp = np.empty_like(Wp)
+    dW_norm_old = None
+    # dW = np.empty_like(W)
+    dW = np.empty_like(Wp)
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        Y = y + h * A @ T @ Wp
+        # # Y = y + h * A @ T @ Wp
+        # Y = y + A @ Zp
+        # Yp = Zp / h
+        # # Yp = (1 / h) * A_inv @ Zp
+        # # Zp = h * A @ Yp
+
+        # Z = T.dot(W)
+
+        Yp = T.dot(Wp)
+        Z = h * A @ Yp
+        Y = y + h * A @ Yp
+        # Y = y + Z
+
+        # Y = y + Z
+        # Yp = (1 / h) * A_inv @ Z
         for i in range(3):
             F[i] = fun(tau[i], Y[i], Yp[i])
 
         if not np.all(np.isfinite(F)):
             break
 
-        # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
-        # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-        # TODO: Both formulations are equivalend
+        # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
+        # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+        # # TODO: Both formulations are equivalend
         f_real = -M_real * F.T.dot(TI_REAL)
         f_complex = -M_complex * F.T.dot(TI_COMPLEX)
-        # TIF = TI @ F
-        # f_real = -M_real * TIF[0]
-        # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
+        # # TIF = TI @ F
+        # # f_real = -M_real * TIF[0]
+        # # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
 
-        dWp_real = solve_lu(LU_real, f_real)
-        dWp_complex = solve_lu(LU_complex, f_complex)
+        # f_real = -MU_REAL * F.T.dot(TI_REAL)
+        # f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
+        # # f_real = -h / MU_REAL * F.T.dot(TI_REAL)
+        # # f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
 
-        dWp[0] = dWp_real
-        dWp[1] = dWp_complex.real
-        dWp[2] = dWp_complex.imag
+        dW_real = solve_lu(LU_real, f_real)
+        dW_complex = solve_lu(LU_complex, f_complex)
 
-        dWp_norm = norm(dWp / scale)
-        if dWp_norm_old is not None:
-            rate = dWp_norm / dWp_norm_old
+        dW[0] = dW_real
+        dW[1] = dW_complex.real
+        dW[2] = dW_complex.imag
+
+        dW_norm = norm(dW / scale)
+        if dW_norm_old is not None:
+            rate = dW_norm / dW_norm_old
 
         # print(F"rate: {rate}")
-        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dWp_norm > tol)):
+        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
             break
 
-        Wp += dWp
-        Yp = T.dot(Wp)
+        # W += dW
+        # Z = T.dot(W)
 
-        if (dWp_norm == 0 or rate is not None and rate / (1 - rate) * dWp_norm < tol):
+        Wp += dW
+        Yp = T.dot(Wp)
+        Z = h * A @ Yp
+        Y = y + Z
+
+        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
             break
 
-        dWp_norm_old = dWp_norm
+        dW_norm_old = dW_norm
 
-    return converged, k + 1, Y, Yp, rate
+    Y = y + Z
+    # Yp = (1 / h) * A_inv @ Z
+    Yp = T.dot(Wp)
+    Z = h * A @ Yp
+    return converged, k + 1, Y, Yp, Z, rate
 
 
 def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
@@ -380,6 +432,7 @@ class Radau(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
+        print(f"t: {t}")
 
         max_step = self.max_step
         atol = self.atol
@@ -423,35 +476,33 @@ class Radau(DaeSolver):
             h = t_new - t
             h_abs = np.abs(h)
 
-            # TODO: 
-            # - Is there a better initial guess?
-            # - Do we iterate in y or yp?
-            # Yp0 = np.zeros((3, yp.shape[0]))
-            Yp0 = np.tile(yp[:, None], 3).T
-            # if self.sol is None:
-            #     Z0 = np.zeros((3, y.shape[0]))
-            # else:
-            #     Z0 = self.sol(t + h * C).T - y
+            # # TODO: 
+            # # - Is there a better initial guess?
+            # # - Do we iterate in y or yp?
+            # # Yp0 = np.zeros((3, yp.shape[0]))
+            # Yp0 = np.tile(yp[:, None], 3).T
+            # Z0 = np.zeros((3, yp.shape[0]))
+            # Z0 = np.tile(yp[:, None], 3).T
+            if self.sol is None:
+                Z0 = np.zeros((3, y.shape[0]))
+            else:
+                Z0 = self.sol(t + h * C).T - y
 
+            # TODO: Which scale should we use?
             scale = atol + np.abs(y) * rtol
             # scale = atol + np.abs(yp) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    # LU_real = self.lu(MU_REAL / h * self.mass_matrix - J)
-                    # LU_complex = self.lu(MU_COMPLEX / h * self.mass_matrix - J)
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                     LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
+                    # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
+                    # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
 
-                # def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
-                #                             LU_real, LU_complex, solve_lu):
-                converged, n_iter, Y, Yp, rate = solve_collocation_system(
-                    self.fun, t, y, yp, h, Yp0, scale, self.newton_tol,
+                converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
+                    self.fun, t, y, h, Z0, scale, self.newton_tol,
                     LU_real, LU_complex, self.solve_lu)
-                # converged, n_iter, Z, rate = solve_collocation_system(
-                #     self.fun, t, y, yp, h, Z0, scale, self.newton_tol,
-                #     LU_real, LU_complex, self.solve_lu)
 
                 if not converged:
                     if current_jac:
@@ -470,23 +521,28 @@ class Radau(DaeSolver):
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
             y_new = Y[-1]
-            # y_new = y + h * (b @ Yp)
             yp_new = Yp[-1]
-            Z = Y - y
+            # Z = Y - y
             # ZE = Z.T.dot(E) / h
             # error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if True:
+            if False:
                 # compute embedded formula
-                b0_hat = 1 / MU_REAL
+                gamma0 = 1 / MU_REAL
                 # b0_hat = MU_REAL
-                y_new_hat = y + h * (b0_hat * yp + b_hat @ Yp)
+                y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
+                # y_new_hat = y + (h * gamma0 * yp + b_hat @ Z * h)
 
                 # y_new = y + h * (b @ Yp)
                 error = y_new_hat - y_new
-                error = h * (b0_hat * yp + (b_hat - b) @ Yp)
+                ZE = Z.T.dot(E) / h
+                error = ZE * h + gamma0 * yp * h
+                # error = self.solve_lu(LU_real, ZE)
+                # error = h / MU_REAL * yp + h * Z.T.dot(E) #/ h
+                # error = h * (b0_hat * yp + (b_hat - b) @ Yp)
+                # error = (b0_hat * yp + (b_hat - b) @ Zp)
                 # error = self.solve_lu(LU_real, error)
 
                 # error = self.solve_lu(LU_real, f + Z.T.dot(E) / h)
@@ -534,7 +590,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if True:
+        if False:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
