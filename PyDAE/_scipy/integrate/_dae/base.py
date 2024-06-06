@@ -282,6 +282,7 @@ class DaeSolver:
                 J = approx_derivative(lambda z: self.fun_composite(t, z), 
                                       z, method="2-point", f0=self.f, 
                                       sparsity=sparsity)
+                J = J.reshape((self.n, 2 * self.n))
                 Jy, Jyp = J[:, :self.n], J[:, self.n:]
 
                 # Jy, self.jac_factor_y = num_jac(

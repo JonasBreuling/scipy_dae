@@ -38,18 +38,41 @@ TI = np.array([
 TI_REAL = TI[0]
 TI_COMPLEX = TI[1] + 1j * TI[2]
 
-gamma = MU_REAL
-alpha = MU_COMPLEX.real
-beta = -MU_COMPLEX.imag
+# gamma = MU_REAL
+# alpha = MU_COMPLEX.real
+# beta = -MU_COMPLEX.imag
+gamma = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
+alpha = 3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
+beta = 0.5 * (3 ** (5 / 6) + 3 ** (7 / 6))
+# Lambda = np.array([
+#     [gamma, 0, 0],
+#     [0, alpha, -beta],
+#     [0, beta, alpha],
+# ])
 Lambda = np.array([
     [gamma, 0, 0],
+    [0, alpha, beta],
+    [0, -beta, alpha],
+])
+denom = alpha**2 + beta**2
+Lambda_inv = np.array([
+    [denom / gamma, 0, 0],
     [0, alpha, -beta],
     [0, beta, alpha],
-])
+]) / denom
 TLA = T @ Lambda
-A = T @ Lambda @ TI
+A_inv = T @ Lambda @ TI
+A = T @ Lambda_inv @ TI
 b = A[-1, :]
-b_hat = b + E
+b_hat = b + (E * gamma) @ A
+
+# print(f"gamma, alpha, beta: {[gamma, alpha, beta]}")
+# print(f"A:\n{A}")
+# print(f"np.linalg.inv(A):\n{np.linalg.inv(A)}")
+# print(f"A_inv:\n{A_inv}")
+# print(f"b:\n{b}")
+# print(f"b_hat:\n{b_hat}")
+# exit()
 
 # Interpolator coefficients.
 P = np.array([
@@ -113,7 +136,29 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
     Yp = Yp0
 
     F = np.empty((3, n))
-    ch = h * C
+    # ch = h * C
+    tau = t + h * C
+
+    def F_composite(Yp):
+        Yp = Yp.reshape(3, -1, order="C")
+        Y = y + h * A @ Yp
+        F = np.empty((3, n))
+        for i in range(3):
+            F[i] = fun(tau[i], Y[i], Yp[i])
+        F = F.reshape(-1, order="C")
+        return F
+    
+    from cardillo.math.fsolve import fsolve
+    from cardillo.solver import SolverOptions
+    Yp0 = Yp0.reshape(-1, order="C")
+    sol = fsolve(F_composite, Yp0, options=SolverOptions(numerical_jacobian_method="2-point"))
+    Yp = sol.x
+    Yp = Yp.reshape(3, -1, order="C")
+    converged = sol.success
+    nit = sol.nit
+    Y = y + h * A @ Yp
+    rate = 1
+    return converged, nit, Y, Yp, rate
 
     # dW_norm_old = None
     # dW = np.empty_like(W)
@@ -122,11 +167,10 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        # Y = y + h * TLA @ Wp
-        Y = y + h * A @ Yp
+        Y = y + h * TLA @ Wp
+        # Y = y + h * A @ Yp
         for i in range(3):
-            # F[i] = fun(t + ch[i], y + Z[i])
-            F[i] = fun(t + ch[i], Y[i], Yp[i])
+            F[i] = fun(tau[i], Y[i], Yp[i])
 
         if not np.all(np.isfinite(F)):
             break
@@ -135,8 +179,11 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
         # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
         # TODO: Check this here
         # raise RuntimeError("move on here ;)")
-        f_real = -M_real * F.T.dot(TI_REAL)
-        f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+        # f_real = -M_real * F.T.dot(TI_REAL)
+        # f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+        TIF = TI @ F
+        f_real = -M_real * TIF[0]
+        f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
 
         dWp_real = solve_lu(LU_real, f_real)
         dWp_complex = solve_lu(LU_complex, f_complex)
@@ -149,7 +196,7 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
         if dWp_norm_old is not None:
             rate = dWp_norm / dWp_norm_old
 
-        print(F"rate: {rate}")
+        # print(F"rate: {rate}")
         if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dWp_norm > tol)):
             break
 
@@ -163,7 +210,6 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
 
         dWp_norm_old = dWp_norm
 
-    # return converged, k + 1, Z, rate
     return converged, k + 1, Y, Yp, rate
 
 
@@ -322,14 +368,10 @@ class Radau(DaeSolver):
            sparse Jacobian matrices", Journal of the Institute of Mathematics
            and its Applications, 13, pp. 117-120, 1974.
     """
-    # solver = method(fun, t0, y0, y_dot0, tf, vectorized=vectorized, **options)
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
                  vectorized=False, first_step=None, **extraneous):
         warn_extraneous(extraneous)
-        # def __init__(self, fun, t0, y0, yp0, t_bound, rtol, atol, 
-        #             max_step=np.infty, vectorized=False, first_step=None, 
-        #          jac=None, jac_sparsity=None, support_complex=False):
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
         self.y_old = None
 
@@ -349,7 +391,6 @@ class Radau(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
-        n = self.n
 
         max_step = self.max_step
         atol = self.atol
@@ -396,7 +437,9 @@ class Radau(DaeSolver):
             # TODO: 
             # - Is there a better initial guess?
             # - Do we iterate in y or yp?
-            Yp0 = np.zeros((3, yp.shape[0]))
+            # Yp0 = np.zeros((3, yp.shape[0]))
+            # Yp0 = np.zeros((3, yp.shape[0]))
+            Yp0 = np.tile(yp[:, None], 3).T
             # if self.sol is None:
             #     Z0 = np.zeros((3, y.shape[0]))
             # else:
@@ -411,7 +454,7 @@ class Radau(DaeSolver):
                     # LU_real = self.lu(MU_REAL / h * self.mass_matrix - J)
                     # LU_complex = self.lu(MU_COMPLEX / h * self.mass_matrix - J)
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = self.lu(MU_COMPLEX / h * Jyp - Jy)
+                    LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
 
                 converged, n_iter, Y, Yp, rate = solve_collocation_system(
                     self.fun, t, y, yp, h, Yp0, scale, self.newton_tol,
@@ -440,13 +483,14 @@ class Radau(DaeSolver):
             y_new = Y[-1]
             yp_new = Yp[-1]
             Z = Y - y
-            ZE = Z.T.dot(E) / h
+            # ZE = Z.T.dot(E) / h
             # error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
 
-            if True:
+            if False:
                 # compute embedded formula
                 b0_hat = 1 / MU_REAL
+                # b0_hat = MU_REAL
                 y_new_hat = y + h * (b0_hat * yp + b @ Yp)
 
                 error = y_new_hat - y_new
@@ -486,7 +530,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if True:
+        if False:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
