@@ -12,8 +12,8 @@ References:
 mathworks: https://de.mathworks.com/help/matlab/math/solve-stiff-odes.html
 """
 
-# mu = 1e3
-mu = 1e1
+mu = 1e3
+# mu = 1e1
 
 def f(t, y):
     y1, y2 = y
@@ -31,7 +31,7 @@ def F(t, y, yp):
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 5e1
+    t1 = 1e3
     # t1 = 1e2
     # t1 = 3e3
     t_span = (t0, t1)
@@ -49,6 +49,17 @@ if __name__ == "__main__":
     sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau")
     t_scipy = sol.t
     y_scipy = sol.y
+    t = sol.t
+    y = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
 
     ##############
     # dae solution

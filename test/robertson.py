@@ -39,7 +39,8 @@ def F(t, y, yp):
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 1e3
+    t1 = 1e1
+    # t1 = 1e3
     t_span = (t0, t1)
 
     # initial conditions
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     yp0 = f(t0, y0)
 
     # solver options
-    atol = rtol = 1e-6
+    atol = rtol = 1e-5
 
     ####################
     # reference solution
@@ -76,29 +77,6 @@ if __name__ == "__main__":
     print(f"nfev: {sol.nfev}")
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
-    # TRBDF2:
-    # # - nfev: 3409
-    # # - njev: 17
-    # # - nlu: 86
-    # - nfev: 2442
-    # - njev: 41
-    # - nlu: 104
-    # - nfev: 1987
-    # - njev: 45
-    # - nlu: 110
-    # - nfev: 1674
-    # - njev: 26
-    # - nlu: 85
-    # Radau:
-    # - nfev: 1397
-    # - njev: 16
-    # - nlu: 110
-    # BDF:
-    # - nfev: 633
-    # - njev: 6
-    # - nlu: 55
-
-    exit()
 
     # visualization
     fig, ax = plt.subplots()

@@ -191,7 +191,6 @@ def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
             break
 
         Wp += dWp
-        # Z = T.dot(W)
         Yp = T.dot(Wp)
 
         if (dWp_norm == 0 or rate is not None and rate / (1 - rate) * dWp_norm < tol):
@@ -428,15 +427,14 @@ class Radau(DaeSolver):
             # - Is there a better initial guess?
             # - Do we iterate in y or yp?
             # Yp0 = np.zeros((3, yp.shape[0]))
-            # Yp0 = np.zeros((3, yp.shape[0]))
             Yp0 = np.tile(yp[:, None], 3).T
             # if self.sol is None:
             #     Z0 = np.zeros((3, y.shape[0]))
             # else:
             #     Z0 = self.sol(t + h * C).T - y
 
-            # scale = atol + np.abs(y) * rtol
-            scale = atol + np.abs(yp) * rtol
+            scale = atol + np.abs(y) * rtol
+            # scale = atol + np.abs(yp) * rtol
 
             converged = False
             while not converged:
@@ -446,6 +444,8 @@ class Radau(DaeSolver):
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                     LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
 
+                # def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
+                #                             LU_real, LU_complex, solve_lu):
                 converged, n_iter, Y, Yp, rate = solve_collocation_system(
                     self.fun, t, y, yp, h, Yp0, scale, self.newton_tol,
                     LU_real, LU_complex, self.solve_lu)
@@ -457,7 +457,6 @@ class Radau(DaeSolver):
                     if current_jac:
                         break
                     Jy, Jyp = self.jac(t, y, yp, f)
-                    # J = self.jac(t, y, f)
                     current_jac = True
                     LU_real = None
                     LU_complex = None
@@ -471,19 +470,34 @@ class Radau(DaeSolver):
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
             y_new = Y[-1]
+            # y_new = y + h * (b @ Yp)
             yp_new = Yp[-1]
             Z = Y - y
             # ZE = Z.T.dot(E) / h
             # error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
+            # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if False:
+            if True:
                 # compute embedded formula
                 b0_hat = 1 / MU_REAL
                 # b0_hat = MU_REAL
-                y_new_hat = y + h * (b0_hat * yp + b @ Yp)
+                y_new_hat = y + h * (b0_hat * yp + b_hat @ Yp)
 
+                # y_new = y + h * (b @ Yp)
                 error = y_new_hat - y_new
+                error = h * (b0_hat * yp + (b_hat - b) @ Yp)
+                # error = self.solve_lu(LU_real, error)
+
+                # error = self.solve_lu(LU_real, f + Z.T.dot(E) / h)
+
+                # print(f"error1: {error}")
+                # error = h * (b0_hat * yp + (b_hat - b) @ Yp)
+                # error = h * (1 * yp + (b_hat - b) @ Yp) / 1e1
+                # # # error = b0_hat * yp + (b_hat - b) @ Yp
+                # # # error *= h
+                # # print(f"error2: {error}")
+
                 error_norm = norm(error / scale)
 
                 # # see [1], chapter IV.8, page 127
@@ -520,7 +534,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if False:
+        if True:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
@@ -536,7 +550,6 @@ class Radau(DaeSolver):
 
             f_new = self.fun(t_new, y_new, yp_new)
             if recompute_jac:
-                # J = jac(t_new, y_new, f_new)
                 Jy, Jyp = self.jac(t_new, y_new, yp_new, f_new)
                 current_jac = True
             elif jac is not None:
