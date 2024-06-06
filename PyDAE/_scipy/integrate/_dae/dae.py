@@ -64,9 +64,9 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         ``args`` argument). ``fun`` must return an array of the same shape as
         ``y`` and ``y_dot``. See `vectorized` for more information.
     t_span : 2-member sequence
-        Interval of integration (t0, tf). The solver starts with t=t0 and
-        integrates until it reaches t=tf. Both t0 and tf must be floats
-        or values interpretable by the float conversion function.
+        Interval of integration (t0, t_bound). The solver starts with t=t0 and
+        integrates until it reaches t=t_bound. Both t0 and t_bound must be 
+        floats or values interpretable by the float conversion function.
     y0 : array_like, shape (n,)
         Initial state. For problems in the complex domain, pass `y0` with a
         complex data type (even if the initial value is purely real).
@@ -327,9 +327,9 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
     interpolants = []
 
-    events, is_terminal, event_dir = prepare_events(events)
-
     if events is not None:
+        events, max_events, event_dir = prepare_events(events)
+        event_count = np.zeros(len(events))
         if args is not None:
             # Wrap user functions in lambdas to hide the additional parameters.
             # The original event function is passed as a keyword argument to the
@@ -338,8 +338,6 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
             events = [lambda t, x, event=event: event(t, x, *args)
                       for event in events]
         g = [event(t0, y0) for event in events]
-        # TODO: Why not:
-        # t_events = [[] * len(events)]
         t_events = [[] for _ in range(len(events))]
         y_events = [[] for _ in range(len(events))]
     else:
@@ -359,7 +357,6 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         t_old = solver.t_old
         t = solver.t
         y = solver.y
-        y_dot = solver.y_dot
 
         if dense_output:
             sol = solver.dense_output()
@@ -374,8 +371,10 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
                 if sol is None:
                     sol = solver.dense_output()
 
+                event_count[active_events] += 1
                 root_indices, roots, terminate = handle_events(
-                    sol, events, active_events, is_terminal, t_old, t)
+                    sol, events, active_events, event_count, max_events,
+                    t_old, t)
 
                 for e, te in zip(root_indices, roots):
                     t_events[e].append(te)
@@ -429,15 +428,21 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     if dense_output:
         if t_eval is None:
             sol = OdeSolution(
-                ts, interpolants, alt_segment=True if method is [BDF,] else False
+                ts, interpolants, alt_segment=False
             )
+            # sol = OdeSolution(
+            #     ts, interpolants, alt_segment=True if method in [BDF] else False
+            # )
         else:
             sol = OdeSolution(
-                ti, interpolants, alt_segment=True if method in [BDF,] else False
+                ti, interpolants, alt_segment=False
             )
+            # sol = OdeSolution(
+            #     ti, interpolants, alt_segment=True if method in [BDF] else False
+            # )
     else:
         sol = None
 
-    return DaeResult(t=ts, y=ys, sol=sol, t_events=t_events, y_events=y_events,
+    return OdeResult(t=ts, y=ys, sol=sol, t_events=t_events, y_events=y_events,
                      nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
-                     status=status, message=message, success=status>=0)
+                     status=status, message=message, success=status >= 0)

@@ -1,8 +1,20 @@
 import numpy as np
-from scipy.sparse import issparse, csc_matrix
+from scipy.sparse import issparse, csc_matrix, bmat
 from scipy.optimize._numdiff import group_columns
-from scipy.integrate._ivp.common import num_jac
+from scipy.integrate._ivp.common import (
+    validate_max_step, validate_tol, norm, num_jac, 
+    EPS, warn_extraneous, validate_first_step,
+)
 from scipy.integrate._ivp.base import ConstantDenseOutput
+from .common import select_initial_step
+
+# from scipy.optimize import approx_fprime
+from scipy.optimize._numdiff import approx_derivative
+
+from scipy.linalg import lu_factor, lu_solve
+from scipy.sparse import csc_matrix, issparse, eye
+from scipy.sparse.linalg import splu
+
 
 
 def check_arguments(fun, y0, yp0, support_complex):
@@ -10,7 +22,6 @@ def check_arguments(fun, y0, yp0, support_complex):
     y0 = np.asarray(y0)
     yp0 = np.asarray(yp0)
     if np.issubdtype(np.common_type(y0, yp0), np.complexfloating):
-    # if np.issubdtype(y0.dtype, np.complexfloating) or np.issubdtype(yp0.dtype, np.complexfloating):
         if not support_complex:
             raise ValueError("`y0` or `yp0` is complex, but the chosen "
                              "solver does not support integration in a "
@@ -159,13 +170,30 @@ class DaeSolver:
     """
     TOO_SMALL_STEP = "Required step size is less than spacing between numbers."
 
-    def __init__(self, fun, t0, y0, yp0, t_bound, vectorized, 
-                 support_complex=False):
+    def __init__(self, fun, t0, y0, yp0, t_bound, rtol, atol, 
+                 first_step=None, max_step=np.infty, vectorized=False,
+                 jac=None, jac_sparsity=None, support_complex=False):
         self.t_old = None
         self.t = t0
         self._fun, self.y, self.yp = check_arguments(fun, y0, yp0, support_complex)
         self.t_bound = t_bound
         self.vectorized = vectorized
+        self.n = self.y.size
+        assert self.n == self.yp.size, "`y` and `yp` have to be of same size"
+
+        self.max_step = validate_max_step(max_step)
+        self.rtol, self.atol = validate_tol(rtol, atol, self.n)
+        if first_step is None:
+            self.h_abs = select_initial_step(
+                self.t, self.y, self.yp, self.t_bound, 
+                self.rtol, self.atol, self.max_step)
+        else:
+            self.h_abs = validate_first_step(first_step, t0, t_bound)
+
+        self.nfev = 0
+        self.njev = 0
+        self.nlu = 0
+        self._nlusove = 0
 
         if vectorized:
             def fun_single(t, y, yp):
@@ -179,86 +207,196 @@ class DaeSolver:
                 for i, (yi, ypi) in enumerate(zip(y.T, yp.T)):
                     f[:, i] = self._fun(t, yi, ypi)
                 return f
+        
+        # composite function with z = (y, yp) for finite differences
+        def fun_composite(t, z):
+            y, yp = z[:self.n], z[self.n:]
+            return fun_single(t, y, yp)
 
         def fun(t, y, yp):
             self.nfev += 1
             return self.fun_single(t, y, yp)
-
+        
         self.fun = fun
         self.fun_single = fun_single
         self.fun_vectorized = fun_vectorized
+        self.fun_composite = fun_composite
+        self.f = self.fun(self.t, self.y, self.yp)
 
         self.direction = np.sign(t_bound - t0) if t_bound != t0 else 1
-        self.n = self.y.size
         self.status = 'running'
 
-        self.nfev = 0
-        self.njev = 0
-        self.nlu = 0
+        # # TODO: What is this factor?
+        # self.jac_factor_y = None
+        # self.jac_factor_yp = None
+        self.jac, self.Jy, self.Jyp = self._validate_jac(jac, jac_sparsity)
 
-    def _validate_jac(self, jac, sparsity, wrt_y=True):
-        # TODO: I'm not sure if this can be done in the base class since 
-        # depending on the method y depends on yp or vice versa.
+        if issparse(self.Jy) or issparse(self.Jyp):
+            def lu(A):
+                self.nlu += 1
+                return splu(A)
+
+            def solve_lu(LU, b):
+                self._nlusove += 1
+                return LU.solve(b)
+
+            self.I = eye(self.n, format='csc')
+        else:
+            def lu(A):
+                self.nlu += 1
+                return lu_factor(A, overwrite_a=True)
+
+            def solve_lu(LU, b):
+                self._nlusove += 1
+                return lu_solve(LU, b, overwrite_b=True)
+
+            self.I = np.identity(self.n)
+        self.lu = lu
+        self.solve_lu = solve_lu
+    
+    def _validate_jac(self, jac, sparsity):
         t0 = self.t
         y0 = self.y
         yp0 = self.yp
+
         if jac is None:
             if sparsity is not None:
-                if issparse(sparsity):
-                    sparsity = csc_matrix(sparsity)
-                groups = group_columns(sparsity)
-                sparsity = (sparsity, groups)
+                # raise NotImplementedError("Exploiting sparsity structure is not supported yet.")
+                sparsity_y, sparsity_yp = sparsity
+                if issparse(sparsity_y):
+                    sparsity_y = csc_matrix(sparsity_y)
+                if issparse(sparsity_yp):
+                    sparsity_yp = csc_matrix(sparsity_yp)
+                groups_y = group_columns(sparsity_y)
+                groups_yp = group_columns(sparsity_yp)
+                sparsity_y = (sparsity_y, groups_y)
+                sparsity_yp = (sparsity_yp, groups_yp)
+                sparsity = bmat([[sparsity_y], [sparsity_yp]])
 
-            def jac_wrapped(t, y, yp):
+            def jac_wrapped(t, y, yp, f):
                 self.njev += 1
-                f = self.fun_single(t, y, yp)
-                # TODO: Maybe check both derivatives at the same time. Hence, 
-                # this will be demistfied.
-                if wrt_y:
-                    J, self.jac_factor = num_jac(
-                        lambda t, y: self.fun_vectorized(t, y, yp), t, y, f,
-                        self.atol, self.jac_factor, sparsity,
-                    )
-                else:
-                    J, self.jac_factor = num_jac(
-                        lambda t, yp: self.fun_vectorized(t, y, yp), t, yp, f,
-                        self.atol, self.jac_factor, sparsity,
-                    )
-                return J
-            J = jac_wrapped(t0, y0, yp0)
+                # J, self.jac_factor = num_jac(self.fun_vectorized, t, y, f,
+                #                              self.atol, self.jac_factor,
+                #                              sparsity)
+                z = np.concatenate((y, yp))
+                J = approx_derivative(lambda z: self.fun_composite(t, z), 
+                                      z, method="2-point", f0=self.f, 
+                                      sparsity=sparsity)
+                Jy, Jyp = J[:, :self.n], J[:, self.n:]
+
+                # Jy, self.jac_factor_y = num_jac(
+                #     lambda t, y: self.fun_vectorized(t, y, yp), 
+                #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                # Jyp, self.jac_factor_yp = num_jac(
+                #     lambda t, yp: self.fun_vectorized(t, y, yp), 
+                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
+                
+                return Jy, Jyp
+            
+            Jy, Jyp = jac_wrapped(t0, y0, yp0, self.f)
+        
         elif callable(jac):
-            J = jac(t0, y0, yp0)
-            self.njev += 1
-            if issparse(J):
-                J = csc_matrix(J, dtype=np.common_type(y0, yp0))
+            raise NotImplementedError("User-defined Jacobians are not supported yet.")
+            Jy, Jyp = jac(t0, y0, yp0)
+            self.njev = 1
+            if issparse(Jy) or issparse(Jyp):
+                Jy = csc_matrix(Jy)
+                Jyp = csc_matrix(Jyp)
 
-                def jac_wrapped(t, y, yp):
+                def jac_wrapped(t, y, yp, _=None):
                     self.njev += 1
-                    return csc_matrix(jac(t, y, yp), dtype=np.common_type(y0, yp0))
+                    return csc_matrix(jac(t, y), dtype=float)
+
             else:
-                J = np.asarray(J, dtype=np.common_type(y0, yp0))
+                J = np.asarray(J, dtype=float)
 
-                def jac_wrapped(t, y, yp):
+                def jac_wrapped(t, y, yp, _=None):
                     self.njev += 1
-                    return np.asarray(jac(t, y, yp), dtype=np.common_type(y0, yp0))
+                    return np.asarray(jac(t, y), dtype=float)
 
             if J.shape != (self.n, self.n):
                 raise ValueError("`jac` is expected to have shape {}, but "
-                                    "actually has {}."
-                                    .format((self.n, self.n), J.shape))
+                                 "actually has {}."
+                                 .format((self.n, self.n), J.shape))
+        
         else:
+            raise NotImplementedError("Constant Jacobians are not supported yet.")
             if issparse(jac):
-                J = csc_matrix(jac, dtype=np.common_type(y0, yp0))
+                J = csc_matrix(jac)
             else:
-                J = np.asarray(jac, dtype=np.common_type(y0, yp0))
+                J = np.asarray(jac, dtype=float)
 
             if J.shape != (self.n, self.n):
                 raise ValueError("`jac` is expected to have shape {}, but "
-                                    "actually has {}."
-                                    .format((self.n, self.n), J.shape))
+                                 "actually has {}."
+                                 .format((self.n, self.n), J.shape))
             jac_wrapped = None
 
-        return jac_wrapped, J
+        return jac_wrapped, Jy, Jyp
+
+    # def _validate_jac(self, jac, sparsity, wrt_y=True):
+    #     # TODO: I'm not sure if this can be done in the base class since 
+    #     # depending on the method y depends on yp or vice versa.
+    #     t0 = self.t
+    #     y0 = self.y
+    #     yp0 = self.yp
+    #     if jac is None:
+    #         if sparsity is not None:
+    #             if issparse(sparsity):
+    #                 sparsity = csc_matrix(sparsity)
+    #             groups = group_columns(sparsity)
+    #             sparsity = (sparsity, groups)
+
+    #         def jac_wrapped(t, y, yp):
+    #             self.njev += 1
+    #             f = self.fun_single(t, y, yp)
+    #             # TODO: Maybe check both derivatives at the same time. Hence, 
+    #             # this will be demistfied.
+    #             if wrt_y:
+    #                 J, self.jac_factor = num_jac(
+    #                     lambda t, y: self.fun_vectorized(t, y, yp), t, y, f,
+    #                     self.atol, self.jac_factor, sparsity,
+    #                 )
+    #             else:
+    #                 J, self.jac_factor = num_jac(
+    #                     lambda t, yp: self.fun_vectorized(t, y, yp), t, yp, f,
+    #                     self.atol, self.jac_factor, sparsity,
+    #                 )
+    #             return J
+    #         J = jac_wrapped(t0, y0, yp0)
+    #     elif callable(jac):
+    #         J = jac(t0, y0, yp0)
+    #         self.njev += 1
+    #         if issparse(J):
+    #             J = csc_matrix(J, dtype=np.common_type(y0, yp0))
+
+    #             def jac_wrapped(t, y, yp):
+    #                 self.njev += 1
+    #                 return csc_matrix(jac(t, y, yp), dtype=np.common_type(y0, yp0))
+    #         else:
+    #             J = np.asarray(J, dtype=np.common_type(y0, yp0))
+
+    #             def jac_wrapped(t, y, yp):
+    #                 self.njev += 1
+    #                 return np.asarray(jac(t, y, yp), dtype=np.common_type(y0, yp0))
+
+    #         if J.shape != (self.n, self.n):
+    #             raise ValueError("`jac` is expected to have shape {}, but "
+    #                                 "actually has {}."
+    #                                 .format((self.n, self.n), J.shape))
+    #     else:
+    #         if issparse(jac):
+    #             J = csc_matrix(jac, dtype=np.common_type(y0, yp0))
+    #         else:
+    #             J = np.asarray(jac, dtype=np.common_type(y0, yp0))
+
+    #         if J.shape != (self.n, self.n):
+    #             raise ValueError("`jac` is expected to have shape {}, but "
+    #                                 "actually has {}."
+    #                                 .format((self.n, self.n), J.shape))
+    #         jac_wrapped = None
+
+    #     return jac_wrapped, J
 
     @property
     def step_size(self):

@@ -9,7 +9,7 @@ from scipy.integrate._ivp.common import (
 )
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
-from .common import select_initial_step
+# from .common import select_initial_step
 
 
 S6 = 6 ** 0.5
@@ -34,6 +34,23 @@ TI = np.array([
     [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
 
+# These linear combinations are used in the algorithm.
+TI_REAL = TI[0]
+TI_COMPLEX = TI[1] + 1j * TI[2]
+
+gamma = MU_REAL
+alpha = MU_COMPLEX.real
+beta = -MU_COMPLEX.imag
+Lambda = np.array([
+    [gamma, 0, 0],
+    [0, alpha, -beta],
+    [0, beta, alpha],
+])
+TLA = T @ Lambda
+A = T @ Lambda @ TI
+b = A[-1, :]
+b_hat = b + E
+
 # Interpolator coefficients.
 P = np.array([
     [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
@@ -45,8 +62,8 @@ MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
-def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
-                             LU_real, LU_complex, solve_lu, mass_matrix):
+def solve_collocation_system(fun, t, y, yp, h, Z0, scale, tol,
+                             LU_real, LU_complex, solve_lu):
     """Solve the collocation system.
 
     Parameters
@@ -72,10 +89,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     solve_lu : callable
         Callable which solves a linear system given a LU decomposition. The
         signature is ``solve_lu(LU, b)``.
-    mass_matrix : {None, array_like, sparse_matrix},
-           Defines the constant mass matrix of the system, with shape (n,n).
-           It may be singular, thus defining a problem of the differential-
-           algebraic type (DAE).
 
     Returns
     -------
@@ -92,64 +105,66 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     M_real = MU_REAL / h
     M_complex = MU_COMPLEX / h
 
-    W = TI.dot(Z0)
-    Z = Z0
+    # W = TI.dot(Z0)
+    # Z = Z0
+    # TODO: Pass Yp0 here instead of Z0
+    Yp0 = Z0
+    Wp = TI.dot(Yp0)
+    Yp = Yp0
 
-    # F = np.empty((3, n))
-    F = np.empty((s, n))
+    F = np.empty((3, n))
     ch = h * C
 
-    dW_norm_old = None
-    dW = np.empty_like(W)
+    # dW_norm_old = None
+    # dW = np.empty_like(W)
+    dWp_norm_old = None
+    dWp = np.empty_like(Wp)
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        # for i in range(3):
-        for i in range(s):
-            F[i] = fun(t + ch[i], y + Z[i])
-            # F[i] = fun(t + ch[i], y + Z[i], h)
+        # Y = y + h * TLA @ Wp
+        Y = y + h * A @ Yp
+        for i in range(3):
+            # F[i] = fun(t + ch[i], y + Z[i])
+            F[i] = fun(t + ch[i], Y[i], Yp[i])
 
         if not np.all(np.isfinite(F)):
             break
 
-        f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
+        # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
         # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+        # TODO: Check this here
+        # raise RuntimeError("move on here ;)")
+        f_real = -M_real * F.T.dot(TI_REAL)
+        f_complex = -M_complex * F.T.dot(TI_COMPLEX)
 
-        ncs = s // 2
-        f_complex = np.empty((ncs, n), dtype=M_complex.dtype)
-        for i in range(ncs):
-            f_complex[i] = F.T.dot(TI_COMPLEX[i]) - M_complex[i] * mass_matrix.dot(W[2 * i + 1] + 1j * W[2 * i + 2])
+        dWp_real = solve_lu(LU_real, f_real)
+        dWp_complex = solve_lu(LU_complex, f_complex)
 
-        dW_real = solve_lu(LU_real, f_real)
-        # dW_complex = solve_lu(LU_complex, f_complex)
-        dW_complex = np.empty_like(f_complex)
-        for i in range(ncs):
-            dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
+        dWp[0] = dWp_real
+        dWp[1] = dWp_complex.real
+        dWp[2] = dWp_complex.imag
 
-        dW[0] = dW_real
-        # dW[1] = dW_complex.real
-        # dW[2] = dW_complex.imag
-        for i in range(ncs):
-            dW[2 * i + 1] = dW_complex[i].real
-            dW[2 * i + 2] = dW_complex[i].imag
+        dWp_norm = norm(dWp / scale)
+        if dWp_norm_old is not None:
+            rate = dWp_norm / dWp_norm_old
 
-        dW_norm = norm(dW / scale)
-        if dW_norm_old is not None:
-            rate = dW_norm / dW_norm_old
-
-        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+        print(F"rate: {rate}")
+        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dWp_norm > tol)):
             break
 
-        W += dW
-        Z = T.dot(W)
+        Wp += dWp
+        # Z = T.dot(W)
+        Yp = T.dot(Wp)
 
-        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
+        if (dWp_norm == 0 or rate is not None and rate / (1 - rate) * dWp_norm < tol):
             converged = True
             break
 
-        dW_norm_old = dW_norm
+        dWp_norm_old = dWp_norm
 
-    return converged, k + 1, Z, rate
+    # return converged, k + 1, Z, rate
+    return converged, k + 1, Y, Yp, rate
 
 
 def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
@@ -312,165 +327,29 @@ class Radau(DaeSolver):
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
                  vectorized=False, first_step=None, **extraneous):
         warn_extraneous(extraneous)
-        super().__init__(fun, t0, y0, yp0, t_bound, vectorized)
+        # def __init__(self, fun, t0, y0, yp0, t_bound, rtol, atol, 
+        #             max_step=np.infty, vectorized=False, first_step=None, 
+        #          jac=None, jac_sparsity=None, support_complex=False):
+        super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
         self.y_old = None
-        self.max_step = validate_max_step(max_step)
-        self.rtol, self.atol = validate_tol(rtol, atol, self.n)
-        self.f = self.fun(self.t, self.y, self.yp)
-    
-        if first_step is None:
-            self.h_abs = select_initial_step(
-                self.t, self.y, self.yp, self.t_bound, 
-                self.rtol, self.atol, self.max_step)
-        else:
-            self.h_abs = validate_first_step(first_step, t0, t_bound)
+
         self.h_abs_old = None
         self.error_norm_old = None
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
         self.sol = None
 
-        print(f"h_abs: {self.h_abs}")
-        raise RuntimeError("move on here ;)")
-
-        self.jac_factor = None
-        self.jac, self.J = self._validate_jac(jac, jac_sparsity)
-        self._nlusove = 0
-        if issparse(self.J):
-            def lu(A):
-                self.nlu += 1
-                return splu(A)
-
-            def solve_lu(LU, b):
-                self._nlusove += 1
-                return LU.solve(b)
-
-            I = eye(self.n, format='csc')
-        else:
-            def lu(A):
-                self.nlu += 1
-                return lu_factor(A, overwrite_a=True)
-
-            def solve_lu(LU, b):
-                self._nlusove += 1
-                return lu_solve(LU, b, overwrite_b=True)
-
-            I = np.identity(self.n)
-
-        
-        # ######################################
-        # # TODO: Hack step-size to the function
-        # ######################################
-        # def new_fun(t, y, h):
-        #     self.nfev += 1
-        #     return fun(t, y, h=h)
-        # self.fun = new_fun
-
-        # from cardillo.math.approx_fprime import approx_fprime
-        # self.jac = lambda t, y, f, h: approx_fprime(y, lambda y: self.fun(t, y, h), method="2-point")
-        # ######################################
-        # ######################################
-
-        self.lu = lu
-        self.solve_lu = solve_lu
-        self.I = I
-
-        self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = \
-                          self._validate_mass_matrix(mass_matrix)
-        # TODO: Validate this
-        self.var_index = np.asarray(var_index)
-        self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
-
         self.current_jac = True
         self.LU_real = None
         self.LU_complex = None
         self.Z = None
 
-    def _validate_mass_matrix(self, mass_matrix):
-        if mass_matrix is None:
-            M = self.I
-            # index_algebraic_vars = None
-            index_algebraic_vars = np.array([], dtype=int)
-            nvars_algebraic = 0
-        elif callable(mass_matrix):
-            raise ValueError("`mass_matrix` should be a constant matrix, but is"
-                             " callable")
-        else:
-            if issparse(mass_matrix):
-                M = csc_matrix(mass_matrix)
-                index_algebraic_vars = np.where(np.all(M.toarray()==0, axis=1))[0]
-            else:
-                M = np.asarray(mass_matrix, dtype=float)
-                index_algebraic_vars = np.where(np.all(M==0, axis=1))[0]
-            if M.shape != (self.n, self.n):
-                raise ValueError("`mass_matrix` is expected to have shape {}, "
-                                 "but actually has {}."
-                                 .format((self.n, self.n), M.shape))
-            nvars_algebraic = index_algebraic_vars.size
-
-        return M, index_algebraic_vars, nvars_algebraic
-      
-    def _validate_var_index(self, mass_matrix):
-        pass
-
-    def _validate_jac(self, jac, sparsity):
-        t0 = self.t
-        y0 = self.y
-
-        if jac is None:
-            if sparsity is not None:
-                if issparse(sparsity):
-                    sparsity = csc_matrix(sparsity)
-                groups = group_columns(sparsity)
-                sparsity = (sparsity, groups)
-
-            def jac_wrapped(t, y, f):
-                self.njev += 1
-                J, self.jac_factor = num_jac(self.fun_vectorized, t, y, f,
-                                             self.atol, self.jac_factor,
-                                             sparsity)
-                return J
-            J = jac_wrapped(t0, y0, self.f)
-        elif callable(jac):
-            J = jac(t0, y0)
-            self.njev = 1
-            if issparse(J):
-                J = csc_matrix(J)
-
-                def jac_wrapped(t, y, _=None):
-                    self.njev += 1
-                    return csc_matrix(jac(t, y), dtype=float)
-
-            else:
-                J = np.asarray(J, dtype=float)
-
-                def jac_wrapped(t, y, _=None):
-                    self.njev += 1
-                    return np.asarray(jac(t, y), dtype=float)
-
-            if J.shape != (self.n, self.n):
-                raise ValueError("`jac` is expected to have shape {}, but "
-                                 "actually has {}."
-                                 .format((self.n, self.n), J.shape))
-        else:
-            if issparse(jac):
-                J = csc_matrix(jac)
-            else:
-                J = np.asarray(jac, dtype=float)
-
-            if J.shape != (self.n, self.n):
-                raise ValueError("`jac` is expected to have shape {}, but "
-                                 "actually has {}."
-                                 .format((self.n, self.n), J.shape))
-            jac_wrapped = None
-
-        return jac_wrapped, J
-
     def _step_impl(self):
         t = self.t
         y = self.y
+        yp = self.yp
         f = self.f
-        n = y.size
+        n = self.n
 
         max_step = self.max_step
         atol = self.atol
@@ -490,7 +369,8 @@ class Radau(DaeSolver):
             h_abs_old = self.h_abs_old
             error_norm_old = self.error_norm_old
 
-        J = self.J
+        Jy = self.Jy
+        Jyp = self.Jyp
         LU_real = self.LU_real
         LU_complex = self.LU_complex
 
@@ -513,26 +393,32 @@ class Radau(DaeSolver):
             h = t_new - t
             h_abs = np.abs(h)
 
-            if self.sol is None:
-                # Z0 = np.zeros((3, y.shape[0]))
-                Z0 = np.zeros((s, y.shape[0]))
-            else:
-                Z0 = self.sol(t + h * C).T - y
+            # TODO: 
+            # - Is there a better initial guess?
+            # - Do we iterate in y or yp?
+            Yp0 = np.zeros((3, yp.shape[0]))
+            # if self.sol is None:
+            #     Z0 = np.zeros((3, y.shape[0]))
+            # else:
+            #     Z0 = self.sol(t + h * C).T - y
 
-            scale = atol + np.abs(y) * rtol
-            # TODO: Is this newton scaling good (yes!)
-            scale /= h**self.var_exp
+            # scale = atol + np.abs(y) * rtol
+            scale = atol + np.abs(yp) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    LU_real = self.lu(MU_REAL / h * self.mass_matrix - J)
+                    # LU_real = self.lu(MU_REAL / h * self.mass_matrix - J)
                     # LU_complex = self.lu(MU_COMPLEX / h * self.mass_matrix - J)
-                    LU_complex = [self.lu(MU / h * self.mass_matrix - J) for MU in MU_COMPLEX]
+                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                    LU_complex = self.lu(MU_COMPLEX / h * Jyp - Jy)
 
-                converged, n_iter, Z, rate = solve_collocation_system(
-                    self.fun, t, y, h, Z0, scale, self.newton_tol,
-                    LU_real, LU_complex, self.solve_lu, self.mass_matrix)
+                converged, n_iter, Y, Yp, rate = solve_collocation_system(
+                    self.fun, t, y, yp, h, Yp0, scale, self.newton_tol,
+                    LU_real, LU_complex, self.solve_lu)
+                # converged, n_iter, Z, rate = solve_collocation_system(
+                #     self.fun, t, y, yp, h, Z0, scale, self.newton_tol,
+                #     LU_real, LU_complex, self.solve_lu)
 
                 if not converged:
                     if current_jac:
@@ -551,92 +437,109 @@ class Radau(DaeSolver):
                 continue
 
             # Hairer1996 (8.2b)
-            y_new = y + Z[-1]
+            # y_new = y + Z[-1]
+            y_new = Y[-1]
+            yp_new = Yp[-1]
+            Z = Y - y
             ZE = Z.T.dot(E) / h
             # error = self.solve_lu(LU_real, f + ZE)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
-            scale /= h**self.var_exp
-            # see [1], chapter IV.8, page 127
-            # TODO: Hairer1996, (8.20)
-            # TODO: Hairer1996, (8.19a)
-            # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
-            # de Swart1997 (15)
-            # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
-            b0_hat = 0.02
-            # b0_hat = 0.02 * MU_REAL
-            # b0_hat = 0.02 / MU_REAL
-            # b0_hat = 1
-            # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
-            error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
-            # error *= h**self.var_exp
-            if self.index_algebraic_vars is not None:
-                # correct for the overestimation of the error on
-                # algebraic variables, ideally multiply their errors by
-                # (h ** index)
-                # error[self.index_algebraic_vars] = 0.
-                # # error[self.index_algebraic_vars] *= h
-                error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
-                # we exclude the algebraic components, otherwise
-                # they artificially lower the error norm
-            else:
-                error_norm = norm(error / scale)
 
-            safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
+            # b0_hat = 1 / MU_REAL
+            # y_new_hat = y + h * (b0_hat * yp + b @ yp_new)
 
-            # if False:
-            if rejected and error_norm > 1: # try with stabilised error estimate
-            # if True:
-                # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
-                error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
-                # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
+            # error = y_new_hat - y_new
+            # error_norm = norm(error / scale)
+
+            if False:
+                # see [1], chapter IV.8, page 127
+                # TODO: Hairer1996, (8.20)
+                # TODO: Hairer1996, (8.19a)
+                # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+                # de Swart1997 (15)
+                # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
+                b0_hat = 0.02
+                # b0_hat = 0.02 * MU_REAL
+                # b0_hat = 0.02 / MU_REAL
+                # b0_hat = 1
+                # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
+                error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
+                # error *= h**self.var_exp
                 if self.index_algebraic_vars is not None:
-                    # ideally error*(h**index)
+                    # correct for the overestimation of the error on
+                    # algebraic variables, ideally multiply their errors by
+                    # (h ** index)
                     # error[self.index_algebraic_vars] = 0.
+                    # # error[self.index_algebraic_vars] *= h
                     error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
-                    # again, we exclude the algebraic components
+                    # we exclude the algebraic components, otherwise
+                    # they artificially lower the error norm
                 else:
                     error_norm = norm(error / scale)
-            if error_norm > 1:
-                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
-                h_abs *= max(MIN_FACTOR, safety * factor)
 
-                LU_real = None
-                LU_complex = None
-                rejected = True
+                safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
+
+                # if False:
+                if rejected and error_norm > 1: # try with stabilised error estimate
+                # if True:
+                    # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
+                    error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
+                    # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
+                    if self.index_algebraic_vars is not None:
+                        # ideally error*(h**index)
+                        # error[self.index_algebraic_vars] = 0.
+                        error_norm = np.linalg.norm(error / scale) / (n - self.nvars_algebraic) ** 0.5
+                        # again, we exclude the algebraic components
+                    else:
+                        error_norm = norm(error / scale)
+                if error_norm > 1:
+                    factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+                    h_abs *= max(MIN_FACTOR, safety * factor)
+
+                    LU_real = None
+                    LU_complex = None
+                    rejected = True
+                else:
+                    step_accepted = True
             else:
                 step_accepted = True
 
-        # Step is converged and accepted
-        # TODO: Make this rate a user defined argument
-        recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
+        if False:
+            # Step is converged and accepted
+            # TODO: Make this rate a user defined argument
+            recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
 
-        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
-        factor = min(MAX_FACTOR, safety * factor)
+            factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+            factor = min(MAX_FACTOR, safety * factor)
 
-        if not recompute_jac and factor < 1.2:
-            factor = 1
-        else:
-            LU_real = None
-            LU_complex = None
+            if not recompute_jac and factor < 1.2:
+                factor = 1
+            else:
+                LU_real = None
+                LU_complex = None
 
-        f_new = self.fun(t_new, y_new)
-        # f_new = self.fun(t_new, y_new, h)
-        if recompute_jac:
-            J = jac(t_new, y_new, f_new)
-            # J = jac(t_new, y_new, f_new, h)
-            current_jac = True
-        elif jac is not None:
-            current_jac = False
+            f_new = self.fun(t_new, y_new)
+            # f_new = self.fun(t_new, y_new, h)
+            if recompute_jac:
+                J = jac(t_new, y_new, f_new)
+                # J = jac(t_new, y_new, f_new, h)
+                current_jac = True
+            elif jac is not None:
+                current_jac = False
 
-        self.h_abs_old = self.h_abs
-        self.error_norm_old = error_norm
+            self.h_abs_old = self.h_abs
+            self.error_norm_old = error_norm
 
-        self.h_abs = h_abs * factor
+            self.h_abs = h_abs * factor
+
+        f_new = self.fun(t_new, y_new, yp_new)
 
         self.y_old = y
+        self.yp_old = yp
 
         self.t = t_new
         self.y = y_new
+        self.yp = yp_new
         self.f = f_new
 
         self.Z = Z
@@ -644,7 +547,8 @@ class Radau(DaeSolver):
         self.LU_real = LU_real
         self.LU_complex = LU_complex
         self.current_jac = current_jac
-        self.J = J
+        self.Jy = Jy
+        self.Jyp = Jyp
 
         self.t_old = t
         self.sol = self._compute_dense_output()
