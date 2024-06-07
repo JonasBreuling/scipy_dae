@@ -104,6 +104,45 @@ derM = np.array([
 ])
 
 
+def weights(x, xi, maxder):
+    """
+    Compute Lagrangian interpolation coefficients c for the value at xi 
+    of a polynomial interpolating at distinct nodes x(1),...,x(N) and
+    derivatives of the polynomial of orders 0,...,maxder.  c[j,d+1] 
+    is the coefficient of the function value corresponding to x[j] when
+    computing the derivative of order d.  Note that maxder <= N-1.
+    
+    This program is based on the Fortran code WEIGHTS1 of B. Fornberg, 
+    A Practical Guide to Pseudospectral Methods, Cambridge University
+    Press, 1995.
+    """
+    
+    n = len(x) - 1
+    c = np.zeros((n + 1, maxder + 1))
+    c[0, 0] = 1
+    tmp1 = 1
+    tmp4 = x[0] - xi
+    
+    for i in range(1, n + 1):
+        mn = min(i, maxder)
+        tmp2 = 1
+        tmp5 = tmp4
+        tmp4 = x[i] - xi
+        for j in range(i):
+            tmp3 = x[i] - x[j]
+            tmp2 *= tmp3
+            if j == i - 1:
+                for k in range(mn, 0, -1):
+                    c[i, k] = tmp1 * (k * c[i-1, k-1] - tmp5 * c[i-1, k]) / tmp2
+                c[i, 0] = -tmp1 * tmp5 * c[i-1, 0] / tmp2
+            for k in range(mn, 0, -1):
+                c[j, k] = (tmp4 * c[j, k] - k * c[j, k-1]) / tmp3
+            c[j, 0] = tmp4 * c[j, 0] / tmp3
+        tmp1 = tmp2
+    
+    return c
+
+
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu):
     """Solve the collocation system.
@@ -357,7 +396,8 @@ class ODE15I(DaeSolver):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
         # self.y_old = None
-        # self.h_abs_old = None
+        self.order_old = None
+        self.h_abs_old = None
         # self.error_norm_old = None
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
@@ -379,7 +419,10 @@ class ODE15I(DaeSolver):
         self.mesh[1] = self.t - h
         self.meshsol[:, 1] = self.y - h * self.yp
 
-        exit()
+        # TODO: What does this mean?
+        self.nconh = 1
+        self.order = 1
+        self.PDscurrent = True # TODO: I think this is current_jac
 
     def _step_impl(self):
         t = self.t
@@ -391,20 +434,27 @@ class ODE15I(DaeSolver):
         max_step = self.max_step
         atol = self.atol
         rtol = self.rtol
+        threshold = atol / rtol
 
         min_step = 10 * np.abs(np.nextafter(t, self.direction * np.inf) - t)
         if self.h_abs > max_step:
             h_abs = max_step
             h_abs_old = None
-            error_norm_old = None
+            # error_norm_old = None
         elif self.h_abs < min_step:
             h_abs = min_step
             h_abs_old = None
-            error_norm_old = None
+            # error_norm_old = None
         else:
             h_abs = self.h_abs
             h_abs_old = self.h_abs_old
-            error_norm_old = self.error_norm_old
+            # error_norm_old = self.error_norm_old
+
+        PDscurrent = self.PDscurrent
+        order = self.order
+        order_old = self.order_old
+        mesh = self.mesh
+        meshsol = self.meshsol
 
         Jy = self.Jy
         Jyp = self.Jyp
@@ -415,9 +465,9 @@ class ODE15I(DaeSolver):
         rejected = False
         step_accepted = False
         message = None
+        gotynew = False
         while not step_accepted:
             if h_abs < min_step:
-                # print(f"h_abs: {h_abs}")
                 return False, self.TOO_SMALL_STEP
 
             h = h_abs * self.direction
@@ -429,12 +479,172 @@ class ODE15I(DaeSolver):
             h = t_new - t
             h_abs = np.abs(h)
 
-            if self.sol is None:
-                Z0 = np.zeros((3, y.shape[0]))
-            else:
-                Z0 = self.sol(t + h * C).T - y
+            invwt = np.ones_like(y) / np.maximum(np.abs(y), threshold)
 
-            scale = atol + np.abs(y) * rtol
+            if h_abs != h_abs_old or order != order_old:
+                if h_abs != h_abs_old:
+                    self.nconh = 0
+
+                Miter = Jy + (lcf[order] / h) * Jyp
+                LU = self.lu(Miter)
+                havrate = False
+                rate = 1.0 # dummy value for test
+
+            # Predict the solution and its derivative at t_new.
+            c = weights(mesh[:order + 1], t_new, 1)
+            ynew = meshsol[:, :order + 1] @ c[:, 0]
+            ypnew = meshsol[:, :order + 1] @ c[:, 1]
+            ypred = ynew
+            minnrm = 100 * EPS * np.linalg.norm(ypred * invwt, np.inf)
+
+            # Compute local truncation error constant.
+            erconst = -1 / (order + 1)
+            for j in range(1, order):
+                prod = cf[j, order] * np.prod(
+                    ((t - (j - 1) * h) - mesh[:order + 1]) / (h * np.arange(1, order + 2))
+                )
+                erconst = erconst- cf[j, order] * prod
+            erconst = abs(erconst)
+
+            # Iterate with simplified Newton method.
+            # TODO: Move this into top level function
+            tooslow = False
+            for iter in range(NEWTON_MAXITER):
+                rhs = -self.fun(t_new, ynew, ypnew)
+                del_ = self.solve_lu(LU, rhs)
+                
+                newnrm = np.linalg.norm(del_ * invwt, np.inf)
+                ynew = ynew + del_
+                ypnew = ypnew + (lcf[order] / h) * del_
+                
+                if iter == 0:
+                    if newnrm <= minnrm:
+                        gotynew = True
+                        break
+                    savnrm = newnrm
+                else:
+                    rate = (newnrm / savnrm) ** (1 / iter)
+                    havrate = True
+                    if rate > 0.9:
+                        tooslow = True
+                        break
+                
+                if havrate and (newnrm * rate / (1 - rate) <= 0.33 * rtol):
+                    gotynew = True
+                    break
+                elif iter == NEWTON_MAXITER - 1:
+                    tooslow = True
+                    break
+
+            if tooslow:
+                h_abs_old = h_abs
+                order_old = order
+                # Speed up the iteration by forming new linearization or reducing h.
+                if not PDscurrent:
+                    f_new = self.fun(t_new, y, yp)
+                    Jy, Jyp = self.jac(t_new, y_new, yp_new, f_new)
+                    PDscurrent = True
+                              
+                    # Set a dummy value of order_old to force formation of iteration matrix.
+                    order_old = 0
+            else:
+                h_abs = 0.25 * h_abs
+                done = False
+
+            # Using the tentative solution, approximate scaled derivative 
+            # used to estimate the error of the step.
+            norm_term = np.linalg.norm((ynew - ypred) * invwt, np.inf)
+            numerator = h_abs * np.arange(1, order + 2)
+            denominator = t_new - mesh[:order + 1]
+            sderkp1 = np.linalg.norm((ynew - ypred) * invwt, np.inf) * np.abs(np.prod(numerator / denominator))
+            erropt = sderkp1 / (order + 1);  # Error assuming constant step size.    
+            err = sderkp1 * erconst;         # Error accounting for irregular mesh.
+
+
+            # Approximate directly derivatives needed to consider lowering the
+            # order.  Multiply by a power of h to get scaled derivative.
+            order = order
+            order_opt = order
+
+            if order > 1:
+                if self.nconh >= order:
+                    sderk = np.linalg.norm((np.dot(np.column_stack([ynew, meshsol[:, :order]]), derM[:order+1, order]) * invwt), np.inf)
+                else:
+                    c = weights(np.append(t_new, mesh[:order]), t_new, order)
+                    sderk = np.linalg.norm((np.dot(np.column_stack([ynew, meshsol[:, :order]]), c[:, order]) * invwt), np.inf) * h_abs**order
+
+                if order == 2:
+                    if sderk <= 0.5 * sderkp1:
+                        order_opt = order - 1
+                        erropt = sderk / order
+                else:
+                    if self.nconh >= order - 1:
+                        sderkm1 = np.linalg.norm((np.dot(np.column_stack([ynew, meshsol[:, :order-1]]), derM[:order, order-1]) * invwt), np.inf)
+                    else:
+                        c = weights(np.append(t_new, mesh[:order-1]), t_new, order-1)
+                        sderkm1 = np.linalg.norm((np.dot(np.column_stack([ynew, meshsol[:, :order-1]]), c[:, order-1]) * invwt), np.inf) * h_abs**(order-1)
+
+                    if max(sderkm1, sderk) <= sderkp1:
+                        order_opt = order - 1
+                        erropt = sderk / order
+
+            if err > rtol:
+                if h_abs < min_step:
+                # if h_abs <= min_step:
+                    return False, self.TOO_SMALL_STEP
+            else:
+                step_accepted = True
+                return step_accepted, message
+
+            # h_abs_old = h_abs
+            # order_old = order
+            # nfails = nfails + 1
+            # if nfails == 1:
+            #     absh = absh * min(0.9,max(0.25, 0.9*(0.5*rtol/erropt)^(1/(kopt+1)))); 
+            # case 2
+            # absh = absh * 0.25;
+            # otherwise
+            # kopt = 1;
+            # absh = absh * 0.25;
+            # end
+            # absh = max(absh,hmin);
+            # if absh < abshlast
+            # done = false;
+            # end
+            # k = kopt; 
+             
+            h_abs_old = h_abs
+            order_old = order
+            nfails += 1
+
+            if nfails == 1:
+                h_abs = h_abs * min(0.9, max(0.25, 0.9 * (0.5 * rtol / erropt)**(1 / (order_opt + 1))))
+            elif nfails == 2:
+                h_abs = h_abs * 0.25
+            else:
+                order_opt = 1
+                h_abs = h_abs * 0.25
+
+            h_abs = max(h_abs, min_step)
+            done = not h_abs < h_abs_old
+            order = order_opt
+            
+            print(f"")
+
+            # for j = 2:k
+            # erconst = erconst - ...
+            #         cf(j,k)*prod(((t - (j-1)*h) - mesh(1:k+1)) ./ (h * (1:k+1)));
+            # end
+            # erconst = abs(erconst);       
+
+            # if self.sol is None:
+            #     Z0 = np.zeros((3, y.shape[0]))
+            # else:
+            #     Z0 = self.sol(t + h * C).T - y
+
+            # scale = atol + np.abs(y) * rtol
+
+            exit()
 
             converged = False
             while not converged:
