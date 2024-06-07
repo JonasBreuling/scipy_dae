@@ -77,6 +77,13 @@ NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
+unknown_densities = True
+# unknown_densities = False # better for both, exact and inexact Newton methods
+
+unknown_z = True
+if unknown_z:
+    assert unknown_densities
+
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu):
@@ -122,34 +129,64 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     M_complex = MU_COMPLEX / h
 
     Z = Z0
-    # Yp = A_inv @ Z / h
-    # Yp * h as unknown
-    Yp = A_inv @ Z
-    Wp = TI.dot(Yp)
+    if unknown_z:
+        W = TI.dot(Z0)
+        # Yp = A_inv @ Z / h
+    else:
+        Yp = A_inv @ Z
+        if unknown_densities:
+            Yp /= h
+        W = TI.dot(Yp)
 
     F = np.empty((3, n))
     tau = t + h * C
 
     if False:
-        def F_composite(Yp):
-            Yp = Yp.reshape(3, -1, order="C")
-            Y = y + A @ Yp
-            F = np.empty((3, n))
-            for i in range(3):
-                F[i] = fun(tau[i], Y[i], Yp[i] / h)
-            F = F.reshape(-1, order="C")
-            return F
+        if unknown_z:
+            def F_composite(Z):
+                Z = Z.reshape(3, -1, order="C")
+                Yp = A_inv @ Z / h
+                Y = y + Z
+                F = np.empty((3, n))
+                for i in range(3):
+                    F[i] = fun(tau[i], Y[i], Yp[i])
+                F = F.reshape(-1, order="C")
+                return F
+        else:
+            def F_composite(Yp):
+                Yp = Yp.reshape(3, -1, order="C")
+                Z = A @ Yp
+                if unknown_densities:
+                    Z *= h
+                Y = y + Z
+                F = np.empty((3, n))
+                for i in range(3):
+                    if unknown_densities:
+                        F[i] = fun(tau[i], Y[i], Yp[i])
+                    else:
+                        F[i] = fun(tau[i], Y[i], Yp[i] / h)
+                F = F.reshape(-1, order="C")
+                return F
         
         from cardillo.math.fsolve import fsolve
         from cardillo.solver import SolverOptions
 
-        Yp = Yp.reshape(-1, order="C")
-        sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
-        Yp = sol.x
-        Yp = Yp.reshape(3, -1, order="C")
-        Z = A @ Yp
-        Y = y + Z
+        if unknown_z:
+            Z = Z.reshape(-1, order="C")
+            sol = fsolve(F_composite, Z, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
+            Z = sol.x
+            Z = Z.reshape(3, -1, order="C")
+        else:
+            Yp = Yp.reshape(-1, order="C")
+            sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
+            Yp = sol.x
+            Yp = Yp.reshape(3, -1, order="C")
+            Z = A @ Yp
+            if unknown_densities:
+                Z *= h
 
+        Y = y + Z
+        
         # Z0 = Z0.reshape(-1, order="C")
         # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
         # W = sol.x
@@ -164,36 +201,46 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         return converged, nit, Y, Yp, Z, rate
 
     else:
-
         dW_norm_old = None
-        dW = np.empty_like(Wp)
+        dW = np.empty_like(W)
         converged = False
         rate = None
         for k in range(NEWTON_MAXITER):
-            Yp = T.dot(Wp)
-            # Z = h * A @ Yp
-            # Yp * h as unknown
-            Z = A @ Yp
+            if unknown_z:
+                Z = T.dot(W)
+                Yp = A_inv @ Z / h
+            else:
+                Yp = T.dot(W)
+                Z = A @ Yp
+                if unknown_densities:
+                    Z *= h
             Y = y + Z
             for i in range(3):
-                # F[i] = fun(tau[i], Y[i], Yp[i])
-                # Yp * h as unknown
-                F[i] = fun(tau[i], Y[i], Yp[i] / h)
+                if unknown_densities:
+                    F[i] = fun(tau[i], Y[i], Yp[i])
+                else:
+                    F[i] = fun(tau[i], Y[i], Yp[i] / h)
 
             if not np.all(np.isfinite(F)):
                 break
 
-            # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
-            # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-            # # TODO: Both formulations are equivalend
-            # f_real = -M_real * F.T.dot(TI_REAL)
-            # f_complex = -M_complex * F.T.dot(TI_COMPLEX)
-            # TIF = TI @ F
-            # f_real = -M_real * TIF[0]
-            # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
-            # Yp * h as unknown
-            f_real = -MU_REAL * F.T.dot(TI_REAL)
-            f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
+            # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
+            # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+
+            if unknown_z:
+                f_real = h / MU_REAL * F.T.dot(TI_REAL)
+                f_complex = h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
+            else:
+                if unknown_densities:
+                    # TODO: Both formulations are equivalend
+                    f_real = -M_real * F.T.dot(TI_REAL)
+                    f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+                    # TIF = TI @ F
+                    # f_real = -M_real * TIF[0]
+                    # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
+                else:
+                    f_real = -MU_REAL * F.T.dot(TI_REAL)
+                    f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
 
             dW_real = solve_lu(LU_real, f_real)
             dW_complex = solve_lu(LU_complex, f_complex)
@@ -210,11 +257,15 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
                 break
 
-            Wp += dW
-            Yp = T.dot(Wp)
-            # Z = h * A @ Yp
-            # Yp * h as unknown
-            Z = A @ Yp
+            W += dW
+            if unknown_z:
+                Z = T.dot(W)
+                Yp = A_inv @ Z / h
+            else:
+                Yp = T.dot(W)
+                Z = A @ Yp
+                if unknown_densities:
+                    Z *= h
             Y = y + Z
 
             if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
@@ -404,7 +455,7 @@ class Radau(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
-        # print(f"t: {t}")
+        print(f"t: {t}")
 
         max_step = self.max_step
         atol = self.atol
@@ -461,12 +512,17 @@ class Radau(DaeSolver):
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
+                    if unknown_z:
+                        LU_real = self.lu(h / MU_REAL * Jyp + Jy)
+                        LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
+                    else:
+                        LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                        LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
                     LU_real, LU_complex, self.solve_lu)
+                print(f"converged: {converged}")
 
                 if not converged:
                     if current_jac:
@@ -485,15 +541,15 @@ class Radau(DaeSolver):
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
             y_new = Y[-1]
-            # yp_new = Yp[-1]
-            # Yp * h as unknown
-            yp_new = Yp[-1] / h
+            yp_new = Yp[-1]
+            if not unknown_densities:
+                yp_new /= h
 
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
             # scale = atol + h * np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if True:
+            if False:
                 # # compute embedded formula
                 # gamma0 = 1 / MU_REAL
                 # # gamma0 = MU_REAL
@@ -544,8 +600,10 @@ class Radau(DaeSolver):
                 # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
+                error_norm = 1
 
                 safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
+                safety = 1
 
                 # if rejected and error_norm > 1: # try with stabilised error estimate
                 #     # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
@@ -565,7 +623,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if True:
+        if False:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
