@@ -133,48 +133,37 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     F = np.empty((3, n))
     tau = t + h * C
 
-    # def F_composite(Yp):
-    #     Yp = Yp.reshape(3, -1, order="C")
-    #     Y = y + h * A @ Yp
-    #     F = np.empty((3, n))
-    #     for i in range(3):
-    #         F[i] = fun(tau[i], Y[i], Yp[i])
-    #     F = F.reshape(-1, order="C")
-    #     return F
-
-    # # def F_composite(W):
-    # #     W = W.reshape(3, -1, order="C")
-    # #     Z = T.dot(W)
-    # #     Y = y + Z
-    # #     Yp = (1 / h) * A_inv @ Z
-    # #     F = np.empty((3, n))
-    # #     for i in range(3):
-    # #         F[i] = fun(tau[i], Y[i], Yp[i])
-    # #     F = F.reshape(-1, order="C")
-    # #     return F
+    def F_composite(Yp):
+        Yp = Yp.reshape(3, -1, order="C")
+        Y = y + A @ Yp
+        F = np.empty((3, n))
+        for i in range(3):
+            F[i] = fun(tau[i], Y[i], Yp[i] / h)
+        F = F.reshape(-1, order="C")
+        return F
     
-    # from cardillo.math.fsolve import fsolve
-    # from cardillo.solver import SolverOptions
+    from cardillo.math.fsolve import fsolve
+    from cardillo.solver import SolverOptions
 
-    # Yp0 = Yp0.reshape(-1, order="C")
-    # sol = fsolve(F_composite, Yp0, options=SolverOptions(numerical_jacobian_method="2-point"))
-    # Yp = sol.x
-    # Yp = Yp.reshape(3, -1, order="C")
-    # Y = y + h * A @ Yp
-    # Z = h * A @ Yp
+    Yp = Yp.reshape(-1, order="C")
+    sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
+    Yp = sol.x
+    Yp = Yp.reshape(3, -1, order="C")
+    Z = A @ Yp
+    Y = y + Z
 
-    # # Z0 = Z0.reshape(-1, order="C")
-    # # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
-    # # W = sol.x
-    # # W = W.reshape(3, -1, order="C")
-    # # Z = T.dot(W)
-    # # Y = y + Z
-    # # Yp = (1 / h) * A_inv @ Z
+    # Z0 = Z0.reshape(-1, order="C")
+    # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
+    # W = sol.x
+    # W = W.reshape(3, -1, order="C")
+    # Z = T.dot(W)
+    # Y = y + Z
+    # Yp = (1 / h) * A_inv @ Z
 
-    # converged = sol.success
-    # nit = sol.nit
-    # rate = 1
-    # return converged, nit, Y, Yp, Z, rate
+    converged = sol.success
+    nit = sol.nit
+    rate = 1
+    return converged, nit, Y, Yp, Z, rate
 
     # dW_norm_old = None
     # dW = np.empty_like(W)
@@ -575,6 +564,15 @@ class Radau(DaeSolver):
                 # improve error estimate for stiff components
                 # error = self.solve_lu(LU_real, err / gamma0h)
                 # error = self.solve_lu(LU_real, err / h * MU_REAL) # TODO: Why is this better?
+
+                error = self.solve_lu(LU_real, err / gamma0h)
+                # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
+                # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
+
+                # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
                 
                 error_norm = norm(error / scale)
 
