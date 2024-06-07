@@ -211,11 +211,11 @@ class BDFDAE(DaeSolver):
 
         # kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
         kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0, 0])[:MAX_ORDER + 1]
-        # # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
+        # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
         # kappa = np.array([0, -0.1850, -1/9, 0, 0, 0])[:MAX_ORDER + 1]
         # # Klopfenstein1971: maximized A(alpha)-stability
         # kappa = np.array([0, 0, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1]
-        kappa = np.array([0, -0.1850, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1] # with optimized first-order method of Shampine
+        # kappa = np.array([0, -0.1850, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1] # with optimized first-order method of Shampine
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, MAX_ORDER + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, MAX_ORDER + 2)
@@ -229,15 +229,12 @@ class BDFDAE(DaeSolver):
         self.n_equal_steps = 0
         self.LU = None
 
-        # exit()
-
-        # self.hs = []
-        # self.orders = []
-
     def _step_impl(self):
         t = self.t
         D = self.D
+        y = self.y
         yp = self.yp
+        f = self.f
 
         max_step = self.max_step
         min_step = 10 * np.abs(np.nextafter(t, self.direction * np.inf) - t)
@@ -254,7 +251,7 @@ class BDFDAE(DaeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
@@ -304,11 +301,7 @@ class BDFDAE(DaeSolver):
                 if not converged:
                     if current_jac:
                         break
-                    # TODO: Is is reasonable to use a predicted derivative here?
-                    yp_predict = psi
-                    # yp_predict = yp
-                    f_new = self.fun(t_new, y_predict, yp_predict)
-                    J = self.jac(t_new, y_predict, yp_predict, f_new)
+                    Jy, Jyp = self.jac(t, y, yp, f)
                     LU = None
                     current_jac = True
 
@@ -341,11 +334,15 @@ class BDFDAE(DaeSolver):
 
         self.t = t_new
         self.y = y_new
+        self.yp = yp_new
 
         self.h_abs = h_abs
         self.Jy = Jy
         self.Jyp = Jyp
         self.LU = LU
+
+        f_new = self.fun(t_new, y_new, yp_new)
+        self.f = f_new
 
         # Update differences. The principal relation here is
         # D^{j + 1} y_n = D^{j} y_n - D^{j} y_{n - 1}. Keep in mind that D
