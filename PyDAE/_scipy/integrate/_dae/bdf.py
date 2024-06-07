@@ -5,7 +5,7 @@ from .dae import DaeSolver
 
 
 MAX_ORDER = 5
-# MAX_ORDER = 6
+# MAX_ORDER = 6 # TODO: This is to instable as already mentioned by Shampine
 NEWTON_MAXITER = 4
 MIN_FACTOR = 0.2
 MAX_FACTOR = 10
@@ -37,7 +37,6 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
     dy_norm_old = None
     converged = False
     for k in range(NEWTON_MAXITER):
-        # f = fun(t_new, y)
         yp = c * d + psi
         f = fun(t_new, y, yp)
         if not np.all(np.isfinite(f)):
@@ -209,13 +208,12 @@ class BDFDAE(DaeSolver):
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
 
-        # kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
         kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0, 0])[:MAX_ORDER + 1]
         # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
         # kappa = np.array([0, -0.1850, -1/9, 0, 0, 0])[:MAX_ORDER + 1]
         # # Klopfenstein1971: maximized A(alpha)-stability
         # kappa = np.array([0, 0, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1]
-        # kappa = np.array([0, -0.1850, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1] # with optimized first-order method of Shampine
+        kappa = np.array([0, -0.1850, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1] # with optimized first-order method of Shampine
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, MAX_ORDER + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, MAX_ORDER + 2)
@@ -251,7 +249,7 @@ class BDFDAE(DaeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
