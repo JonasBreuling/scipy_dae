@@ -8,15 +8,15 @@ import numpy as np
 from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, find_active_events
 from scipy.integrate._ivp.common import EPS, OdeSolution
 from .base import DaeSolver
-# from .bdf import BDF
+from .bdf import BDFDAE
 from .radau import RadauDAE
 from .ode15i import ODE15I
 
 
 METHODS = {
     "Radau": RadauDAE,
-    "ode15i": ODE15I
-    # "BDF": BDF,
+    # "ode15i": ODE15I
+    "BDF": BDFDAE,
 }
 
 

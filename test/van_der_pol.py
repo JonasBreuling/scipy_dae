@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
-from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE, ODE15I
+from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE #, ODE15I
 from PyDAE._scipy.integrate._ivp.radau import Radau
 from PyDAE._scipy.integrate._ivp.bdf import BDF
 
@@ -80,9 +80,10 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=RadauDAE)
+    # method = RadauDAE
+    method = BDFDAE
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=ODE15I)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     # # method = Radau
     # method = BDF
