@@ -29,7 +29,7 @@ def change_D(D, order, factor):
     D[:order + 1] = np.dot(RU.T, D[:order + 1])
 
 
-def solve_bdf_system(fun, t_new, y_predict, c, psi, mass_matrix, LU, solve_lu, scale, tol):
+def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
     """Solve the algebraic system resulting from BDF method."""
     # d = 0
     d = np.zeros_like(y_predict)
@@ -37,11 +37,13 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, mass_matrix, LU, solve_lu, s
     dy_norm_old = None
     converged = False
     for k in range(NEWTON_MAXITER):
-        f = fun(t_new, y)
+        # f = fun(t_new, y)
+        yp = c * d + psi
+        f = fun(t_new, y, yp)
         if not np.all(np.isfinite(f)):
             break
 
-        dy = solve_lu(LU, c * f - psi - mass_matrix @ d)
+        dy = solve_lu(LU, -f)
         dy_norm = norm(dy / scale)
 
         if dy_norm_old is None:
@@ -61,7 +63,7 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, mass_matrix, LU, solve_lu, s
 
         dy_norm_old = dy_norm
 
-    return converged, k + 1, y, d
+    return converged, k + 1, y, yp, d
 
 
 # TODO:
@@ -227,7 +229,7 @@ class BDFDAE(DaeSolver):
         self.n_equal_steps = 0
         self.LU = None
 
-        exit()
+        # exit()
 
         # self.hs = []
         # self.orders = []
@@ -235,6 +237,7 @@ class BDFDAE(DaeSolver):
     def _step_impl(self):
         t = self.t
         D = self.D
+        yp = self.yp
 
         max_step = self.max_step
         min_step = 10 * np.abs(np.nextafter(t, self.direction * np.inf) - t)
@@ -251,7 +254,7 @@ class BDFDAE(DaeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
@@ -261,7 +264,8 @@ class BDFDAE(DaeSolver):
         gamma = self.gamma
         error_const = self.error_const
 
-        J = self.J
+        Jy = self.Jy
+        Jyp = self.Jyp
         LU = self.LU
         current_jac = self.jac is None
 
@@ -282,29 +286,29 @@ class BDFDAE(DaeSolver):
             h = t_new - t
             h_abs = np.abs(h)
 
-            # TODO: Do we have to multiply by M here?
             y_predict = np.sum(D[:order + 1], axis=0)
-            # y_predict = self.mass_matrix @ np.sum(D[:order + 1], axis=0)
 
             scale = atol + rtol * np.abs(y_predict)
-            # psi = np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
-            psi = self.mass_matrix @ np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
+            psi = np.dot(D[1: order + 1].T, gamma[1: order + 1]) / h
 
             converged = False
-            c = h / alpha[order]
+            c = alpha[order] / h
             while not converged:
                 if LU is None:
-                    # LU = self.lu(self.I - c * J)
-                    LU = self.lu(self.mass_matrix - c * J)
+                    LU = self.lu(Jy + c * Jyp)
 
-                converged, n_iter, y_new, d = solve_bdf_system(
-                    self.fun, t_new, y_predict, c, psi, self.mass_matrix, 
+                converged, n_iter, y_new, yp_new, d = solve_bdf_system(
+                    self.fun, t_new, y_predict, c, psi, 
                     LU, self.solve_lu, scale, self.newton_tol)
 
                 if not converged:
                     if current_jac:
                         break
-                    J = self.jac(t_new, y_predict)
+                    # TODO: Is is reasonable to use a predicted derivative here?
+                    yp_predict = psi
+                    # yp_predict = yp
+                    f_new = self.fun(t_new, y_predict, yp_predict)
+                    J = self.jac(t_new, y_predict, yp_predict, f_new)
                     LU = None
                     current_jac = True
 
@@ -320,12 +324,6 @@ class BDFDAE(DaeSolver):
 
             error = error_const[order] * d
             scale = atol + rtol * np.abs(y_new)
-            # TODO: This sounds strange for me since we divide by h^n -> 0
-            # scale /= (h**self.var_exp) # scale for algebraic variables
-            # error *= h**self.var_exp
-            # ignore error of algebraic equations
-            error[self.index_algebraic_vars] = 0
-            # error[self.index_algebraic_vars] *= h
             error_norm = norm(error / scale)
 
             if error_norm > 1:
@@ -345,7 +343,8 @@ class BDFDAE(DaeSolver):
         self.y = y_new
 
         self.h_abs = h_abs
-        self.J = J
+        self.Jy = Jy
+        self.Jyp = Jyp
         self.LU = LU
 
         # Update differences. The principal relation here is
@@ -362,16 +361,12 @@ class BDFDAE(DaeSolver):
 
         if order > 1:
             error_m = error_const[order - 1] * D[order]
-            error_m[self.index_algebraic_vars] = 0
-            # error_m[self.index_algebraic_vars] *= h
             error_m_norm = norm(error_m / scale)
         else:
             error_m_norm = np.inf
 
         if order < MAX_ORDER:
             error_p = error_const[order + 1] * D[order + 2]
-            error_p[self.index_algebraic_vars] = 0
-            # error_p[self.index_algebraic_vars] *= h
             error_p_norm = norm(error_p / scale)
         else:
             error_p_norm = np.inf
@@ -382,8 +377,6 @@ class BDFDAE(DaeSolver):
 
         delta_order = np.argmax(factors) - 1
         order += delta_order
-        # # TODO: Do not fall back to first order again
-        # order = max(2, order)
         self.order = order
 
         factor = min(MAX_FACTOR, safety * np.max(factors))
