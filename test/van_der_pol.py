@@ -15,7 +15,6 @@ mathworks: https://de.mathworks.com/help/matlab/math/solve-stiff-odes.html
 """
 
 mu = 1e3
-# mu = 1e1
 
 def rhs(t, y):
     y1, y2 = y
