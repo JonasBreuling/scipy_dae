@@ -562,17 +562,12 @@ class Radau(DaeSolver):
                 error = err
 
                 # improve error estimate for stiff components
-                # error = self.solve_lu(LU_real, err / gamma0h)
-                # error = self.solve_lu(LU_real, err / h * MU_REAL) # TODO: Why is this better?
-
                 error = self.solve_lu(LU_real, err / gamma0h)
-                # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
-                # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                # # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
+                # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
                 # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
-
-                # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+                # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
 
