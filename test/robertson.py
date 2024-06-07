@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
-from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE
+from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
 
 
 """Robertson problem of semi-stable chemical reaction, see mathworks and Shampine2005.
@@ -53,7 +53,11 @@ if __name__ == "__main__":
     ####################
     # reference solution
     ####################
-    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    start = time.time()
+    # sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="BDF")
+    end = time.time()
+    print(f"elapsed time: {end - start}")
     t_scipy = sol.t
     y_scipy = sol.y
     success = sol.success
@@ -69,8 +73,8 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # method = BDF
-    method = RadauDAE
+    # method = RadauDAE
+    method = BDFDAE
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
