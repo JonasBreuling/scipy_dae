@@ -141,7 +141,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     F = np.empty((3, n))
     tau = t + h * C
 
-    if False:
+    if True:
         if unknown_z:
             def F_composite(Z):
                 Z = Z.reshape(3, -1, order="C")
@@ -176,6 +176,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             sol = fsolve(F_composite, Z, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
             Z = sol.x
             Z = Z.reshape(3, -1, order="C")
+            Yp = A_inv @ Z / h
         else:
             Yp = Yp.reshape(-1, order="C")
             sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
@@ -187,14 +188,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         Y = y + Z
         
-        # Z0 = Z0.reshape(-1, order="C")
-        # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
-        # W = sol.x
-        # W = W.reshape(3, -1, order="C")
-        # Z = T.dot(W)
-        # Y = y + Z
-        # Yp = (1 / h) * A_inv @ Z
-
         converged = sol.success
         nit = sol.nit
         rate = 1
@@ -522,7 +515,7 @@ class Radau(DaeSolver):
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
                     LU_real, LU_complex, self.solve_lu)
-                print(f"converged: {converged}")
+                # print(f"converged: {converged}")
 
                 if not converged:
                     if current_jac:
@@ -539,8 +532,8 @@ class Radau(DaeSolver):
                 continue
 
             # Hairer1996 (8.2b)
-            # y_new = y + Z[-1]
-            y_new = Y[-1]
+            y_new = y + Z[-1]
+            # y_new = Y[-1]
             yp_new = Yp[-1]
             if not unknown_densities:
                 yp_new /= h
@@ -549,7 +542,7 @@ class Radau(DaeSolver):
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
             # scale = atol + h * np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if False:
+            if True:
                 # # compute embedded formula
                 # gamma0 = 1 / MU_REAL
                 # # gamma0 = MU_REAL
@@ -590,20 +583,19 @@ class Radau(DaeSolver):
 
                 # use bad error estimate
                 error = err
+                # error *= 1e1
 
-                # # improve error estimate for stiff components
+                # improve error estimate for stiff components
                 # error = self.solve_lu(LU_real, err / gamma0h)
-                # # # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
-                # # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
-                # # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                # # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
+                # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
                 # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
+                # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
-                error_norm = 1
 
                 safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
-                safety = 1
 
                 # if rejected and error_norm > 1: # try with stabilised error estimate
                 #     # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
@@ -623,7 +615,7 @@ class Radau(DaeSolver):
             else:
                 step_accepted = True
 
-        if False:
+        if True:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
