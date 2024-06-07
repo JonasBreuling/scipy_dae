@@ -122,9 +122,9 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     M_complex = MU_COMPLEX / h
 
     Z = Z0
-    # Yp = (1 / h) * A_inv @ Z
-    # Yp * h as unknown
-    Yp = A_inv @ Z
+    Yp = A_inv @ Z / h
+    # # Yp * h as unknown
+    # Yp = A_inv @ Z
     Wp = TI.dot(Yp)
 
     # W = TI.dot(Z0)
@@ -133,116 +133,103 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     F = np.empty((3, n))
     tau = t + h * C
 
-    def F_composite(Yp):
+    if False:
+        def F_composite(Yp):
+            Yp = Yp.reshape(3, -1, order="C")
+            Y = y + A @ Yp
+            F = np.empty((3, n))
+            for i in range(3):
+                F[i] = fun(tau[i], Y[i], Yp[i] / h)
+            F = F.reshape(-1, order="C")
+            return F
+        
+        from cardillo.math.fsolve import fsolve
+        from cardillo.solver import SolverOptions
+
+        Yp = Yp.reshape(-1, order="C")
+        sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
+        Yp = sol.x
         Yp = Yp.reshape(3, -1, order="C")
-        Y = y + A @ Yp
-        F = np.empty((3, n))
-        for i in range(3):
-            F[i] = fun(tau[i], Y[i], Yp[i] / h)
-        F = F.reshape(-1, order="C")
-        return F
-    
-    from cardillo.math.fsolve import fsolve
-    from cardillo.solver import SolverOptions
-
-    Yp = Yp.reshape(-1, order="C")
-    sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
-    Yp = sol.x
-    Yp = Yp.reshape(3, -1, order="C")
-    Z = A @ Yp
-    Y = y + Z
-
-    # Z0 = Z0.reshape(-1, order="C")
-    # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
-    # W = sol.x
-    # W = W.reshape(3, -1, order="C")
-    # Z = T.dot(W)
-    # Y = y + Z
-    # Yp = (1 / h) * A_inv @ Z
-
-    converged = sol.success
-    nit = sol.nit
-    rate = 1
-    return converged, nit, Y, Yp, Z, rate
-
-    # dW_norm_old = None
-    # dW = np.empty_like(W)
-    dW_norm_old = None
-    # dW = np.empty_like(W)
-    dW = np.empty_like(Wp)
-    converged = False
-    rate = None
-    for k in range(NEWTON_MAXITER):
-        # # Y = y + h * A @ T @ Wp
-        # Y = y + A @ Zp
-        # Yp = Zp / h
-        # # Yp = (1 / h) * A_inv @ Zp
-        # # Zp = h * A @ Yp
-
-        # Z = T.dot(W)
-
-        # Yp = T.dot(Wp)
-        Yp = T.dot(Wp)
-        # Z = h * A @ Yp
         Z = A @ Yp
-        # Y = y + h * A @ Yp
-        # Y = y + A @ Yp
         Y = y + Z
 
+        # Z0 = Z0.reshape(-1, order="C")
+        # sol = fsolve(F_composite, Z0, options=SolverOptions(numerical_jacobian_method="2-point"))
+        # W = sol.x
+        # W = W.reshape(3, -1, order="C")
+        # Z = T.dot(W)
         # Y = y + Z
         # Yp = (1 / h) * A_inv @ Z
-        for i in range(3):
-            F[i] = fun(tau[i], Y[i], Yp[i] / h)
 
-        if not np.all(np.isfinite(F)):
-            break
+        converged = sol.success
+        nit = sol.nit
+        rate = 1
+        return converged, nit, Y, Yp, Z, rate
 
-        # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
-        # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-        # # TODO: Both formulations are equivalend
-        # f_real = -M_real * F.T.dot(TI_REAL)
-        # f_complex = -M_complex * F.T.dot(TI_COMPLEX)
-        # TIF = TI @ F
-        # f_real = -M_real * TIF[0]
-        # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
+    else:
 
-        f_real = -MU_REAL * F.T.dot(TI_REAL)
-        f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
-        # # f_real = -h / MU_REAL * F.T.dot(TI_REAL)
-        # # f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
+        dW_norm_old = None
+        dW = np.empty_like(Wp)
+        converged = False
+        rate = None
+        for k in range(NEWTON_MAXITER):
+            Yp = T.dot(Wp)
+            Z = h * A @ Yp
+            # # Yp * h as unknown
+            # Z = A @ Yp
+            Y = y + Z
+            for i in range(3):
+                F[i] = fun(tau[i], Y[i], Yp[i])
+                # # Yp * h as unknown
+                # F[i] = fun(tau[i], Y[i], Yp[i] / h)
 
-        dW_real = solve_lu(LU_real, f_real)
-        dW_complex = solve_lu(LU_complex, f_complex)
+            if not np.all(np.isfinite(F)):
+                break
 
-        dW[0] = dW_real
-        dW[1] = dW_complex.real
-        dW[2] = dW_complex.imag
+            # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
+            # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+            # TODO: Both formulations are equivalend
+            f_real = -M_real * F.T.dot(TI_REAL)
+            f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+            # TIF = TI @ F
+            # f_real = -M_real * TIF[0]
+            # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
+            # # Yp * h as unknown
+            # f_real = -MU_REAL * F.T.dot(TI_REAL)
+            # f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
 
-        dW_norm = norm(dW / scale)
-        if dW_norm_old is not None:
-            rate = dW_norm / dW_norm_old
+            dW_real = solve_lu(LU_real, f_real)
+            dW_complex = solve_lu(LU_complex, f_complex)
 
-        # print(F"rate: {rate}")
-        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
-            break
+            dW[0] = dW_real
+            dW[1] = dW_complex.real
+            dW[2] = dW_complex.imag
 
-        # W += dW
-        # Z = T.dot(W)
+            dW_norm = norm(dW / scale)
+            if dW_norm_old is not None:
+                rate = dW_norm / dW_norm_old
 
-        Wp += dW
-        Yp = T.dot(Wp)
-        # Z = h * A @ Yp
-        Z = A @ Yp
-        # Y = y + h * A @ Yp
-        Y = y + Z
+            # print(F"rate: {rate}")
+            if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+                break
 
-        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
-            converged = True
-            break
+            # W += dW
+            # Z = T.dot(W)
 
-        dW_norm_old = dW_norm
+            Wp += dW
+            Yp = T.dot(Wp)
+            Z = h * A @ Yp
+            # # Yp * h as unknown
+            # Z = A @ Yp
+            Y = y + Z
 
-    return converged, k + 1, Y, Yp, Z, rate
+            if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
+                converged = True
+                break
+
+            dW_norm_old = dW_norm
+
+        return converged, k + 1, Y, Yp, Z, rate
 
 
 def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
@@ -480,8 +467,8 @@ class Radau(DaeSolver):
                 Z0 = self.sol(t + h * C).T - y
 
             # TODO: Which scale should we use?
-            scale = atol + np.abs(y) * rtol
-            # scale = atol + np.abs(yp) * rtol
+            # scale = atol + np.abs(y) * rtol
+            scale = atol + np.abs(yp) * rtol
 
             converged = False
             while not converged:
@@ -512,10 +499,10 @@ class Radau(DaeSolver):
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
             y_new = Y[-1]
-            yp_new = Yp[-1] / h
-            # Z = Y - y
-            # ZE = Z.T.dot(E) / h
-            # error = self.solve_lu(LU_real, f + ZE)
+            yp_new = Yp[-1]
+            # # Yp * h as unknown
+            # yp_new = Yp[-1] / h
+
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
@@ -561,13 +548,13 @@ class Radau(DaeSolver):
                 # use bad error estimate
                 error = err
 
-                # improve error estimate for stiff components
-                error = self.solve_lu(LU_real, err / gamma0h)
-                # # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
-                # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                # # improve error estimate for stiff components
+                # error = self.solve_lu(LU_real, err / gamma0h)
+                # # # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
+                # # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                # # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
                 # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
+                # # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
 
