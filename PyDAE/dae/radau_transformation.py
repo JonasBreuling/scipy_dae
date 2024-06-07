@@ -166,7 +166,8 @@ def radau_constants(s):
     #     rhs = 1 / np.arange(1, s + 1)
     print(f"rhs:\n{rhs}")
 
-    gamma0 = gammas[0]
+    # gamma0 = gammas[0]
+    gamma0 = 1 / gammas[0]
     rhs[0] -= gamma0
     print(f"rhs:\n{rhs}")
 

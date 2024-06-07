@@ -131,7 +131,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     Z = Z0
     if unknown_z:
         W = TI.dot(Z0)
-        # Yp = A_inv @ Z / h
+        Yp = A_inv @ Z / h
     else:
         Yp = A_inv @ Z
         if unknown_densities:
@@ -223,6 +223,9 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             if unknown_z:
                 f_real = -h / MU_REAL * F.T.dot(TI_REAL)
                 f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
+                # TIF = TI @ F
+                # f_real = -h / MU_REAL * TIF[0]
+                # f_complex = -h / MU_COMPLEX * (TIF[1] + 1j * TIF[2])
 
                 # P = np.kron(TI, np.eye(n))
                 # QI = np.kron(T, np.eye(n))
@@ -254,7 +257,11 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             if dW_norm_old is not None:
                 rate = dW_norm / dW_norm_old
 
+            # print(F"dW_norm: {dW_norm}")
             # print(F"rate: {rate}")
+            # if rate is not None:
+            #     print(F"rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm: {rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm}")
+            # print(F"tol: {tol}")
             if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
                 break
 
@@ -307,6 +314,7 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
+    # s = 3
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
@@ -316,6 +324,8 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** -0.25
         # factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
+
+    # print(f"factor: {factor}")
 
     return factor
 
@@ -456,7 +466,7 @@ class Radau(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
-        print(f"t: {t}")
+        # print(f"t: {t}")
 
         max_step = self.max_step
         atol = self.atol
@@ -489,6 +499,7 @@ class Radau(DaeSolver):
         message = None
         while not step_accepted:
             if h_abs < min_step:
+                # print(f"h_abs: {h_abs}")
                 return False, self.TOO_SMALL_STEP
 
             h = h_abs * self.direction
@@ -505,10 +516,7 @@ class Radau(DaeSolver):
             else:
                 Z0 = self.sol(t + h * C).T - y
 
-            # TODO: Which scale should we use?
             scale = atol + np.abs(y) * rtol
-            # scale = atol + np.abs(yp) * rtol
-            # scale = atol + np.abs(h * yp) * rtol
 
             converged = False
             while not converged:
@@ -516,8 +524,11 @@ class Radau(DaeSolver):
                     if unknown_z:
                         # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
                         # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
-                        LU_real = self.lu(h / MU_REAL * Jy + Jyp)
-                        LU_complex = self.lu(h / MU_COMPLEX * Jy + Jyp)
+                        LU_real = self.lu(Jyp + h / MU_REAL * Jy)
+                        LU_complex = self.lu(Jyp + h / MU_COMPLEX * Jy)
+                        # # TODO: This is only used for exact newton and the error estimate...
+                        # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                        # LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
                     else:
                         LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                         LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
@@ -530,6 +541,7 @@ class Radau(DaeSolver):
                 if not converged:
                     if current_jac:
                         break
+
                     Jy, Jyp = self.jac(t, y, yp, f)
                     current_jac = True
                     LU_real = None
@@ -537,6 +549,8 @@ class Radau(DaeSolver):
 
             if not converged:
                 h_abs *= 0.5
+                # print(f"not converged")
+                # print(f"h_abs: {h_abs}")
                 LU_real = None
                 LU_complex = None
                 continue
@@ -579,42 +593,82 @@ class Radau(DaeSolver):
                 # # error = self.solve_lu(LU_real, error)
                 # # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
 
+                # ###########################
+                # # decomposed error estimate
+                # ###########################
+                # gamma0h = MU_REAL * h
+
+                # # scale E by MU_real since this is already done by Hairer's 
+                # # E that is used here
+                # e = E * MU_REAL
+
+                # # embedded thirs order method
+                # err = gamma0h * yp + Z.T.dot(e)
+
+                # # use bad error estimate
+                # error = err
+
                 ###########################
                 # decomposed error estimate
                 ###########################
-                gamma0h = MU_REAL * h
+                gamma0 = 1 / MU_REAL
 
                 # scale E by MU_real since this is already done by Hairer's 
                 # E that is used here
-                e = E * MU_REAL
+                e = E * gamma0
 
                 # embedded thirs order method
-                err = gamma0h * yp + Z.T.dot(e)
+                err = h * gamma0 * yp + Z.T.dot(e)
+                # err = h * gamma0 * (yp - f) + Z.T.dot(e)
 
                 # use bad error estimate
                 error = err
 
                 # improve error estimate for stiff components
-                # error = self.solve_lu(LU_real, err / gamma0h)
-                # # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
-                # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
-                # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
+                if unknown_z:
+                    # error = self.solve_lu(LU_real, (yp - f) + Z.T.dot(e) / (h * gamma0))
+                    error = self.solve_lu(LU_real, err)
+                    # print(f"err: {err}")
+                    # print(f"error: {error}")
+                    # print(f"h: {h}")
+                    # error = self.solve_lu(LU_real, err / (h * gamma0))
+                    # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
+                    # error = self.solve_lu(LU_real, err / (h * gamma0))
+                    # error = self.solve_lu(LU_real, (yp + Z.T.dot(e) / (h * gamma0)))
+
+                    # D = np.eye(self.n) / (h * gamma0) + Jy
+                    # error = np.linalg.solve(D, err / (h * gamma0))
+                    pass
+                else:
+                    # error = self.solve_lu(LU_real, err / (h * gamma0))
+                    pass
+                    # error = self.solve_lu(LU_real, err / gamma0h)
+                    # error = self.solve_lu(LU_real, err * gamma0h)
+                    # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
+                    # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                    # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                    # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                    # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                    # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
 
                 safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-                # if rejected and error_norm > 1: # try with stabilised error estimate
-                #     # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
-                #     error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
-                #     # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
-                #     error_norm = norm(error / scale)
+                if rejected and error_norm > 1: # try with stabilised error estimate
+                    print(f"rejected")
+                    # error = self.solve_lu(LU_real, error)
+                    # # # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
+                    # # error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
+                    # # # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
+                    # error_norm = norm(error / scale)
 
                 if error_norm > 1:
                     factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+                    # print(f"h_abs: {h_abs}")
+                    # print(f"factor: {factor}")
                     h_abs *= max(MIN_FACTOR, safety * factor)
+                    # print(f"h_abs: {h_abs}")
 
                     LU_real = None
                     LU_complex = None
@@ -631,6 +685,7 @@ class Radau(DaeSolver):
 
             factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
             factor = min(MAX_FACTOR, safety * factor)
+            # print(f"factor: {factor}")
 
             if not recompute_jac and factor < 1.2:
                 factor = 1
@@ -648,7 +703,9 @@ class Radau(DaeSolver):
             self.h_abs_old = self.h_abs
             self.error_norm_old = error_norm
 
+            # print(f"h_abs: {h_abs}")
             self.h_abs = h_abs * factor
+            # print(f"self.h_abs: {self.h_abs}")
 
         f_new = self.fun(t_new, y_new, yp_new)
 

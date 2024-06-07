@@ -32,8 +32,8 @@ if __name__ == "__main__":
     # time span
     t0 = 0
     # t1 = 1e1
-    t1 = 1e3
-    # t1 = 3e3
+    # t1 = 1e3
+    t1 = 3e3
     t_span = (t0, t1)
 
     # initial conditions
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     yp0 = f(t0, y0)
 
     # solver options
-    atol = rtol = 1e-4
+    atol = rtol = 1e-5
 
     ####################
     # reference solution

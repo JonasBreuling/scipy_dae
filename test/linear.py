@@ -29,7 +29,7 @@ if __name__ == "__main__":
     yp0 = f(t0, y0)
 
     # solver options
-    atol = rtol = 1e-4
+    atol = rtol = 1e-6
 
     ####################
     # reference solution
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     # method = BDF
     method = Radau
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, first_step=1e-1)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
