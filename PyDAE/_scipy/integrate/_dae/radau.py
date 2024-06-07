@@ -141,7 +141,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     F = np.empty((3, n))
     tau = t + h * C
 
-    if True:
+    if False:
         if unknown_z:
             def F_composite(Z):
                 Z = Z.reshape(3, -1, order="C")
@@ -221,8 +221,16 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
 
             if unknown_z:
-                f_real = h / MU_REAL * F.T.dot(TI_REAL)
-                f_complex = h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
+                f_real = -h / MU_REAL * F.T.dot(TI_REAL)
+                f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
+
+                # P = np.kron(TI, np.eye(n))
+                # QI = np.kron(T, np.eye(n))
+                # B = np.kron(h * Lambda, J)
+                # np.set_printoptions(3, suppress=True)
+                # print(f"P:\n{P}")
+                # print(f"QI:\n{QI}")
+                # J = P @ 
             else:
                 if unknown_densities:
                     # TODO: Both formulations are equivalend
@@ -506,8 +514,10 @@ class Radau(DaeSolver):
             while not converged:
                 if LU_real is None or LU_complex is None:
                     if unknown_z:
-                        LU_real = self.lu(h / MU_REAL * Jyp + Jy)
-                        LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
+                        # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
+                        # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
+                        LU_real = self.lu(h / MU_REAL * Jy + Jyp)
+                        LU_complex = self.lu(h / MU_COMPLEX * Jy + Jyp)
                     else:
                         LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                         LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
@@ -543,31 +553,31 @@ class Radau(DaeSolver):
             # scale = atol + h * np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
             if True:
+                # ######################################################
+                # # error estimate by difference w.r.t. embedded formula
+                # ######################################################
                 # # compute embedded formula
-                # gamma0 = 1 / MU_REAL
-                # # gamma0 = MU_REAL
-                # # b0_hat = MU_REAL
-                # # y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
-                # y_new_hat = y + h * gamma0 * yp + b_hat @ Yp
+                # gamma0 = MU_REAL
+                # y_new_hat = y + h * gamma0 * yp + h * b_hat @ Yp
 
-                # # # embedded trapezoidal step
-                # # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
+                # # # # embedded trapezoidal step
+                # # # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
 
                 # # y_new = y + h * (b @ Yp)
                 # error = y_new_hat - y_new
-                # # error = Yp.T.dot(E) + h * gamma0 * yp
-                # error = gamma0 * Yp.T.dot(E) + h * yp
+                # # # error = Yp.T.dot(E) + h * gamma0 * yp
+                # # error = gamma0 * Yp.T.dot(E) + h * yp
 
-                # # ZE = Z.T.dot(E) #/ h
-                # # error = (yp + Jyp.dot(ZE)) * h
-                # # error = (yp + Z.T @ E / h)
-                # # error = (yp + Z.T @ E) * h
-                # # error = Jyp @ (yp + Z.T @ E) * h
-                # # error = (f + Jyp.dot(ZE)) #* (h / MU_REAL)
-                # # error = (h * yp + Yp.T @ (b_hat - b)) / h
-                # error = (yp + Yp.T @ (b_hat - b) / h)
-                # error = self.solve_lu(LU_real, error)
-                # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+                # # # ZE = Z.T.dot(E) #/ h
+                # # # error = (yp + Jyp.dot(ZE)) * h
+                # # # error = (yp + Z.T @ E / h)
+                # # # error = (yp + Z.T @ E) * h
+                # # # error = Jyp @ (yp + Z.T @ E) * h
+                # # # error = (f + Jyp.dot(ZE)) #* (h / MU_REAL)
+                # # # error = (h * yp + Yp.T @ (b_hat - b)) / h
+                # # error = (yp + Yp.T @ (b_hat - b) / h)
+                # # error = self.solve_lu(LU_real, error)
+                # # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
 
                 ###########################
                 # decomposed error estimate
@@ -583,7 +593,6 @@ class Radau(DaeSolver):
 
                 # use bad error estimate
                 error = err
-                # error *= 1e1
 
                 # improve error estimate for stiff components
                 # error = self.solve_lu(LU_real, err / gamma0h)
