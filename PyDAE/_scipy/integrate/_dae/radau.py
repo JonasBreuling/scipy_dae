@@ -332,7 +332,7 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
 
 # TODO:
 # - adapt documentation
-class Radau(DaeSolver):
+class RadauDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 5.
 
     The implementation follows [1]_. The error is controlled with a

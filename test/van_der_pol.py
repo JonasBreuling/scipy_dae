@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
-from PyDAE._scipy.integrate._dae.dae import solve_dae, Radau
+from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE
+from PyDAE._scipy.integrate._ivp.ivp import solve_ivp as solve_ivp_DAE
+from PyDAE._scipy.integrate._ivp.ivp import Radau
 
 
 """RHS of stiff van der Pol equation, see mathworks.
@@ -15,7 +17,7 @@ mathworks: https://de.mathworks.com/help/matlab/math/solve-stiff-odes.html
 mu = 1e3
 # mu = 1e1
 
-def f(t, y):
+def rhs(t, y):
     y1, y2 = y
 
     yp = np.zeros(2, dtype=y.dtype)
@@ -25,7 +27,17 @@ def f(t, y):
     return yp
 
 def F(t, y, yp):
-    return yp - f(t, y)
+    return yp - rhs(t, y)
+
+
+def f(t, z):
+    y, yp = z[:2], z[2:]
+    return np.concatenate((yp, F(t, y, yp)))
+
+
+mass_matrix = np.diag([1, 1, 0, 0])
+# print(f"mass_matrix:\n{mass_matrix}")
+# exit()
 
 
 if __name__ == "__main__":
@@ -38,7 +50,8 @@ if __name__ == "__main__":
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
-    yp0 = f(t0, y0)
+    yp0 = rhs(t0, y0)
+    z0 = np.concatenate((y0, yp0))
 
     # solver options
     atol = rtol = 1e-5
@@ -46,7 +59,7 @@ if __name__ == "__main__":
     ####################
     # reference solution
     ####################
-    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
     t_scipy = sol.t
     y_scipy = sol.y
     t = sol.t
@@ -64,10 +77,10 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # method = BDF
-    method = Radau
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=RadauDAE)
+    method = Radau
+    sol = solve_ivp_DAE(f, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -81,27 +94,6 @@ if __name__ == "__main__":
     print(f"nfev: {sol.nfev}")
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
-    # TRBDF2:
-    # # - nfev: 3409
-    # # - njev: 17
-    # # - nlu: 86
-    # - nfev: 2442
-    # - njev: 41
-    # - nlu: 104
-    # - nfev: 1987
-    # - njev: 45
-    # - nlu: 110
-    # - nfev: 1674
-    # - njev: 26
-    # - nlu: 85
-    # Radau:
-    # - nfev: 1397
-    # - njev: 16
-    # - nlu: 110
-    # BDF:
-    # - nfev: 633
-    # - njev: 6
-    # - nlu: 55
 
     # visualization
     fig, ax = plt.subplots(2, 1)

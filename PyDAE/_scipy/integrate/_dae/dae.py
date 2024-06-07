@@ -9,11 +9,11 @@ from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, f
 from scipy.integrate._ivp.common import EPS, OdeSolution
 from .base import DaeSolver
 # from .bdf import BDF
-from .radau import Radau
+from .radau import RadauDAE
 
 
 METHODS = {
-    "Radau": Radau,
+    "Radau": RadauDAE,
     # "BDF": BDF,
 }
 
