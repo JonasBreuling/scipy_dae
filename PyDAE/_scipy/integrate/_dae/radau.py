@@ -489,8 +489,8 @@ class Radau(DaeSolver):
                 Z0 = self.sol(t + h * C).T - y
 
             # TODO: Which scale should we use?
-            scale = atol + np.abs(y) * rtol
-            # scale = atol + np.abs(yp) * rtol
+            # scale = atol + np.abs(y) * rtol
+            scale = atol + np.abs(yp) * rtol
 
             converged = False
             while not converged:
@@ -541,6 +541,7 @@ class Radau(DaeSolver):
 
                 # y_new = y + h * (b @ Yp)
                 error = y_new_hat - y_new
+                # error = h * Yp.T.dot(E) + h / MU_REAL * yp
                 # ZE = Z.T.dot(E) / h
                 # error = ZE * h + gamma0 * yp * h
                     
