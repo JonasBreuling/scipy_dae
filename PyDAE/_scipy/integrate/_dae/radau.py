@@ -122,13 +122,10 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     M_complex = MU_COMPLEX / h
 
     Z = Z0
-    Yp = A_inv @ Z / h
-    # # Yp * h as unknown
-    # Yp = A_inv @ Z
+    # Yp = A_inv @ Z / h
+    # Yp * h as unknown
+    Yp = A_inv @ Z
     Wp = TI.dot(Yp)
-
-    # W = TI.dot(Z0)
-    # Z = Z0
 
     F = np.empty((3, n))
     tau = t + h * C
@@ -174,29 +171,29 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         rate = None
         for k in range(NEWTON_MAXITER):
             Yp = T.dot(Wp)
-            Z = h * A @ Yp
-            # # Yp * h as unknown
-            # Z = A @ Yp
+            # Z = h * A @ Yp
+            # Yp * h as unknown
+            Z = A @ Yp
             Y = y + Z
             for i in range(3):
-                F[i] = fun(tau[i], Y[i], Yp[i])
-                # # Yp * h as unknown
-                # F[i] = fun(tau[i], Y[i], Yp[i] / h)
+                # F[i] = fun(tau[i], Y[i], Yp[i])
+                # Yp * h as unknown
+                F[i] = fun(tau[i], Y[i], Yp[i] / h)
 
             if not np.all(np.isfinite(F)):
                 break
 
             # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
             # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-            # TODO: Both formulations are equivalend
-            f_real = -M_real * F.T.dot(TI_REAL)
-            f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+            # # TODO: Both formulations are equivalend
+            # f_real = -M_real * F.T.dot(TI_REAL)
+            # f_complex = -M_complex * F.T.dot(TI_COMPLEX)
             # TIF = TI @ F
             # f_real = -M_real * TIF[0]
             # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
-            # # Yp * h as unknown
-            # f_real = -MU_REAL * F.T.dot(TI_REAL)
-            # f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
+            # Yp * h as unknown
+            f_real = -MU_REAL * F.T.dot(TI_REAL)
+            f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
 
             dW_real = solve_lu(LU_real, f_real)
             dW_complex = solve_lu(LU_complex, f_complex)
@@ -213,14 +210,11 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
                 break
 
-            # W += dW
-            # Z = T.dot(W)
-
             Wp += dW
             Yp = T.dot(Wp)
-            Z = h * A @ Yp
-            # # Yp * h as unknown
-            # Z = A @ Yp
+            # Z = h * A @ Yp
+            # Yp * h as unknown
+            Z = A @ Yp
             Y = y + Z
 
             if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
@@ -454,29 +448,21 @@ class Radau(DaeSolver):
             h = t_new - t
             h_abs = np.abs(h)
 
-            # # TODO: 
-            # # - Is there a better initial guess?
-            # # - Do we iterate in y or yp?
-            # # Yp0 = np.zeros((3, yp.shape[0]))
-            # Yp0 = np.tile(yp[:, None], 3).T
-            # Z0 = np.zeros((3, yp.shape[0]))
-            # Z0 = np.tile(yp[:, None], 3).T
             if self.sol is None:
                 Z0 = np.zeros((3, y.shape[0]))
             else:
                 Z0 = self.sol(t + h * C).T - y
 
             # TODO: Which scale should we use?
-            # scale = atol + np.abs(y) * rtol
-            scale = atol + np.abs(yp) * rtol
+            scale = atol + np.abs(y) * rtol
+            # scale = atol + np.abs(yp) * rtol
+            # scale = atol + np.abs(h * yp) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                     LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
-                    # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
-                    # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
@@ -499,12 +485,13 @@ class Radau(DaeSolver):
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
             y_new = Y[-1]
-            yp_new = Yp[-1]
-            # # Yp * h as unknown
-            # yp_new = Yp[-1] / h
+            # yp_new = Yp[-1]
+            # Yp * h as unknown
+            yp_new = Yp[-1] / h
 
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
+            # scale = atol + h * np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
             if True:
                 # # compute embedded formula
@@ -554,7 +541,7 @@ class Radau(DaeSolver):
                 # # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
                 # # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
                 # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                # # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
+                # # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
 
