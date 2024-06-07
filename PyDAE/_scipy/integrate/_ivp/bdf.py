@@ -248,15 +248,6 @@ class BDF(OdeSolver):
         self.solve_lu = solve_lu
         self.I = I
         self.mass_matrix, self.index_algebraic_vars, self.nvars_algebraic = self._validate_mass_matrix(mass_matrix)
-        # TODO: Check this for correctness
-        self.var_index = np.asarray(var_index)
-        # self.var_index = np.array([0, 0, 1, 1, 3, 3, 3, 3, 3, 3], dtype=int)
-        # self.var_index = np.array([0, 0, 0, 0, 0, 3, 3, 3, 3, 3], dtype=int)
-        # self.var_index = np.array([0, 0, 0, 0, 3], dtype=int) # works for index 2
-        # self.var_index = np.array([0, 0, 2, 2, 2], dtype=int) # does NOT works for index 3
-        self.var_exp = np.maximum(0, self.var_index - 1) # 0 for differential components
-        # self.index_algebraic_vars = np.where(self.var_index != 0)[0]
-        # self.nvars_algebraic = self.index_algebraic_vars.size
 
         # kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0])[:MAX_ORDER + 1]
         kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0, 0])[:MAX_ORDER + 1]
@@ -379,7 +370,7 @@ class BDF(OdeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
@@ -415,8 +406,6 @@ class BDF(OdeSolver):
             # y_predict = self.mass_matrix @ np.sum(D[:order + 1], axis=0)
 
             scale = atol + rtol * np.abs(y_predict)
-            # TODO: Is this newton scaling good (yes!)
-            scale /= h**self.var_exp
             # psi = np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
             psi = self.mass_matrix @ np.dot(D[1: order + 1].T, gamma[1: order + 1]) / alpha[order]
 

@@ -4,8 +4,8 @@ import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
 from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE
-from PyDAE._scipy.integrate._ivp.ivp import solve_ivp as solve_ivp_DAE
-from PyDAE._scipy.integrate._ivp.ivp import Radau
+from PyDAE._scipy.integrate._ivp.radau import Radau
+from PyDAE._scipy.integrate._ivp.bdf import BDF
 
 
 """RHS of stiff van der Pol equation, see mathworks.
@@ -59,7 +59,11 @@ if __name__ == "__main__":
     ####################
     # reference solution
     ####################
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    start = time.time()
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="BDF")
+    end = time.time()
+    print(f"elapsed time: {end - start}")
     t_scipy = sol.t
     y_scipy = sol.y
     t = sol.t
@@ -77,10 +81,11 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    start = time.time()
     # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=RadauDAE)
-    method = Radau
-    sol = solve_ivp_DAE(f, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix)
+    # method = Radau
+    method = BDF
+    start = time.time()
+    sol = solve_ivp(f, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
