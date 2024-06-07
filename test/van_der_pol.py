@@ -12,8 +12,8 @@ References:
 mathworks: https://de.mathworks.com/help/matlab/math/solve-stiff-odes.html
 """
 
-mu = 1e3
-# mu = 1e1
+# mu = 1e3
+mu = 1e1
 
 def f(t, y):
     y1, y2 = y
@@ -31,7 +31,8 @@ def F(t, y, yp):
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 1e3
+    # t1 = 5
+    t1 = 1e1
     # t1 = 1e2
     # t1 = 3e3
     t_span = (t0, t1)
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     yp0 = f(t0, y0)
 
     # solver options
-    atol = rtol = 1e-8
+    atol = rtol = 1e-5
 
     ####################
     # reference solution

@@ -651,16 +651,19 @@ class Radau(OdeSolver):
             # see [1], chapter IV.8, page 127
             # TODO: Hairer1996, (8.20)
             # TODO: Hairer1996, (8.19a)
-            # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
-            # de Swart1997 (15)
-            # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
-            b0_hat = 0.02
-            # b0_hat = 0.02 * MU_REAL
-            # b0_hat = 0.02 / MU_REAL
-            # b0_hat = 1
-            # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
-            error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
-            # error *= h**self.var_exp
+            # error = f + self.mass_matrix.dot(ZE)
+            # error = (f + self.mass_matrix.dot(ZE)) * (h / MU_REAL)
+            error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+
+            # # de Swart1997 (15)
+            # # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
+            # b0_hat = 0.02
+            # # b0_hat = 0.02 * MU_REAL
+            # # b0_hat = 0.02 / MU_REAL
+            # # b0_hat = 1
+            # # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
+            # error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
+            # # error *= h**self.var_exp
             if self.index_algebraic_vars is not None:
                 # correct for the overestimation of the error on
                 # algebraic variables, ideally multiply their errors by
@@ -675,11 +678,11 @@ class Radau(OdeSolver):
 
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-            # if False:
-            if rejected and error_norm > 1: # try with stabilised error estimate
+            if False:
+            # if rejected and error_norm > 1: # try with stabilised error estimate
             # if True:
-                # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
-                error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
+                error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
+                # error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
                 # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
                 if self.index_algebraic_vars is not None:
                     # ideally error*(h**index)

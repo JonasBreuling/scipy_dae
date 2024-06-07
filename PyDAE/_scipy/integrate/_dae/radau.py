@@ -122,14 +122,15 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     M_complex = MU_COMPLEX / h
 
     Z = Z0
-    Yp = (1 / h) * A_inv @ Z
+    # Yp = (1 / h) * A_inv @ Z
+    # Yp * h as unknown
+    Yp = A_inv @ Z
     Wp = TI.dot(Yp)
 
     # W = TI.dot(Z0)
     # Z = Z0
 
     F = np.empty((3, n))
-    # ch = h * C
     tau = t + h * C
 
     # def F_composite(Yp):
@@ -191,30 +192,33 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         # Z = T.dot(W)
 
+        # Yp = T.dot(Wp)
         Yp = T.dot(Wp)
-        Z = h * A @ Yp
-        Y = y + h * A @ Yp
-        # Y = y + Z
+        # Z = h * A @ Yp
+        Z = A @ Yp
+        # Y = y + h * A @ Yp
+        # Y = y + A @ Yp
+        Y = y + Z
 
         # Y = y + Z
         # Yp = (1 / h) * A_inv @ Z
         for i in range(3):
-            F[i] = fun(tau[i], Y[i], Yp[i])
+            F[i] = fun(tau[i], Y[i], Yp[i] / h)
 
         if not np.all(np.isfinite(F)):
             break
 
         # # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
         # # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
-        # TODO: Both formulations are equivalend
-        f_real = -M_real * F.T.dot(TI_REAL)
-        f_complex = -M_complex * F.T.dot(TI_COMPLEX)
+        # # TODO: Both formulations are equivalend
+        # f_real = -M_real * F.T.dot(TI_REAL)
+        # f_complex = -M_complex * F.T.dot(TI_COMPLEX)
         # TIF = TI @ F
         # f_real = -M_real * TIF[0]
         # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
 
-        # f_real = -MU_REAL * F.T.dot(TI_REAL)
-        # f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
+        f_real = -MU_REAL * F.T.dot(TI_REAL)
+        f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
         # # f_real = -h / MU_REAL * F.T.dot(TI_REAL)
         # # f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
 
@@ -238,18 +242,16 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         Wp += dW
         Yp = T.dot(Wp)
-        Z = h * A @ Yp
-        Y = y + h * A @ Yp
-        # Y = y + Z
+        # Z = h * A @ Yp
+        Z = A @ Yp
+        # Y = y + h * A @ Yp
+        Y = y + Z
 
         if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
             break
 
         dW_norm_old = dW_norm
-
-    # Y = y + Z
-    # Yp = (1 / h) * A_inv @ Z
 
     return converged, k + 1, Y, Yp, Z, rate
 
@@ -495,8 +497,8 @@ class Radau(DaeSolver):
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
+                    LU_real = self.lu((MU_REAL / h) * Jyp + Jy)
+                    LU_complex = self.lu((MU_COMPLEX / h) * Jyp + Jy)
                     # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
                     # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
 
@@ -521,7 +523,7 @@ class Radau(DaeSolver):
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
             y_new = Y[-1]
-            yp_new = Yp[-1]
+            yp_new = Yp[-1] / h
             # Z = Y - y
             # ZE = Z.T.dot(E) / h
             # error = self.solve_lu(LU_real, f + ZE)
@@ -531,17 +533,24 @@ class Radau(DaeSolver):
             if True:
                 # compute embedded formula
                 gamma0 = 1 / MU_REAL
-                gamma0 = MU_REAL
+                # gamma0 = MU_REAL
                 # b0_hat = MU_REAL
-                y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
-                # y_new_hat = y + (h * gamma0 * yp + b_hat @ Z * h)
+                # y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
+                y_new_hat = y + h * gamma0 * yp + b_hat @ Yp
 
                 # # embedded trapezoidal step
                 # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
 
                 # y_new = y + h * (b @ Yp)
                 error = y_new_hat - y_new
-                # error = h * Yp.T.dot(E) + h / MU_REAL * yp
+                # error = Yp.T.dot(E) + h * gamma0 * yp
+                error = gamma0 * Yp.T.dot(E) + h * yp
+
+                ZE = Z.T.dot(E) / h
+                error = (f + Jyp.dot(ZE)) * (h / MU_REAL)
+                error = self.solve_lu(LU_real, error)
+                # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+                
                 # ZE = Z.T.dot(E) / h
                 # error = ZE * h + gamma0 * yp * h
                     
