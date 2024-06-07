@@ -491,14 +491,14 @@ class Radau(DaeSolver):
                 Z0 = self.sol(t + h * C).T - y
 
             # TODO: Which scale should we use?
-            # scale = atol + np.abs(y) * rtol
-            scale = atol + np.abs(yp) * rtol
+            scale = atol + np.abs(y) * rtol
+            # scale = atol + np.abs(yp) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    LU_real = self.lu((MU_REAL / h) * Jyp + Jy)
-                    LU_complex = self.lu((MU_COMPLEX / h) * Jyp + Jy)
+                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                    LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
                     # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
                     # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
 
@@ -531,60 +531,52 @@ class Radau(DaeSolver):
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
             if True:
-                # compute embedded formula
-                gamma0 = 1 / MU_REAL
-                # gamma0 = MU_REAL
-                # b0_hat = MU_REAL
-                # y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
-                y_new_hat = y + h * gamma0 * yp + b_hat @ Yp
+                # # compute embedded formula
+                # gamma0 = 1 / MU_REAL
+                # # gamma0 = MU_REAL
+                # # b0_hat = MU_REAL
+                # # y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
+                # y_new_hat = y + h * gamma0 * yp + b_hat @ Yp
 
-                # # embedded trapezoidal step
-                # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
+                # # # embedded trapezoidal step
+                # # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
 
-                # y_new = y + h * (b @ Yp)
-                error = y_new_hat - y_new
-                # error = Yp.T.dot(E) + h * gamma0 * yp
-                error = gamma0 * Yp.T.dot(E) + h * yp
+                # # y_new = y + h * (b @ Yp)
+                # error = y_new_hat - y_new
+                # # error = Yp.T.dot(E) + h * gamma0 * yp
+                # error = gamma0 * Yp.T.dot(E) + h * yp
 
-                ZE = Z.T.dot(E) / h
-                error = (f + Jyp.dot(ZE)) * (h / MU_REAL)
-                error = self.solve_lu(LU_real, error)
-                # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
-                
-                # ZE = Z.T.dot(E) / h
-                # error = ZE * h + gamma0 * yp * h
-                    
-                # ZE = Z.T.dot(E) / h
-                # error = self.solve_lu(LU_real, f / h + ZE)
-
-                # b0_hat = 0.02
-                # # error = b0_hat / MU_REAL * (yp + Jyp.dot(ZE))
-                # error = b0_hat / MU_REAL * (yp + ZE)
-
-                # error = self.solve_lu(LU_real, f + Z.T.dot(E) / h)
-
-                # print(f"error1: {error}")
-                # error = h * (b0_hat * yp + (b_hat - b) @ Yp)
-                # error = h * (1 * yp + (b_hat - b) @ Yp) / 1e1
-                # # # error = b0_hat * yp + (b_hat - b) @ Yp
-                # # # error *= h
-                # # print(f"error2: {error}")
-
-                error_norm = norm(error / scale)
-
-                # # see [1], chapter IV.8, page 127
-                # # TODO: Hairer1996, (8.20)
-                # # TODO: Hairer1996, (8.19a)
+                # # ZE = Z.T.dot(E) #/ h
+                # # error = (yp + Jyp.dot(ZE)) * h
+                # # error = (yp + Z.T @ E / h)
+                # # error = (yp + Z.T @ E) * h
+                # # error = Jyp @ (yp + Z.T @ E) * h
+                # # error = (f + Jyp.dot(ZE)) #* (h / MU_REAL)
+                # # error = (h * yp + Yp.T @ (b_hat - b)) / h
+                # error = (yp + Yp.T @ (b_hat - b) / h)
+                # error = self.solve_lu(LU_real, error)
                 # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
-                # # de Swart1997 (15)
-                # # b0 = MU_REAL => b_hat0 = b0 / MU_REAL = 1 => => b0 = b_hat0 * MU_REAL 
-                # b0_hat = 0.02
-                # # b0_hat = 0.02 * MU_REAL
-                # # b0_hat = 0.02 / MU_REAL
-                # # b0_hat = 1
-                # # error = b0_hat / MU_REAL * (f + self.mass_matrix.dot(ZE))
-                # error = self.solve_lu(LU_real, b0_hat * (f + self.mass_matrix.dot(ZE)))
-                # error_norm = norm(error / scale)
+
+                ###########################
+                # decomposed error estimate
+                ###########################
+                gamma0h = MU_REAL * h
+
+                # scale E by MU_real since this is already done by Hairer's 
+                # E that is used here
+                e = E * MU_REAL
+
+                # embedded thirs order method
+                err = gamma0h * yp + Z.T.dot(e)
+
+                # use bad error estimate
+                error = err
+
+                # improve error estimate for stiff components
+                # error = self.solve_lu(LU_real, err / gamma0h)
+                # error = self.solve_lu(LU_real, err / h * MU_REAL) # TODO: Why is this better?
+                
+                error_norm = norm(error / scale)
 
                 safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 

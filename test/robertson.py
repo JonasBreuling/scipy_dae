@@ -56,6 +56,15 @@ if __name__ == "__main__":
     sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="Radau")
     t_scipy = sol.t
     y_scipy = sol.y
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
 
     ##############
     # dae solution
