@@ -70,7 +70,7 @@ if __name__ == "__main__":
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
     print(f"fnorm: {fnorm}")
-    exit()
+    # exit()
 
     # solver options
     atol = rtol = 1e-3
