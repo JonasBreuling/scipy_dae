@@ -4,6 +4,8 @@ import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
 from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
+from PyDAE._scipy.integrate._dae.common import consistent_initial_conditions
+from scipy.optimize._numdiff import approx_derivative
 
 
 """Robertson problem of semi-stable chemical reaction, see mathworks and Shampine2005.
@@ -35,6 +37,20 @@ def F(t, y, yp):
 
     return F
 
+def jac(t, y, yp, f):
+    n = len(y)
+    z = np.concatenate((y, yp))
+
+    def fun_composite(t, z):
+        y, yp = z[:n], z[n:]
+        return F(t, y, yp)
+    
+    J = approx_derivative(lambda z: fun_composite(t, z), 
+                            z, method="2-point", f0=f)
+    J = J.reshape((n, 2 * n))
+    Jy, Jyp = J[:, :n], J[:, n:]
+    return Jy, Jyp
+
 
 if __name__ == "__main__":
     # time span
@@ -46,6 +62,15 @@ if __name__ == "__main__":
     # initial conditions
     y0 = np.array([1, 0, 0], dtype=float)
     yp0 = f(t0, y0)
+    yp0 = np.zeros_like(y0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+
+    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    print(f"fnorm: {fnorm}")
+    exit()
 
     # solver options
     atol = rtol = 1e-4
