@@ -67,10 +67,10 @@ if __name__ == "__main__":
     y0 = np.array([2, 0], dtype=float)
     yp0 = rhs(t0, y0)
     z0 = np.concatenate((y0, yp0))
-    # yp0 = np.zeros_like(y0)
+
+    yp0 = np.zeros_like(y0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
-
     y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")

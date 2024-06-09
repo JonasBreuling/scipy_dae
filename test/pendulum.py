@@ -6,6 +6,8 @@ import time
 from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
 from PyDAE._scipy.integrate._ivp.radau import Radau
 from PyDAE._scipy.integrate._ivp.bdf import BDF
+from PyDAE._scipy.integrate._dae.common import consistent_initial_conditions
+from scipy.optimize._numdiff import approx_derivative
 
 
 """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
@@ -28,6 +30,19 @@ def F(t, vy, vyp):
 
     return R
 
+def jac(t, y, yp, f):
+    n = len(y)
+    z = np.concatenate((y, yp))
+
+    def fun_composite(t, z):
+        y, yp = z[:n], z[n:]
+        return F(t, y, yp)
+    
+    J = approx_derivative(lambda z: fun_composite(t, z), 
+                            z, method="2-point", f0=f)
+    J = J.reshape((n, 2 * n))
+    Jy, Jyp = J[:, :n], J[:, n:]
+    return Jy, Jyp
 
 def f(t, z):
     y, yp = z[:6], z[6:]
@@ -47,6 +62,15 @@ if __name__ == "__main__":
     y0 = np.array([l, 0, 0, 0, 0, 0], dtype=float)
     yp0 = np.array([0, 0, 0, -g, 0, 0], dtype=float)
     z0 = np.concatenate((y0, yp0))
+
+    yp0 = np.zeros_like(y0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    print(f"fnorm: {fnorm}")
+    exit()
 
     # solver options
     atol = rtol = 1e-3
