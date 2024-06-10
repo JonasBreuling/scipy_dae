@@ -1,0 +1,31 @@
+name: Build tests
+
+on: [push]
+# on:
+#   pull_request:
+#     branches:
+#       - main
+
+jobs:
+  build:
+    name: Build project
+    runs-on: ubuntu-latest
+    # runs-on: python:latest
+    # runs-on: [self-hosted, linux]
+    # TODO: fix authentication in container
+    # container: 
+    #   image: python:latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.8" 
+        cache: "pip" # caching pip dependencies
+        cache-dependency-path: setup.py
+    - name: install dependencies
+      run: pip install -e .
+    - name: install test dependencies
+      run: pip install pytest
+    - name: test with pytest
+      run: pytest ./test/
