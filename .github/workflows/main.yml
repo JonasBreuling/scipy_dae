@@ -22,10 +22,10 @@ jobs:
       with:
         python-version: "3.8" 
         cache: "pip" # caching pip dependencies
-        cache-dependency-path: setup.py
-    - name: install dependencies
+        # cache-dependency-path: setup.py
+    - name: Install dependencies and PyDAE
       run: pip install -e .
-    - name: install test dependencies
+    - name: Install test dependencies
       run: pip install pytest
-    - name: test with pytest
+    - name: Test with pytest
       run: pytest ./test/
