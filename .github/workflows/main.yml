@@ -29,42 +29,19 @@ jobs:
     - name: Install test dependencies
       run: pip install pytest pytest-cov
 
-    # - name: Test with pytest
-    #   run: pytest ./test/
-
-    - name: Coverage report with pytest-cov
-      # run: pytest --cov=pydaes
+    - name: Test and coverage report with pytest-cov
       run: pytest --cov=pydaes --cov-report=term --cov-report=lcov --cov-report=xml
 
-    - name: Creating coverage folder
-      run: |
-        mkdir -p coverage
+    - name: Run tests and collect coverage
+      run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
 
-    - name: Coverage Bagdge
-      uses: tj-actions/coverage-badge-py@v1.8
+    - name: Upload coverage data
+      uses: actions/upload-artifact@v3
       with:
-        output: coverage/coverage.svg
+        name: covdata
+        path: coverage.xml
 
-    - name: Publish coverage report to coverage-badge branch
-      uses: JonasBreuling/pydaes@v4
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
       with:
-        branch: coverage-badge
-        folder: coverage
-
-    # - name: Run tests and collect coverage
-    #   run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
-
-    # # - name: Upload coverage data
-    # #   uses: actions/upload-artifact@v3
-    # #   with:
-    # #     name: covdata
-    # #     path: coverage.xml
-
-    # - name: Upload coverage reports to Codecov
-    #   uses: codecov/codecov-action@v4.0.1
-    #   with:
-    #     token: ${{ secrets.CODECOV_TOKEN }}
-
-
-
-    #     # [![codecov](https://img.shields.io/codecov/c/github/nschloe/meshio.svg?style=flat-square)](https://app.codecov.io/gh/nschloe/meshio)
+        token: ${{ secrets.CODECOV_TOKEN }}
