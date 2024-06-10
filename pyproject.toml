@@ -13,10 +13,10 @@ authors = [
 ]
 description = "A Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = [
   "numpy>=1.24.4",
-  "scipy>=1.13.0",
+  "scipy>=1.10.1",
   "matplotlib>=3.4.3",
 ]
 classifiers = [
