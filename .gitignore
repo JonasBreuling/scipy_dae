@@ -2,3 +2,4 @@ myvenv
 *.egg-info
 *.pyvc
 *.pyc
+dist
