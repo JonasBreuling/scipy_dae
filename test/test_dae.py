@@ -19,17 +19,16 @@ def F_linear(t, y, yp):
     return yp - fun_linear(t, y)
 
 
-def J_linear(t, y, yp):
-    Jy = -jac_linear()
-    Jyp = np.eye(2)
-    return Jy, Jyp
+J_linear = (
+    -jac_linear(),
+    np.eye(2),
+)
 
 
-def J_linear_sparse(t, y, yp):
-    Jy, Jyp = J_linear(t, y, yp)
-    Jy = csc_matrix(Jy)
-    Jyp = csc_matrix(Jyp)
-    return Jy, Jyp
+J_linear_sparse = (
+    -csc_matrix(jac_linear()),
+    identity(2, format="csc"),
+)
 
 
 def F_rational(t, y, yp):
@@ -56,6 +55,32 @@ def sol_rational(t):
     return np.asarray((t / (t + 10), 10 * t / (t + 10) ** 2))
 
 
+parameters_linear = product(
+    ["BDF"], # method
+    [None, J_linear, J_linear_sparse] # jac
+)
+@pytest.mark.parametrize("method, jac", parameters_linear)
+def test_integration_const_jac(method, jac):
+    # raise NotImplemented("Adapt according to scipy test for constant Jacobian!")
+    rtol = 1e-3
+    atol = 1e-6
+    y0 = [0, 2]
+    yp0 = fun_linear(0, y0)
+    t_span = [0, 2]
+
+    res = solve_dae(F_linear, t_span, y0, yp0, rtol=rtol, atol=atol, 
+                    method=method, dense_output=True, jac=jac)
+    
+    assert_equal(res.t[0], t_span[0])
+    assert_(res.t_events is None)
+    assert_(res.y_events is None)
+    assert_(res.success)
+    assert_equal(res.status, 0)
+
+    y_true = sol_linear(res.t)
+    e = compute_error(res.y, y_true, rtol, atol)
+    assert_(np.all(e < 5))
+
 # TODO: Vectorization is not supported yet!
 parameters_rational = product(
     # [False, True], # vectorized
@@ -64,8 +89,6 @@ parameters_rational = product(
     [[5, 9], [5, 1]], # t_span
     [None, J_rational, J_rational_sparse] # jac
 )
-
-
 @pytest.mark.parametrize("vectorized, method, t_span, jac", parameters_rational)
 def test_integration_rational(vectorized, method, t_span, jac):
     rtol = 1e-3
@@ -112,38 +135,10 @@ def test_integration_rational(vectorized, method, t_span, jac):
 
     assert_allclose(res.sol(res.t), res.y, rtol=1e-15, atol=1e-15)
 
-
-parameters_linear = product(
-    ["BDF"], # method
-    [None, J_linear, J_linear_sparse] # jac
-)
-
-
-# @pytest.mark.parametrize("method, jac", parameters_linear)
-# def test_integration_const_jac(method, jac):
-#     raise NotImplemented("Adapt according to scipy test for constant Jacobian!")
-#     rtol = 1e-3
-#     atol = 1e-6
-#     y0 = [0, 2]
-#     yp0 = fun_linear(0, y0)
-#     t_span = [0, 2]
-
-#     res = solve_dae(F_linear, t_span, y0, yp0, rtol=rtol, atol=atol, 
-#                     method=method, dense_output=True, jac=jac)
-    
-#     assert_equal(res.t[0], t_span[0])
-#     assert_(res.t_events is None)
-#     assert_(res.y_events is None)
-#     assert_(res.success)
-#     assert_equal(res.status, 0)
-
-#     y_true = sol_linear(res.t)
-#     e = compute_error(res.y, y_true, rtol, atol)
-#     assert_(np.all(e < 5))
     
 if __name__ == "__main__":
-    # for params in parameters_linear:
-    #     test_integration_const_jac(*params)
+    for params in parameters_linear:
+        test_integration_const_jac(*params)
 
     for params in parameters_rational:
         test_integration_rational(*params)

@@ -326,83 +326,25 @@ class DaeSolver:
                                  .format((self.n, self.n), Jyp.shape))
         
         else:
-            raise NotImplementedError("Constant Jacobians are not supported yet.")
-            if issparse(jac):
-                J = csc_matrix(jac)
+            Jy, Jyp = jac
+            if issparse(Jy) or issparse(Jyp):
+                Jy = csc_matrix(Jy, dtype=float)
+                Jyp = csc_matrix(Jyp, dtype=float)
             else:
-                J = np.asarray(jac, dtype=float)
+                Jy = np.asarray(Jy, dtype=float)
+                Jyp = np.asarray(Jyp, dtype=float)
 
-            if J.shape != (self.n, self.n):
-                raise ValueError("`jac` is expected to have shape {}, but "
+            if Jy.shape != (self.n, self.n):
+                raise ValueError("`Jy` is expected to have shape {}, but "
                                  "actually has {}."
-                                 .format((self.n, self.n), J.shape))
+                                 .format((self.n, self.n), Jy.shape))
+            if Jyp.shape != (self.n, self.n):
+                raise ValueError("`Jyp` is expected to have shape {}, but "
+                                 "actually has {}."
+                                 .format((self.n, self.n), Jyp.shape))
             jac_wrapped = None
 
         return jac_wrapped, Jy, Jyp
-
-    # def _validate_jac(self, jac, sparsity, wrt_y=True):
-    #     # TODO: I'm not sure if this can be done in the base class since 
-    #     # depending on the method y depends on yp or vice versa.
-    #     t0 = self.t
-    #     y0 = self.y
-    #     yp0 = self.yp
-    #     if jac is None:
-    #         if sparsity is not None:
-    #             if issparse(sparsity):
-    #                 sparsity = csc_matrix(sparsity)
-    #             groups = group_columns(sparsity)
-    #             sparsity = (sparsity, groups)
-
-    #         def jac_wrapped(t, y, yp):
-    #             self.njev += 1
-    #             f = self.fun_single(t, y, yp)
-    #             # TODO: Maybe check both derivatives at the same time. Hence, 
-    #             # this will be demistfied.
-    #             if wrt_y:
-    #                 J, self.jac_factor = num_jac(
-    #                     lambda t, y: self.fun_vectorized(t, y, yp), t, y, f,
-    #                     self.atol, self.jac_factor, sparsity,
-    #                 )
-    #             else:
-    #                 J, self.jac_factor = num_jac(
-    #                     lambda t, yp: self.fun_vectorized(t, y, yp), t, yp, f,
-    #                     self.atol, self.jac_factor, sparsity,
-    #                 )
-    #             return J
-    #         J = jac_wrapped(t0, y0, yp0)
-    #     elif callable(jac):
-    #         J = jac(t0, y0, yp0)
-    #         self.njev += 1
-    #         if issparse(J):
-    #             J = csc_matrix(J, dtype=np.common_type(y0, yp0))
-
-    #             def jac_wrapped(t, y, yp):
-    #                 self.njev += 1
-    #                 return csc_matrix(jac(t, y, yp), dtype=np.common_type(y0, yp0))
-    #         else:
-    #             J = np.asarray(J, dtype=np.common_type(y0, yp0))
-
-    #             def jac_wrapped(t, y, yp):
-    #                 self.njev += 1
-    #                 return np.asarray(jac(t, y, yp), dtype=np.common_type(y0, yp0))
-
-    #         if J.shape != (self.n, self.n):
-    #             raise ValueError("`jac` is expected to have shape {}, but "
-    #                                 "actually has {}."
-    #                                 .format((self.n, self.n), J.shape))
-    #     else:
-    #         if issparse(jac):
-    #             J = csc_matrix(jac, dtype=np.common_type(y0, yp0))
-    #         else:
-    #             J = np.asarray(jac, dtype=np.common_type(y0, yp0))
-
-    #         if J.shape != (self.n, self.n):
-    #             raise ValueError("`jac` is expected to have shape {}, but "
-    #                                 "actually has {}."
-    #                                 .format((self.n, self.n), J.shape))
-    #         jac_wrapped = None
-
-    #     return jac_wrapped, J
 
     @property
     def step_size(self):
