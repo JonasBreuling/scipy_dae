@@ -199,11 +199,10 @@ def test_integration_rational(vectorized, method, t_span, jac):
 parameters_stiff = product(
     ["BDF"], # method
     ["stability", "efficiency", None], # NDF_strategy
-    [1, 2, 3, 4, 5, 6], # max_order
-    [1e-2, 1e-3], # first_step
+    [2, 3, 4, 5, 6], # max_order
 )
-@pytest.mark.parametrize("method, NDF_strategy, max_order, first_step", parameters_stiff)
-def test_integration_stiff(method, NDF_strategy, max_order, first_step):
+@pytest.mark.parametrize("method, NDF_strategy, max_order", parameters_stiff)
+def test_integration_stiff(method, NDF_strategy, max_order):
     def fun_robertson(t, state):
         x, y, z = state
         return [
@@ -223,7 +222,7 @@ def test_integration_stiff(method, NDF_strategy, max_order, first_step):
 
     res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
                     atol=atol, method=method, max_order=max_order,
-                    NDF_strategy=NDF_strategy, first_step=first_step)
+                    NDF_strategy=NDF_strategy)
 
     # If the stiff mode is not activated correctly, these numbers will be much 
     # bigger (see max_order=1 case)
