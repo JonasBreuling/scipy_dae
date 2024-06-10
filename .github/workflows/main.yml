@@ -1,4 +1,4 @@
-name: Build tests
+name: Build and tests
 
 on: [push]
 # on:
@@ -13,16 +13,31 @@ jobs:
     # runs-on: python:latest
     steps:
     - uses: actions/checkout@v4
+
     - name: Setup python
       uses: actions/setup-python@v5
       with:
         python-version: "3.8" 
         cache: "pip" # caching pip dependencies
+
     - name: Update pip
       run: pip install --upgrade pip
+
     - name: Install dependencies and pydaes (pydaes)
       run: pip install -e .
+
     - name: Install test dependencies
       run: pip install pytest
+
     - name: Test with pytest
       run: pytest ./test/
+
+    - name: Coverage report with pytest-cov
+      # run: pytest --cov=pydaes
+      run: pytest --cov=pydaes --cov-report=term --cov-report=lcov --cov-report=xml
+
+    - name: Upload coverage data
+      uses: actions/upload-artifact@v3
+      with:
+        name: covdata
+        path: coverage.xml

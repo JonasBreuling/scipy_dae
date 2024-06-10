@@ -253,6 +253,7 @@ class DaeSolver:
         t0 = self.t
         y0 = self.y
         yp0 = self.yp
+        dtype = np.common_type(y0, yp0)
 
         if jac is None:
             if sparsity is not None:
@@ -295,25 +296,25 @@ class DaeSolver:
             Jy, Jyp = jac(t0, y0, yp0)
             self.njev = 1
             if issparse(Jy) or issparse(Jyp):
-                Jy = csc_matrix(Jy, dtype=float)
-                Jyp = csc_matrix(Jyp, dtype=float)
+                Jy = csc_matrix(Jy, dtype=dtype)
+                Jyp = csc_matrix(Jyp, dtype=dtype)
 
                 def jac_wrapped(t, y, yp, _=None):
                     self.njev += 1
                     Jy, Jyp = jac(t, y, yp)
-                    Jy = csc_matrix(Jy, dtype=float)
-                    Jyp = csc_matrix(Jyp, dtype=float)
+                    Jy = csc_matrix(Jy, dtype=dtype)
+                    Jyp = csc_matrix(Jyp, dtype=dtype)
                     return Jy, Jyp
 
             else:
-                Jy = np.asarray(Jy, dtype=float)
-                Jyp = np.asarray(Jyp, dtype=float)
+                Jy = np.asarray(Jy, dtype=dtype)
+                Jyp = np.asarray(Jyp, dtype=dtype)
 
                 def jac_wrapped(t, y, yp, _=None):
                     self.njev += 1
                     Jy, Jyp = jac(t, y, yp)
-                    Jy = np.asarray(Jy, dtype=float)
-                    Jyp = np.asarray(Jyp, dtype=float)
+                    Jy = np.asarray(Jy, dtype=dtype)
+                    Jyp = np.asarray(Jyp, dtype=dtype)
                     return Jy, Jyp
 
             if Jy.shape != (self.n, self.n):
@@ -328,11 +329,11 @@ class DaeSolver:
         else:
             Jy, Jyp = jac
             if issparse(Jy) or issparse(Jyp):
-                Jy = csc_matrix(Jy, dtype=float)
-                Jyp = csc_matrix(Jyp, dtype=float)
+                Jy = csc_matrix(Jy, dtype=dtype)
+                Jyp = csc_matrix(Jyp, dtype=dtype)
             else:
-                Jy = np.asarray(Jy, dtype=float)
-                Jyp = np.asarray(Jyp, dtype=float)
+                Jy = np.asarray(Jy, dtype=dtype)
+                Jyp = np.asarray(Jyp, dtype=dtype)
 
             if Jy.shape != (self.n, self.n):
                 raise ValueError("`Jy` is expected to have shape {}, but "
