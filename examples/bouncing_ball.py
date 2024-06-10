@@ -1,8 +1,8 @@
-import numpy as np
 import time
+import numpy as np
 import matplotlib.pyplot as plt
-from PyDAE.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
-from PyDAE.integrate._dae.common import consistent_initial_conditions
+from numpy.testing import assert_allclose
+from skdae.integrate import solve_dae, consistent_initial_conditions, BDFDAE
 from scipy.optimize._numdiff import approx_derivative
 
 mass = 1

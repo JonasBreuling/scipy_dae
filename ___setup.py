@@ -4,14 +4,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name="PyDAE",
+    name="scikit-dae",
     version="0.0.2",
     author="Jonas Breuling",
     author_email="jonas.breuling@inm.uni-stuttgart.de",
-    description="Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day.",
+    description="A Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/JonasBreuling/PyDAE",
+    url="https://github.com/JonasBreuling/scikit-dae",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1,12 +1,8 @@
+import time
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-import time
-from PyDAE.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
-from PyDAE.integrate._ivp.radau import Radau
-from PyDAE.integrate._ivp.bdf import BDF
-from PyDAE.integrate._dae.common import consistent_initial_conditions
+from skdae.integrate import solve_dae, consistent_initial_conditions, BDFDAE
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -50,16 +46,9 @@ def jac(t, y, yp, f):
     return Jy, Jyp
 
 
-mass_matrix = np.diag([1, 1, 0, 0])
-# print(f"mass_matrix:\n{mass_matrix}")
-# exit()
-
-
 if __name__ == "__main__":
     # time span
     t0 = 0
-    # t1 = 1e1
-    # t1 = 1e3
     t1 = 3e3
     t_span = (t0, t1)
 
@@ -75,7 +64,6 @@ if __name__ == "__main__":
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
     print(f"fnorm: {fnorm}")
-    # exit()
 
     # solver options
     atol = rtol = 1e-6
@@ -84,7 +72,6 @@ if __name__ == "__main__":
     # reference solution
     ####################
     start = time.time()
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
     sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="BDF")
     end = time.time()
     print(f"elapsed time: {end - start}")
@@ -105,16 +92,10 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # method = RadauDAE
     method = BDFDAE
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
-    # # method = Radau
-    # method = BDF
-    # start = time.time()
-    # sol = solve_ivp(f, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix)
-    # end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y

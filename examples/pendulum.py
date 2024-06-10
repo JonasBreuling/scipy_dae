@@ -1,12 +1,7 @@
+import time
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from scipy.integrate import solve_ivp
-import time
-from PyDAE.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
-from PyDAE.integrate._ivp.radau import Radau
-from PyDAE.integrate._ivp.bdf import BDF
-from PyDAE.integrate._dae.common import consistent_initial_conditions
+from skdae.integrate import solve_dae, consistent_initial_conditions, BDFDAE
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -48,9 +43,6 @@ def f(t, z):
     y, yp = z[:6], z[6:]
     return np.concatenate((yp, F(t, y, yp)))
 
-diags = np.concatenate((np.ones(6), np.zeros(6)))
-mass_matrix = np.diag(diags)
-
 
 if __name__ == "__main__":
     # time span
@@ -70,7 +62,6 @@ if __name__ == "__main__":
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
     print(f"fnorm: {fnorm}")
-    # exit()
 
     # solver options
     atol = rtol = 1e-3
@@ -83,12 +74,6 @@ if __name__ == "__main__":
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
-    # # method = Radau
-    # method = BDF
-    # start = time.time()
-    # sol = solve_ivp(f, t_span, z0, atol=atol, rtol=rtol, method=method, mass_matrix=mass_matrix)
-    # end = time.time()
-    # print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
     tp = t[1:]
@@ -113,22 +98,13 @@ if __name__ == "__main__":
 
     ax[1].plot(t, y[2], "-ok", label="u")
     ax[1].plot(t, y[3], "--xk", label="v")
-    # ax[1].plot(t, y_dot[0], "-.r", label="x_dot")
-    # ax[1].plot(t, y_dot[1], ":r", label="u_dot")
     ax[1].legend()
     ax[1].grid()
 
-    # ax[2].plot(t, y_dot[2], "-k", label="u_dot")
-    # ax[2].plot(t, y_dot[3], "--k", label="v_dot")
     ax[2].plot(tp, yp[4], "-ok", label="la")
     ax[2].legend()
     ax[2].grid()
 
-    # # ax[3].plot(t, y[4], "-k", label="la dt")
-    # # ax[3].plot(t, y_dot[4], "-k", label="la")
-    # ax[3].plot(t, y[10], "-ok", label="la")
-    # ax[3].plot(t, y[11], "--xk", label="mu")
-    # ax[3].plot(tp, yp[4], "-ok", label="la")
     ax[3].plot(tp, yp[5], "--xk", label="mu")
     ax[3].legend()
     ax[3].grid()
