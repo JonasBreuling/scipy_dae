@@ -200,7 +200,9 @@ class BDFDAE(DaeSolver):
                  vectorized=False, first_step=None, max_order=5,
                  NDF_strategy="stability", **extraneous):
         warn_extraneous(extraneous)
-        super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity, support_complex=True)
+        super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, 
+                         first_step, max_step, vectorized, jac, 
+                         jac_sparsity, support_complex=True)
         
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
 
@@ -259,7 +261,7 @@ class BDFDAE(DaeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
