@@ -14,60 +14,16 @@ def F(t, vy, vyp):
     yp, up, lap, mup = vyp
 
     # prox_N = min(lap, y)
-    # prox_N = lap + y - np.sqrt(lap**2 + y**2)
     def fb(a, b):
         return a + b - np.sqrt(a**2 + b**2)
     
-    # prox_la = mu * fb(lap, u)
-    if mup > 0 or y <= 0:
-    # if y <= 0:
+    # prox_la = mup * fb(lap, u)
+    if y <= 0:
         prox_la = fb(lap, u)
     else:
         prox_la = lap
     prox_mu = fb(mup, y)
-    # prox_mu = fb(mup + la, y)
-    # prox_mu = fb(mu + lap, y)
-
-    # eps = 1e-10
-    # if y <= 0:
-    #     prox_N = fb(lap, u + eps * up)
-    # else:
-    #     prox_N = lap
-
-    # r = 1e-1
-    # prox_arg_N = r * y - lap
-    # if prox_arg_N <= 0:
-    #     prox_N = y
-    #     xi_N = u + eps * u0
-    #     prox_arg_N_dot = r * xi_N - la
-    #     if prox_arg_N_dot <= 0:
-    #         prox_N_dot = xi_N
-    #     else:
-    #         prox_N_dot = la
-    # else:
-    #     prox_N = la
-    #     prox_N_dot = la
-    # # prox_N = min(la, y)
-    # # prox_N_dot = (y0 <= 0) * min(la, u + eps * u0)
-
-    # # if y <= 0:
-    # #     prox_N_dot = min(la, u + eps * u0) * min(la, y)
-    # # else:
-    # #     prox_N_dot = min(la, y)
-    # # prox_N_dot = min(min(la, y), (y0 <= 0) * min(la, u + eps * u0))
-    #     # prox_N_dot = min(la, y)
-    # # prox_N_dot = min(la, y) * min(la, u + eps * u0)
-    # # prox_N_dot = (mu > 0) * min(la, u + eps * u0)
-    # # prox_N_dot = (mu > 0) * min(la, u + eps * u0)
-
-    # # g = np.array([prox_N_dot])
-    # g = np.array(
-    #     [
-    #         prox_N,
-    #         prox_N_dot,
-    #     ]
-    # )
-
+    
     return np.array([
                 yp - (u + mup),
                 mass * up - (-mass * gravity + lap),
