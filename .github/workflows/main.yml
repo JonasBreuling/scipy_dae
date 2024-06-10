@@ -18,6 +18,8 @@ jobs:
       with:
         python-version: "3.8" 
         cache: "pip" # caching pip dependencies
+    - name: Update pip
+      run: pip install --upgrade pip
     - name: Install dependencies and scikit-dae (skdae)
       run: pip install -e .
     - name: Install test dependencies
