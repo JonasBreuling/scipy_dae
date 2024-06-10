@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.linalg import qr, solve, solve_triangular, svd
 
 # TODO: Compare this with
 # - ddassl.f by Petzold
@@ -51,7 +50,11 @@ def select_initial_step(t0, y0, yp0, t_bound, rtol, atol, max_step):
     return h_abs
 
 
-# TODO: DOcument this function and reference Shampine2002 accordingly
+# TODO:
+# - Document this function and reference Shampine2002 accordingly
+# - write tests for different problems (including fixed_y0 and fixed_yp0)
+# - use sparse LU-decomposition if jac returns sparse matrices
+# - use sparse QR-decomposition if available by scipy
 def consistent_initial_conditions(fun, jac, t0, y0, yp0, fixed_y0=None, 
                                   fixed_yp0=None, rtol=1e-3, atol=1e-6, 
                                   *args):
@@ -131,7 +134,7 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
             else:
                 raise ValueError("Index greater than one.")
         d = -Q.T @ f
-        Delta_yp[free_yp] = solve(R, d)
+        Delta_yp[free_yp] = np.linalg.solve(R, d)
         return Delta_y, Delta_yp
     
     if len(free_yp) == 0:
@@ -143,7 +146,7 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
             else:
                 raise ValueError("Index greater than one.")
         d = -Q.T @ f
-        Delta_y[free_y] = solve(R, d)
+        Delta_y[free_y] = np.linalg.solve(R, d)
         return Delta_y, Delta_yp
     
     Jy = Jy[:, free_y]
@@ -159,7 +162,7 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
         # Full rank (ODE) case: 
         # Set all free dy to zero and solve triangular system below
         Delta_y[free_y] = 0
-        Delta_yp[free_yp] = solve(R, d)[p]
+        Delta_yp[free_yp] = np.linalg.solve(R, d)[p]
     else:
         # Rank deficient (DAE) case:
         S = Q.T @ Jy
@@ -177,14 +180,14 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
         # using column pivoting QR-decomposition
         d2 = d[rank:]
         w_ = np.zeros(n)
-        w_[:rankS] = solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
+        w_[:rankS] = np.linalg.solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
         w = np.zeros(n)
         w[pS] = w_
 
         # set w2' = 0 and solve the remaining system
         # [R11] w1' = d1 - [S11, S12] [w1]
         #                             [w2]
-        w1p = solve_triangular(R[:rank, :rank], d[:rank] - S[:rank] @ w)
+        w1p = np.linalg.solve_triangular(R[:rank, :rank], d[:rank] - S[:rank] @ w)
         wp_ = np.concatenate([w1p, np.zeros(len(free_yp) - rank)])
         wp = np.zeros(n)
         wp[p] = wp_
@@ -196,7 +199,7 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
     return Delta_y, Delta_yp
 
 def qrank(A):
-    Q, R, E = qr(A, pivoting=True)
+    Q, R, E = np.linal.qr(A, pivoting=True)
     tol = max(A.shape) * np.finfo(float).eps * abs(R[0, 0])
     rank = np.sum(abs(np.diag(R)) > tol)
     return rank, Q, R, E
