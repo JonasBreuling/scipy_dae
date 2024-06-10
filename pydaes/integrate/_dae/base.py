@@ -2,19 +2,15 @@ import numpy as np
 from scipy.sparse import issparse, csc_matrix, bmat
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
-    validate_max_step, validate_tol, norm, num_jac, 
-    EPS, warn_extraneous, validate_first_step,
+    validate_max_step, validate_tol, num_jac, 
+    validate_first_step,
 )
 from scipy.integrate._ivp.base import ConstantDenseOutput
-from .common import select_initial_step
-
-# from scipy.optimize import approx_fprime
 from scipy.optimize._numdiff import approx_derivative
-
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, issparse, eye
 from scipy.sparse.linalg import splu
-
+from .common import select_initial_step
 
 
 def check_arguments(fun, y0, yp0, support_complex):

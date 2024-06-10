@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import qr, solve_triangular
 
+
 # TODO: Compare this with
 # - ddassl.f by Petzold
 # - epsode.f by Bryne and Hindmarsh
@@ -115,6 +116,7 @@ def consistent_initial_conditions(fun, jac, t0, y0, yp0, fixed_y0=None,
     
     raise RuntimeError("Convergence failed.")
 
+
 def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
     """Solve the underdetermined system 
         0 = f + Jyp @ Delta_yp + Jy @ Delta_y
@@ -198,6 +200,7 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
         Delta_yp[free_yp] = wp
     
     return Delta_y, Delta_yp
+
 
 def qrank(A):
     Q, R, E = qr(A, pivoting=True)

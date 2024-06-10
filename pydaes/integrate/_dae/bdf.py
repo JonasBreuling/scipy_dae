@@ -66,6 +66,7 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
 # TODO:
 # - adapt documentation
 # - add consistent initial conditions somehow
+# - add dense output for yp
 class BDFDAE(DaeSolver):
     """Implicit method based on backward-differentiation formulas.
 
@@ -120,10 +121,6 @@ class BDFDAE(DaeSolver):
         beneficial to set different `atol` values for different components by
         passing array_like with shape (n,) for `atol`. Default values are
         1e-3 for `rtol` and 1e-6 for `atol`.
-    mass:matrix : {None, array_like, sparse_matrix}, optional
-        Defined the constant mass matrix of the system, with shape (n,n).
-        It may be singular, thus defining a problem of the differential-
-        algebraic type (DAE), see [4]. The default value is None.
     jac : (array_like, array_like), (sparse_matrix, sparse_matrix), callable or None, optional
         Jacobian matrices of the right-hand side of the system with respect
         to y and y'. The Jacobian matrices have shape (n, n) and their 
