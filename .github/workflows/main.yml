@@ -46,7 +46,7 @@ jobs:
         output: coverage/coverage.svg
 
     - name: Publish coverage report to coverage-badge branch
-      uses: JamesIves/github-pages-deploy-action@v4
+      uses: JonasBreuling/pydaes@v4
       with:
         branch: coverage-badge
         folder: coverage

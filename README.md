@@ -33,3 +33,7 @@ https://github.com/JonasBreuling/pydaes
 [![codecov](https://codecov.io/github/codecov/example-python/branch/main/graph/badge.svg?token=tkq655ROg3)](https://app.codecov.io/github/codecov/example-python)
 
 [![codecov](https://codecov.io/github/JonasBreuling/pydaes/branch/main/graph/badge.svg?token=tkq655ROg3)](https://app.codecov.io/github/JonasBreuling/pydaes)
+
+<a href="https://codecov.io/gh/JonasBreuling/pydaes/branch/main">
+<img src="https://codecov.io/gh/JonasBreuling/pydaes/branch/main/graph/badge.svg" alt="Code coverage status badge">
+</a>
