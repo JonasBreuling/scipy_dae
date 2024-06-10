@@ -6,4 +6,4 @@
 <a href="https://pypi.org/project/pydaes/"><img alt="PyPI" src="https://img.shields.io/pypi/v/pydaes"></a>
 </p>
 
-A Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day. See the [GitHub repository](https://github.com/JonasBreuling/pydaes).
+Python implementation of solvers for differential algebraic equation's (DAEs) that should be added to scipy one day. See the [GitHub repository](https://github.com/JonasBreuling/pydaes).
