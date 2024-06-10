@@ -65,6 +65,7 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
 
 # TODO:
 # - adapt documentation
+# - add consistent initial conditions somehow
 class BDFDAE(DaeSolver):
     """Implicit method based on backward-differentiation formulas.
 
@@ -72,22 +73,30 @@ class BDFDAE(DaeSolver):
     1 to 5. The general framework of the BDF algorithm is described in [1]_.
     This class implements a quasi-constant step size as explained in [2]_.
     The error estimation strategy for the constant-step BDF is derived in [3]_.
-    An accuracy enhancement using modified formulas (NDF) [2]_ is also implemented.
+
+    Different numerical differentiation formulas (NDF) are implemented. The 
+    choice of [5]_ enhances the stability, while [2]_ improves the accuracy 
+    of the method. Standard BDF methods are also implemented, although the 
+    first and second order formula use the accuracy enhancement of [2]_ and 
+    [5]_ since both methods are L-stable.
 
     Can be applied in the complex domain.
 
     Parameters
     ----------
     fun : callable
-        Right-hand side of the system: the time derivative of the state ``y``
-        at time ``t``. The calling signature is ``fun(t, y)``, where ``t`` is a
-        scalar and ``y`` is an ndarray with ``len(y) = len(y0)``. ``fun`` must
-        return an array of the same shape as ``y``. See `vectorized` for more
+        Function defining the DAE system: ``f(t, y, yp) = 0``. The calling 
+        signature is ``fun(t, y, yp)``, where ``t`` is a scalar and 
+        ``y, yp`` are ndarrays with 
+        ``len(y) = len(yp) = len(y0) = len(yp0)``. ``fun`` must return 
+        an array of the same shape as ``y, yp``. See `vectorized` for more
         information.
     t0 : float
         Initial time.
     y0 : array_like, shape (n,)
         Initial state.
+    yp0 : array_like, shape (n,)
+        Initial derivative.
     t_bound : float
         Boundary time - the integration won't continue beyond it. It also
         determines the direction of the integration.
@@ -115,23 +124,27 @@ class BDFDAE(DaeSolver):
         Defined the constant mass matrix of the system, with shape (n,n).
         It may be singular, thus defining a problem of the differential-
         algebraic type (DAE), see [4]. The default value is None.
-    jac : {None, array_like, sparse_matrix, callable}, optional
-        Jacobian matrix of the right-hand side of the system with respect to y,
-        required by this method. The Jacobian matrix has shape (n, n) and its
-        element (i, j) is equal to ``d f_i / d y_j``.
-        There are three ways to define the Jacobian:
+    jac : (array_like, array_like), (sparse_matrix, sparse_matrix), callable or None, optional
+        Jacobian matrices of the right-hand side of the system with respect
+        to y and y'. The Jacobian matrices have shape (n, n) and their 
+        elements (i, j) are equal to ``d f_i / d y_j`` and 
+        ``d f_i / d y_j'``, respectively.  There are three ways to define 
+        the Jacobian:
 
-            * If array_like or sparse_matrix, the Jacobian is assumed to
-              be constant.
-            * If callable, the Jacobian is assumed to depend on both
-              t and y; it will be called as ``jac(t, y)`` as necessary.
-              For the 'Radau' and 'BDF' methods, the return value might be a
-              sparse matrix.
-            * If None (default), the Jacobian will be approximated by
-              finite differences.
+            * If (array_like, array_like) or (sparse_matrix, sparse_matrix) 
+              the Jacobian matrices are assumed to be constant.
+            # TODO: Add constant J_y'!
+            * If callable, the Jacobians are assumed to depend on t, y and y'; 
+              it will be called as ``jac(t, y, y')``, as necessary. Additional 
+              arguments have to be passed if ``args`` is used (see 
+              documentation of ``args`` argument). The return values might be 
+              a tuple of sparse matrices.
+            * If None (default), the Jacobians will be approximated by finite 
+              differences.
 
-        It is generally recommended to provide the Jacobian rather than
+        It is generally recommended to provide the Jacobians rather than
         relying on a finite-difference approximation.
+    # TODO: Adapt and test this.
     jac_sparsity : {None, array_like, sparse matrix}, optional
         Defines a sparsity structure of the Jacobian matrix for a
         finite-difference approximation. Its shape must be (n, n). This argument
@@ -140,6 +153,7 @@ class BDFDAE(DaeSolver):
         speed up the computations [4]_. A zero entry means that a corresponding
         element in the Jacobian is always zero. If None (default), the Jacobian
         is assumed to be dense.
+    # TODO: Adapt and test this
     vectorized : bool, optional
         Whether `fun` can be called in a vectorized fashion. Default is False.
 
@@ -193,7 +207,9 @@ class BDFDAE(DaeSolver):
     .. [4] A. Curtis, M. J. D. Powell, and J. Reid, "On the estimation of
            sparse Jacobian matrices", Journal of the Institute of Mathematics
            and its Applications, 13, pp. 117-120, 1974.
-    .. [5] Klopfenstein1971...
+    .. [5] R. W. Klopfenstein, "Numerical differentiation formulas for stiff 
+           systems of ordinary differential equations", RCA Review, 32, 
+           pp. 447-462, September 1971.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,

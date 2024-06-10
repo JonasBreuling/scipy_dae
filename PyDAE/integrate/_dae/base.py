@@ -50,10 +50,9 @@ def check_arguments(fun, y0, yp0, support_complex):
 
     return fun_wrapped, y0, yp0
 
-# TODO: Add check_jacobi here and build numerical Jacobian otherwise
-
-
-# TODO: Add jac_y and jac_yp here, otherwise we cannot check these in the base class.
+# TODO:
+# - check documentation
+# - add consistent initial conditions somehow
 class DaeSolver:
     """Base class for DAE solvers.
 

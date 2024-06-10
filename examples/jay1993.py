@@ -1,7 +1,6 @@
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-from scipy.integrate import solve_ivp
 from numpy.testing import assert_allclose
 from PyDAE.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
 from PyDAE.integrate._dae.common import consistent_initial_conditions
