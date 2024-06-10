@@ -4,8 +4,6 @@ from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 
 
-MAX_ORDER = 5
-# MAX_ORDER = 6 # TODO: This is to instable as already mentioned by Shampine
 NEWTON_MAXITER = 4
 MIN_FACTOR = 0.2
 MAX_FACTOR = 10
@@ -31,7 +29,6 @@ def change_D(D, order, factor):
 
 def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
     """Solve the algebraic system resulting from BDF method."""
-    # d = 0
     d = np.zeros_like(y_predict)
     y = y_predict.copy()
     dy_norm_old = None
@@ -195,11 +192,12 @@ class BDFDAE(DaeSolver):
     .. [4] A. Curtis, M. J. D. Powell, and J. Reid, "On the estimation of
            sparse Jacobian matrices", Journal of the Institute of Mathematics
            and its Applications, 13, pp. 117-120, 1974.
+    .. [5] Klopfenstein1971...
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
-                 rtol=1e-3, atol=1e-6, mass_matrix=None, 
-                 var_index=None, jac=None, jac_sparsity=None,
-                 vectorized=False, first_step=None, **extraneous):
+                 rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
+                 vectorized=False, first_step=None, max_order=5,
+                 NDF_strategy="stability", **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity, support_complex=True)
         
@@ -208,17 +206,28 @@ class BDFDAE(DaeSolver):
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
 
-        kappa = np.array([0, -0.1850, -1/9, -0.0823, -0.0415, 0, 0])[:MAX_ORDER + 1]
-        # kappa = np.zeros_like(kappa) # TODO: Use BDF method instead of NDF A(alpha)-stability is improved but truncation error is increased
-        # kappa = np.array([0, -0.1850, -1/9, 0, 0, 0])[:MAX_ORDER + 1]
-        # # Klopfenstein1971: maximized A(alpha)-stability
-        # kappa = np.array([0, 0, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1]
-        kappa = np.array([0, -0.1850, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:MAX_ORDER + 1] # with optimized first-order method of Shampine
-        self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, MAX_ORDER + 1))))
-        self.alpha = (1 - kappa) * self.gamma
-        self.error_const = kappa * self.gamma + 1 / np.arange(1, MAX_ORDER + 2)
+        assert 1 <= max_order <= 5, "Ensure that 1 <= max_order <= 5."
+        self.max_order = max_order
 
-        D = np.empty((MAX_ORDER + 3, self.n), dtype=self.y.dtype)
+        match NDF_strategy:
+            case "stability":
+                # Increase A(alpha) stability without decreasing efficiency  
+                # too much. This uses the coefficients of [5] but also enhances 
+                # the first order coefficient as proposed in [2].
+                kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:max_order + 1]
+            case "efficiency":
+                # Increase efficiency without decreasing A(alpha) stability 
+                # too much, see [2].
+                kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])[:max_order + 1]
+            case _:
+                # BDF case
+                kappa = np.zeros(max_order + 1)
+
+        self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, max_order + 1))))
+        self.alpha = (1 - kappa) * self.gamma
+        self.error_const = kappa * self.gamma + 1 / np.arange(1, max_order + 2)
+
+        D = np.empty((max_order + 3, self.n), dtype=self.y.dtype)
         D[0] = self.y
         D[1] = self.yp * self.h_abs * self.direction
         self.D = D
@@ -249,7 +258,7 @@ class BDFDAE(DaeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
@@ -360,7 +369,7 @@ class BDFDAE(DaeSolver):
         else:
             error_m_norm = np.inf
 
-        if order < MAX_ORDER:
+        if order < self.max_order:
             error_p = error_const[order + 1] * D[order + 2]
             error_p_norm = norm(error_p / scale)
         else:
@@ -370,7 +379,14 @@ class BDFDAE(DaeSolver):
         with np.errstate(divide='ignore'):
             factors = error_norms ** (-1 / np.arange(order, order + 3))
 
+        # choose order with largest factor
         delta_order = np.argmax(factors) - 1
+
+        # choose with smallest error
+        # TODO: This choice is advertaised in Shampine2002 but experminets 
+        # indicate it is not worth it
+        # delta_order = np.argmin(error_norms) - 1
+
         order += delta_order
         self.order = order
 
