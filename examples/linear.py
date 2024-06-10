@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
-from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE
+from PyDAE.integrate._dae.dae import solve_dae, RadauDAE
 
 k = -1
 # k = 1

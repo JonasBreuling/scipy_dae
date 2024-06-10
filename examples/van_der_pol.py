@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 import time
-from PyDAE._scipy.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE #, ODE15I
-from PyDAE._scipy.integrate._ivp.radau import Radau
-from PyDAE._scipy.integrate._ivp.bdf import BDF
-from PyDAE._scipy.integrate._dae.common import consistent_initial_conditions
+from PyDAE.integrate._dae.dae import solve_dae, RadauDAE, BDFDAE
+from PyDAE.integrate._ivp.radau import Radau
+from PyDAE.integrate._ivp.bdf import BDF
+from PyDAE.integrate._dae.common import consistent_initial_conditions
 from scipy.optimize._numdiff import approx_derivative
 
 

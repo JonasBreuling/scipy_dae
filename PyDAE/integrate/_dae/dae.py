@@ -10,13 +10,11 @@ from scipy.integrate._ivp.common import EPS, OdeSolution
 from .base import DaeSolver
 from .bdf import BDFDAE
 from .radau import RadauDAE
-from .ode15i import ODE15I
 
 
 METHODS = {
-    "Radau": RadauDAE,
-    # "ode15i": ODE15I
     "BDF": BDFDAE,
+    "Radau": RadauDAE,
 }
 
 
