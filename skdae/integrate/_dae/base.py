@@ -170,7 +170,7 @@ class DaeSolver:
     TOO_SMALL_STEP = "Required step size is less than spacing between numbers."
 
     def __init__(self, fun, t0, y0, yp0, t_bound, rtol, atol, 
-                 first_step=None, max_step=np.infty, vectorized=False,
+                 first_step=None, max_step=np.inf, vectorized=False,
                  jac=None, jac_sparsity=None, support_complex=False):
         self.t_old = None
         self.t = t0
