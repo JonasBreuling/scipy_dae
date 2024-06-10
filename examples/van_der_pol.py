@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # exit()
 
     # solver options
-    atol = rtol = 1e-3
+    atol = rtol = 1e-6
 
     ####################
     # reference solution

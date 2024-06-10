@@ -332,6 +332,7 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
 
 # TODO:
 # - adapt documentation
+# - fix error estimate
 class RadauDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 5.
 
@@ -556,8 +557,8 @@ class RadauDAE(DaeSolver):
                 continue
 
             # Hairer1996 (8.2b)
-            y_new = y + Z[-1]
-            # y_new = Y[-1]
+            # y_new = y + Z[-1]
+            y_new = Y[-1]
             yp_new = Yp[-1]
             if not unknown_densities:
                 yp_new /= h
@@ -612,6 +613,7 @@ class RadauDAE(DaeSolver):
                 # decomposed error estimate
                 ###########################
                 gamma0 = 1 / MU_REAL
+                # gamma0 = MU_REAL
 
                 # scale E by MU_real since this is already done by Hairer's 
                 # E that is used here
@@ -631,7 +633,7 @@ class RadauDAE(DaeSolver):
                     # print(f"err: {err}")
                     # print(f"error: {error}")
                     # print(f"h: {h}")
-                    # error = self.solve_lu(LU_real, err / (h * gamma0))
+                    # error = self.solve_lu(LU_real, err / (h / gamma0))
                     # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
                     # error = self.solve_lu(LU_real, err / (h * gamma0))
                     # error = self.solve_lu(LU_real, (yp + Z.T.dot(e) / (h * gamma0)))
