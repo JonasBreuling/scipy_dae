@@ -20,7 +20,7 @@ jobs:
         cache: "pip" # caching pip dependencies
     - name: Update pip
       run: pip install --upgrade pip
-    - name: Install dependencies and scikit-dae (skdae)
+    - name: Install dependencies and pydaes (pydaes)
       run: pip install -e .
     - name: Install test dependencies
       run: pip install pytest

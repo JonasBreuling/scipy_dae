@@ -3,15 +3,15 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["skdae"]
+packages = ["pydaes"]
 
 [project]
-name = "skdae"
-version = "0.0.2"
+name = "pydaes"
+version = "0.0.1"
 authors = [
   { name="Jonas Breuling", email="jonas.breuling@inm.uni-stuttgart.de" },
 ]
-description = "A Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day."
+description = "Python implementation of solvers for differential algebraic equation's (DAEs) that should be added to scipy one day."
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
@@ -26,5 +26,5 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JonasBreuling/scikit-dae"
-Issues = "https://github.com/JonasBreuling/scikit-dae/issues"
+Homepage = "https://github.com/JonasBreuling/pydaes"
+Issues = "https://github.com/JonasBreuling/pydaes/issues"

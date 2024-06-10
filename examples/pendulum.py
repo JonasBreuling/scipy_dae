@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from skdae.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE
 from scipy.optimize._numdiff import approx_derivative
 
 
