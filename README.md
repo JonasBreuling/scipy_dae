@@ -21,3 +21,9 @@ The tests can be started using
 ```bash
 python -m pytest test/
 ```
+
+###
+
+https://github.com/JonasBreuling/pydaes
+
+[![codecov](https://img.shields.io/codecov/c/github/JonasBreuling/pydaes.svg?style=flat-square)](https://app.codecov.io/gh/JonasBreuling/pydaes)
