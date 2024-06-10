@@ -1,4 +1,5 @@
 import numpy as np
+from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
@@ -201,27 +202,27 @@ class BDFDAE(DaeSolver):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity, support_complex=True)
         
-        self.h_abs_old = None
-        self.error_norm_old = None
-
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
 
-        assert 1 <= max_order <= 5, "Ensure that 1 <= max_order <= 5."
+        assert 1 <= max_order <= 6, "Ensure that 1 <= max_order <= 6."
+        if max_order == 6:
+            warn("Choosing `max_order = 6` is not recomended due to its poor stability properties.",
+                 stacklevel=3)
         self.max_order = max_order
 
-        match NDF_strategy:
-            case "stability":
-                # Increase A(alpha) stability without decreasing efficiency  
-                # too much. This uses the coefficients of [5] but also enhances 
-                # the first order coefficient as proposed in [2].
-                kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:max_order + 1]
-            case "efficiency":
-                # Increase efficiency without decreasing A(alpha) stability 
-                # too much, see [2].
-                kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])[:max_order + 1]
-            case _:
-                # BDF case
-                kappa = np.zeros(max_order + 1)
+        if NDF_strategy == "stability":
+            # Increase A(alpha) stability without decreasing efficiency  
+            # too much. This uses the coefficients of [5] but also enhances 
+            # the first order coefficient as proposed in [2].
+            kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:max_order + 1]
+        elif NDF_strategy == "efficiency":
+            # Increase efficiency without decreasing A(alpha) stability 
+            # too much, see [2].
+            kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])[:max_order + 1]
+        else:
+            # BDF case with improved efficiency for first and second order 
+            # method as proposed in [2] and [5].
+            kappa = np.array([0, -37 / 200, -1/9, 0, 0, 0, 0])[:max_order + 1]
 
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, max_order + 1))))
         self.alpha = (1 - kappa) * self.gamma

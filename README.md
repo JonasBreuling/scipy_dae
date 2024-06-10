@@ -1,6 +1,6 @@
 # PyDAE
 
-Small repository that wraps existing methods for solving differential algebraic equations (DAE's).
+Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day.
 
 ## References
 

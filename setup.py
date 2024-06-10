@@ -5,17 +5,17 @@ with open("README.md", "r") as fh:
 
 setup(
     name="PyDAE",
-    version="0.0.1",
+    version="0.0.2",
     author="Jonas Breuling",
     author_email="jonas.breuling@inm.uni-stuttgart.de",
-    description="Python implementation of DAE solvers",
+    description="Python implementation of differential algebraic equation (DAE) solvers that should be added to scipy one day.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/TODO",
+    url="https://github.com/JonasBreuling/PyDAE",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
-        # "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+        "License :: BSD-3-Clause",
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
