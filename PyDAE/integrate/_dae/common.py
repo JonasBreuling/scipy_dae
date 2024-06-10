@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import qr, solve_triangular
 
 # TODO: Compare this with
 # - ddassl.f by Petzold
@@ -180,14 +181,14 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
         # using column pivoting QR-decomposition
         d2 = d[rank:]
         w_ = np.zeros(n)
-        w_[:rankS] = np.linalg.solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
+        w_[:rankS] = solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
         w = np.zeros(n)
         w[pS] = w_
 
         # set w2' = 0 and solve the remaining system
         # [R11] w1' = d1 - [S11, S12] [w1]
         #                             [w2]
-        w1p = np.linalg.solve_triangular(R[:rank, :rank], d[:rank] - S[:rank] @ w)
+        w1p = solve_triangular(R[:rank, :rank], d[:rank] - S[:rank] @ w)
         wp_ = np.concatenate([w1p, np.zeros(len(free_yp) - rank)])
         wp = np.zeros(n)
         wp[p] = wp_
@@ -199,7 +200,7 @@ def solve_underdetermined_system(f, Jy, Jyp, n, free_y, free_yp):
     return Delta_y, Delta_yp
 
 def qrank(A):
-    Q, R, E = np.linal.qr(A, pivoting=True)
+    Q, R, E = qr(A, pivoting=True)
     tol = max(A.shape) * np.finfo(float).eps * abs(R[0, 0])
     rank = np.sum(abs(np.diag(R)) > tol)
     return rank, Q, R, E
