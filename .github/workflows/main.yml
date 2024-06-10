@@ -11,10 +11,6 @@ jobs:
     name: Build project
     runs-on: ubuntu-latest
     # runs-on: python:latest
-    # runs-on: [self-hosted, linux]
-    # TODO: fix authentication in container
-    # container: 
-    #   image: python:latest
     steps:
     - uses: actions/checkout@v4
     - name: Setup python
@@ -22,8 +18,7 @@ jobs:
       with:
         python-version: "3.8" 
         cache: "pip" # caching pip dependencies
-        # cache-dependency-path: setup.py
-    - name: Install dependencies and PyDAE
+    - name: Install dependencies and scikit-dae (skdae)
       run: pip install -e .
     - name: Install test dependencies
       run: pip install pytest
