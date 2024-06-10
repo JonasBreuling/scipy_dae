@@ -27,3 +27,9 @@ python -m pytest test/
 https://github.com/JonasBreuling/pydaes
 
 [![codecov](https://img.shields.io/codecov/c/github/JonasBreuling/pydaes.svg?style=flat-square)](https://app.codecov.io/gh/JonasBreuling/pydaes)
+
+<!-- [![Workflow for Codecov Action](https://github.com/codecov/codecov-action/actions/workflows/main.yml/badge.svg)](https://github.com/codecov/codecov-action/actions/workflows/main.yml) -->
+
+[![codecov](https://codecov.io/github/codecov/example-python/branch/main/graph/badge.svg?token=tkq655ROg3)](https://app.codecov.io/github/codecov/example-python)
+
+[![codecov](https://codecov.io/github/JonasBreuling/pydaes/branch/main/graph/badge.svg?token=tkq655ROg3)](https://app.codecov.io/github/JonasBreuling/pydaes)

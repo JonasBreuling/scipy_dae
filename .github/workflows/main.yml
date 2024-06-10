@@ -32,24 +32,39 @@ jobs:
     # - name: Test with pytest
     #   run: pytest ./test/
 
-    # - name: Coverage report with pytest-cov
-    #   # run: pytest --cov=pydaes
-    #   run: pytest --cov=pydaes --cov-report=term --cov-report=lcov --cov-report=xml
+    - name: Coverage report with pytest-cov
+      # run: pytest --cov=pydaes
+      run: pytest --cov=pydaes --cov-report=term --cov-report=lcov --cov-report=xml
 
-    - name: Run tests and collect coverage
-      run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
+    - name: Creating coverage folder
+      run: |
+        mkdir -p coverage
 
-    # - name: Upload coverage data
-    #   uses: actions/upload-artifact@v3
-    #   with:
-    #     name: covdata
-    #     path: coverage.xml
-
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v4.0.1
+    - name: Coverage Bagdge
+      uses: tj-actions/coverage-badge-py@v1.8
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+        output: coverage/coverage.svg
+
+    - name: Publish coverage report to coverage-badge branch
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        branch: coverage-badge
+        folder: coverage
+
+    # - name: Run tests and collect coverage
+    #   run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
+
+    # # - name: Upload coverage data
+    # #   uses: actions/upload-artifact@v3
+    # #   with:
+    # #     name: covdata
+    # #     path: coverage.xml
+
+    # - name: Upload coverage reports to Codecov
+    #   uses: codecov/codecov-action@v4.0.1
+    #   with:
+    #     token: ${{ secrets.CODECOV_TOKEN }}
 
 
 
-        # [![codecov](https://img.shields.io/codecov/c/github/nschloe/meshio.svg?style=flat-square)](https://app.codecov.io/gh/nschloe/meshio)
+    #     # [![codecov](https://img.shields.io/codecov/c/github/nschloe/meshio.svg?style=flat-square)](https://app.codecov.io/gh/nschloe/meshio)
