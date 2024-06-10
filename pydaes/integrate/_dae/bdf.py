@@ -274,7 +274,7 @@ class BDFDAE(DaeSolver):
 
         # self.hs.append(h_abs)
         # self.orders.append(self.order)
-        print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
+        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol

@@ -25,6 +25,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
 [project.urls]
 Homepage = "https://github.com/JonasBreuling/pydaes"
 Issues = "https://github.com/JonasBreuling/pydaes/issues"

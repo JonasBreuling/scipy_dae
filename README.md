@@ -7,3 +7,17 @@
 </p>
 
 Python implementation of solvers for differential algebraic equation's (DAEs) that should be added to scipy one day. See the [GitHub repository](https://github.com/JonasBreuling/pydaes).
+
+### Install
+
+Developer mode can be installed via
+
+```bash
+python -m pip install -e .[dev]
+```
+
+The tests can be started using
+
+```bash
+python -m pytest test/
+```

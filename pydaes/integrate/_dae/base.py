@@ -292,28 +292,38 @@ class DaeSolver:
             Jy, Jyp = jac_wrapped(t0, y0, yp0, self.f)
         
         elif callable(jac):
-            raise NotImplementedError("User-defined Jacobians are not supported yet.")
             Jy, Jyp = jac(t0, y0, yp0)
             self.njev = 1
             if issparse(Jy) or issparse(Jyp):
-                Jy = csc_matrix(Jy)
-                Jyp = csc_matrix(Jyp)
+                Jy = csc_matrix(Jy, dtype=float)
+                Jyp = csc_matrix(Jyp, dtype=float)
 
                 def jac_wrapped(t, y, yp, _=None):
                     self.njev += 1
-                    return csc_matrix(jac(t, y), dtype=float)
+                    Jy, Jyp = jac(t, y, yp)
+                    Jy = csc_matrix(Jy, dtype=float)
+                    Jyp = csc_matrix(Jyp, dtype=float)
+                    return Jy, Jyp
 
             else:
-                J = np.asarray(J, dtype=float)
+                Jy = np.asarray(Jy, dtype=float)
+                Jyp = np.asarray(Jyp, dtype=float)
 
                 def jac_wrapped(t, y, yp, _=None):
                     self.njev += 1
-                    return np.asarray(jac(t, y), dtype=float)
+                    Jy, Jyp = jac(t, y, yp)
+                    Jy = np.asarray(Jy, dtype=float)
+                    Jyp = np.asarray(Jyp, dtype=float)
+                    return Jy, Jyp
 
-            if J.shape != (self.n, self.n):
-                raise ValueError("`jac` is expected to have shape {}, but "
+            if Jy.shape != (self.n, self.n):
+                raise ValueError("`Jy` is expected to have shape {}, but "
                                  "actually has {}."
-                                 .format((self.n, self.n), J.shape))
+                                 .format((self.n, self.n), Jy.shape))
+            if Jyp.shape != (self.n, self.n):
+                raise ValueError("`Jyp` is expected to have shape {}, but "
+                                 "actually has {}."
+                                 .format((self.n, self.n), Jyp.shape))
         
         else:
             raise NotImplementedError("Constant Jacobians are not supported yet.")
