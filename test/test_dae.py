@@ -143,8 +143,8 @@ def test_integration_complex(method, jac):
 
 # TODO: Vectorization is not supported yet!
 parameters_rational = product(
+    [False], # vectorized
     # [False, True], # vectorized
-    [False,], # vectorized
     ["BDF"], # method
     [[5, 9], [5, 1]], # t_span
     [None, J_rational, J_rational_sparse] # jac
@@ -232,12 +232,12 @@ def test_integration_stiff(method, NDF_strategy, max_order):
         assert res.nfev < 5000
     assert res.njev < 200
     
-# if __name__ == "__main__":
-#     for params in parameters_linear:
-#         test_integration_const_jac(*params)
+if __name__ == "__main__":
+    for params in parameters_linear:
+        test_integration_const_jac(*params)
 
-#     for params in parameters_complex:
-#         test_integration_complex(*params)
+    for params in parameters_complex:
+        test_integration_complex(*params)
 
-#     for params in parameters_rational:
-#         test_integration_rational(*params)
+    for params in parameters_rational:
+        test_integration_rational(*params)
