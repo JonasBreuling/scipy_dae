@@ -9,12 +9,12 @@ from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, f
 from scipy.integrate._ivp.common import OdeSolution
 from .base import DaeSolver
 from .bdf import BDFDAE
-# from .radau import RadauDAE
+from .radau import RadauDAE
 
 
 METHODS = {
     "BDF": BDFDAE,
-    # "Radau": RadauDAE,
+    "Radau": RadauDAE,
 }
 
 
@@ -26,7 +26,7 @@ MESSAGES = {0: "The solver successfully reached the end of the integration inter
 # - expect consistent initial conditions and add a helper function that computes them as done by matlab?
 # - add events depending on y'(t)?
 # - return y' and interpolate y' somehow?
-def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None, 
+def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
               dense_output=False, events=None, vectorized=False, 
               args=None, **options):
     """Solve an initial value problem for a system of differential algebraic 

@@ -201,11 +201,6 @@ class DaeSolver:
                 for i, (yi, ypi) in enumerate(zip(y.T, yp.T)):
                     f[:, i] = self._fun(t, yi, ypi)
                 return f
-        
-        # composite function with z = (y, yp) for finite differences
-        def fun_composite(t, z):
-            y, yp = z[:self.n], z[self.n:]
-            return fun_single(t, y, yp)
 
         def fun(t, y, yp):
             self.nfev += 1
@@ -214,7 +209,6 @@ class DaeSolver:
         self.fun = fun
         self.fun_single = fun_single
         self.fun_vectorized = fun_vectorized
-        self.fun_composite = fun_composite
         self.f = self.fun(self.t, self.y, self.yp)
 
         self.direction = np.sign(t_bound - t0) if t_bound != t0 else 1

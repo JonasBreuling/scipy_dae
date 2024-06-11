@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE, RadauDAE
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -66,13 +66,14 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-6
+    atol = rtol = 1e-8
 
     ####################
     # reference solution
     ####################
     start = time.time()
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="BDF")
+    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="BDF")
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
@@ -92,7 +93,8 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    method = BDFDAE
+    # method = BDFDAE
+    method = RadauDAE
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
