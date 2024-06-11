@@ -37,7 +37,7 @@ def F_rational(t, y, yp):
 
 
 def F_rational_vectorized(t, y, yp):
-    return yp[:, None] - fun_rational_vectorized(t, y)
+    return yp - fun_rational_vectorized(t, y)
 
 
 def J_rational(t, y, yp):
@@ -70,8 +70,7 @@ def J_complex_sparse(t, y, yp):
 
 parameters_linear = product(
     ["BDF"], # method
-    # [None, J_linear, J_linear_sparse] # jac
-    [None] # jac
+    [None, J_linear, J_linear_sparse] # jac
 )
 @pytest.mark.parametrize("method, jac", parameters_linear)
 def test_integration_const_jac(method, jac):
@@ -95,7 +94,6 @@ def test_integration_const_jac(method, jac):
     assert_(np.all(e < 5))
 
 
-# TODO: Get finite differences working with complex numbers.
 parameters_complex = product(
     ["BDF"], # method
     [None, J_complex, J_complex_sparse] # jac
@@ -106,8 +104,6 @@ def test_integration_complex(method, jac):
     atol = 1e-6
     y0 = np.array([0.5 + 1j])
     yp0 = fun_complex(0, y0)
-    # print(F_complex(0, y0, yp0))
-    # exit()
     t_span = [0, 1]
     tc = np.linspace(t_span[0], t_span[1])
 
@@ -141,10 +137,8 @@ def test_integration_complex(method, jac):
     assert np.all(e < 5)
 
 
-# TODO: Vectorization is not supported yet!
 parameters_rational = product(
-    [False], # vectorized
-    # [False, True], # vectorized
+    [False, True], # vectorized
     ["BDF"], # method
     [[5, 9], [5, 1]], # t_span
     [None, J_rational, J_rational_sparse] # jac
@@ -155,8 +149,6 @@ def test_integration_rational(vectorized, method, t_span, jac):
     atol = 1e-6
     y0 = [1/3, 2/9]
     yp0 = fun_rational(5, y0)
-    # print(F_rational(5, y0, yp0))
-    # exit()
 
     if vectorized:
         fun = F_rational_vectorized
@@ -164,7 +156,8 @@ def test_integration_rational(vectorized, method, t_span, jac):
         fun = F_rational
 
     res = solve_dae(fun, t_span, y0, yp0, rtol=rtol, atol=atol, 
-                    method=method, dense_output=True, jac=jac)
+                    method=method, dense_output=True, jac=jac, 
+                    vectorized=vectorized)
     
     assert_equal(res.t[0], t_span[0])
     assert_(res.t_events is None)
@@ -245,3 +238,6 @@ if __name__ == "__main__":
 
     for params in parameters_rational:
         test_integration_rational(*params)
+
+    for params in parameters_stiff:
+        test_integration_stiff(*params)

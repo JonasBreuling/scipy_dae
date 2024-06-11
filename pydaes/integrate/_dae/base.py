@@ -1,12 +1,11 @@
 import numpy as np
-from scipy.sparse import issparse, csc_matrix, bmat
+from scipy.sparse import issparse, csc_matrix
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
     validate_max_step, validate_tol, num_jac, 
     validate_first_step,
 )
 from scipy.integrate._ivp.base import ConstantDenseOutput
-from scipy.optimize._numdiff import approx_derivative
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, issparse, eye
 from scipy.sparse.linalg import splu
@@ -197,28 +196,11 @@ class DaeSolver:
         else:
             fun_single = self._fun
 
-            def fun_vectorized_y(t, y, yp):
+            def fun_vectorized(t, y, yp):
                 f = np.empty_like(y)
-                for i, yi in enumerate(y.T):
-                    f[:, i] = self._fun(t, yi, yp)
+                for i, (yi, ypi) in enumerate(zip(y.T, yp.T)):
+                    f[:, i] = self._fun(t, yi, ypi)
                 return f
-
-            def fun_vectorized_yp(t, y, yp):
-                f = np.empty_like(yp)
-                for i, ypi in enumerate(yp.T):
-                    f[:, i] = self._fun(t, y, ypi)
-                return f
-
-            # def fun_vectorized(t, y, yp):
-            #     y = np.atleast_2d(y)
-            #     yp = np.atleast_2d(yp)
-            #     ny, my = y.shape
-            #     nyp, myp = yp.shape
-            #     n, m = max(ny, nyp), max(my, myp)
-            #     f = np.empty((n, m))
-            #     for i, (yi, ypi) in enumerate(zip(y.T, yp.T)):
-            #         f[:, i] = self._fun(t, yi, ypi)
-            #     return f
         
         # composite function with z = (y, yp) for finite differences
         def fun_composite(t, z):
@@ -231,16 +213,13 @@ class DaeSolver:
         
         self.fun = fun
         self.fun_single = fun_single
-        # self.fun_vectorized = fun_vectorized
-        self.fun_vectorized_y = fun_vectorized_y
-        self.fun_vectorized_yp = fun_vectorized_yp
+        self.fun_vectorized = fun_vectorized
         self.fun_composite = fun_composite
         self.f = self.fun(self.t, self.y, self.yp)
 
         self.direction = np.sign(t_bound - t0) if t_bound != t0 else 1
         self.status = 'running'
 
-        # TODO: What is this factor?
         self.jac_factor_y = None
         self.jac_factor_yp = None
         self.jac, self.Jy, self.Jyp = self._validate_jac(jac, jac_sparsity)
@@ -276,7 +255,6 @@ class DaeSolver:
 
         if jac is None:
             if sparsity is not None:
-                # raise NotImplementedError("Exploiting sparsity structure is not supported yet.")
                 sparsity_y, sparsity_yp = sparsity
                 if issparse(sparsity_y):
                     sparsity_y = csc_matrix(sparsity_y)
@@ -286,40 +264,17 @@ class DaeSolver:
                 groups_yp = group_columns(sparsity_yp)
                 sparsity_y = (sparsity_y, groups_y)
                 sparsity_yp = (sparsity_yp, groups_yp)
-                sparsity = bmat([[sparsity_y], [sparsity_yp]])
             else:
                 sparsity_y, sparsity_yp = None, None
 
             def jac_wrapped(t, y, yp, f):
                 self.njev += 1
-                # J, self.jac_factor = num_jac(self.fun_vectorized, t, y, f,
-                #                              self.atol, self.jac_factor,
-                #                              sparsity)
-                Jy, self.jac_factor_y = num_jac(lambda t, y: self.fun_vectorized_y(t, y, yp), 
-                                                t, y, f, self.atol, self.jac_factor_y,
-                                                sparsity_y)
-                Jyp, self.jac_factor_yp = num_jac(lambda t, yp: self.fun_vectorized_yp(t, y, yp), 
-                                                  t, yp, f, self.atol, self.jac_factor_yp,
-                                                  sparsity_y)
-                
-
-
-                # z = np.concatenate((y, yp))
-                # J = approx_derivative(lambda z: self.fun_composite(t, z), 
-                #                       z, method="2-point", f0=f, 
-                #                       sparsity=sparsity)
-                # J = J.reshape((self.n, 2 * self.n))
-                # Jy, Jyp = J[:, :self.n], J[:, self.n:]
-
-
-
-
-                # Jy, self.jac_factor_y = num_jac(
-                #     lambda t, y: self.fun_vectorized(t, y, yp), 
-                #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
-                # Jyp, self.jac_factor_yp = num_jac(
-                #     lambda t, yp: self.fun_vectorized(t, y, yp), 
-                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
+                Jy, self.jac_factor_y = num_jac(
+                    lambda t, y: self.fun_vectorized(t, y, np.tile(yp[:, None], self.n)), 
+                    t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                Jyp, self.jac_factor_yp = num_jac(
+                    lambda t, yp: self.fun_vectorized(t, np.tile(y[:, None], self.n), yp), 
+                    t, yp, f, self.atol, self.jac_factor_yp, sparsity_y)
                 
                 return Jy, Jyp
             
