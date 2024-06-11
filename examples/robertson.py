@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from pydaes.integrate import solve_dae, consistent_initial_conditions
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -56,6 +56,9 @@ if __name__ == "__main__":
     t1 = 1e7
     t_span = (t0, t1)
 
+    method = "BDF"
+    # method = "Radau"
+
     # initial conditions
     y0 = np.array([1, 0, 0], dtype=float)
     yp0 = f(t0, y0)
@@ -69,13 +72,13 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-4
+    atol = rtol = 1e-5
 
     ####################
     # reference solution
     ####################
     start = time.time()
-    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method="BDF")
+    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
@@ -93,7 +96,6 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    method = BDFDAE
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
@@ -113,9 +115,9 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots()
 
-    ax.plot(t, y[0], "-ok", label="y1 DAE" + f" ({method.__name__})", mfc="none")
-    ax.plot(t, y[1] * 1e4, "-ob", label="y2 DAE" + f" ({method.__name__})", mfc="none")
-    ax.plot(t, y[2], "-og", label="y3 DAE" + f" ({method.__name__})", mfc="none")
+    ax.plot(t, y[0], "-ok", label="y1 DAE" + f" ({method})", mfc="none")
+    ax.plot(t, y[1] * 1e4, "-ob", label="y2 DAE" + f" ({method})", mfc="none")
+    ax.plot(t, y[2], "-og", label="y3 DAE" + f" ({method})", mfc="none")
     ax.plot(t_scipy, y_scipy[0], "xr", label="y1 scipy Radau", markersize=7)
     ax.plot(t_scipy, y_scipy[1] * 1e4, "xy", label="y2 scipy Radau", markersize=7)
     ax.plot(t_scipy, y_scipy[2], "xm", label="y3 scipy Radau", markersize=7)

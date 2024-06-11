@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE, RadauDAE
+from pydaes.integrate import solve_dae, consistent_initial_conditions
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -52,6 +52,9 @@ if __name__ == "__main__":
     t1 = 3e3
     t_span = (t0, t1)
 
+    method = "BDF"
+    # method = "Radau"
+
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
     yp0 = rhs(t0, y0)
@@ -72,8 +75,7 @@ if __name__ == "__main__":
     # reference solution
     ####################
     start = time.time()
-    # sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="BDF")
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method="Radau")
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
@@ -93,8 +95,6 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # method = BDFDAE
-    method = RadauDAE
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
@@ -114,12 +114,12 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots(2, 1)
 
-    ax[0].plot(t, y[0], "-ok", label=f"y ({method.__name__})", mfc="none")
+    ax[0].plot(t, y[0], "-ok", label=f"y ({method})", mfc="none")
     ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y scipy")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[1], "-ok", label=f"y_dot ({method.__name__})", mfc="none")
+    ax[1].plot(t, y[1], "-ok", label=f"y_dot ({method})", mfc="none")
     ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
     ax[1].legend()
     ax[1].grid()

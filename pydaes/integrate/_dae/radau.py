@@ -628,8 +628,12 @@ class RadauDAE(DaeSolver):
 
                 # improve error estimate for stiff components
                 if unknown_z:
-                    # error = self.solve_lu(LU_real, (yp - f) + Z.T.dot(e) / (h * gamma0))
-                    error = self.solve_lu(LU_real, err)
+                    # error = self.solve_lu(LU_real, err)
+                    error = self.solve_lu(LU_real, err) * gamma0 * h
+                    # error = self.solve_lu(LU_real, h * gamma0 * yp + Z.T.dot(e))
+                    # error = self.solve_lu(LU_real, h * gamma0 * yp + Z.T.dot(e))
+                    # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
+
                     # print(f"err: {err}")
                     # print(f"error: {error}")
                     # print(f"h: {h}")
@@ -659,10 +663,10 @@ class RadauDAE(DaeSolver):
 
                 if rejected and error_norm > 1: # try with stabilised error estimate
                     print(f"rejected")
-                    # error = self.solve_lu(LU_real, error)
                     # # # error = self.solve_lu(LU_real, self.fun(t, y + error) + self.mass_matrix.dot(ZE))
-                    # # error = self.solve_lu(LU_real, b0_hat * (self.fun(t, y + error) + self.mass_matrix.dot(ZE)))
-                    # # # error = self.solve_lu(LU_real, self.fun(t, y + error, h) + self.mass_matrix.dot(ZE))
+                    # # err = h * gamma0 * (yp + error) + Z.T.dot(e)
+                    # # error = self.solve_lu(LU_real, err)
+                    # error = self.solve_lu(LU_real, error)
                     # error_norm = norm(error / scale)
 
                 if error_norm > 1:

@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from pydaes.integrate import solve_dae, consistent_initial_conditions
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -50,6 +50,9 @@ if __name__ == "__main__":
     t1 = 20
     t_span = (t0, t1)
 
+    method = "BDF"
+    # method = "Radau"
+
     # initial conditions
     y0 = np.array([l, 0, 0, 0, 0, 0], dtype=float)
     yp0 = np.array([0, 0, 0, -g, 0, 0], dtype=float)
@@ -69,7 +72,6 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    method = BDFDAE
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
