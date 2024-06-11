@@ -69,7 +69,8 @@ def J_complex_sparse(t, y, yp):
 
 
 parameters_linear = product(
-    ["BDF"], # method
+    # ["BDF"], # method
+    ["BDF", "Radau"], # method
     [None, J_linear, J_linear_sparse] # jac
 )
 @pytest.mark.parametrize("method, jac", parameters_linear)
@@ -140,6 +141,7 @@ def test_integration_complex(method, jac):
 parameters_rational = product(
     [False, True], # vectorized
     ["BDF"], # method
+    # ["BDF", "Radau"], # method
     [[5, 9], [5, 1]], # t_span
     [None, J_rational, J_rational_sparse] # jac
 )
@@ -190,6 +192,7 @@ def test_integration_rational(vectorized, method, t_span, jac):
 
 
 parameters_stiff = product(
+    # ["BDF", "Radau"], # method
     ["BDF"], # method
     ["stability", "efficiency", None], # NDF_strategy
     [1, 2, 3, 4, 5, 6], # max_order
@@ -230,14 +233,14 @@ def test_integration_stiff(method, NDF_strategy, max_order):
     assert res.njev < 200
     
 if __name__ == "__main__":
-    for params in parameters_linear:
-        test_integration_const_jac(*params)
+    # for params in parameters_linear:
+    #     test_integration_const_jac(*params)
 
-    for params in parameters_complex:
-        test_integration_complex(*params)
+    # for params in parameters_complex:
+    #     test_integration_complex(*params)
 
-    for params in parameters_rational:
-        test_integration_rational(*params)
+    # for params in parameters_rational:
+    #     test_integration_rational(*params)
 
     for params in parameters_stiff:
         test_integration_stiff(*params)
