@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 find = {}  # Scanning implicit namespaces is active by default
 
 [project]
-name = "pydaes"
-version = "0.0.4"
+name = "scipy_dae"
+version = "0.0.1"
 authors = [
   { name="Jonas Breuling", email="jonas.breuling@inm.uni-stuttgart.de" },
 ]
@@ -32,5 +32,5 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JonasBreuling/pydaes"
-Issues = "https://github.com/JonasBreuling/pydaes/issues"
+Homepage = "https://github.com/JonasBreuling/scipy_dae"
+Issues = "https://github.com/JonasBreuling/scipy_dae/issues"
