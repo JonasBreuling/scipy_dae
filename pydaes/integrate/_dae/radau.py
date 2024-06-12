@@ -612,50 +612,91 @@ class RadauDAE(DaeSolver):
                 ###########################
                 # decomposed error estimate
                 ###########################
-                gamma0 = 1 / MU_REAL
-                # gamma0 = MU_REAL
+                # gamma0 = 1 / MU_REAL
+                gamma0 = MU_REAL
 
                 # scale E by MU_real since this is already done by Hairer's 
                 # E that is used here
                 e = E * gamma0
 
-                # embedded thirs order method
+                # embedded third order method
                 err = h * gamma0 * yp + Z.T.dot(e)
+                # err = h * MU_REAL * yp + Jyp @ Z.T.dot(E * MU_REAL)
                 # err = h * gamma0 * (yp - f) + Z.T.dot(e)
+
+                # embedded third order method, see Fabien2009 (5.65)
+                b0_hat = 0.02
+                # gamma_hat = 1 / MU_REAL
+                # yp_hat_new = (MU_REAL / h) * (y_new - (y + h * Z.T.dot(E * MU_REAL)))
+                # yp_hat_new = MU_REAL * (Z.T.dot(E * MU_REAL) / h - b0_hat * yp_new)
+                yp_hat_new = MU_REAL * (Yp.T.dot(E * MU_REAL) - b0_hat * yp)
+                # yp_hat_new = -(Z.T.dot(E * MU_REAL) / h - b0_hat * yp) / MU_REAL
+                err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_hat_new))
+                # err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_new))
+
+                # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
 
                 # use bad error estimate
                 error = err
 
-                # improve error estimate for stiff components
-                if unknown_z:
-                    # error = self.solve_lu(LU_real, err)
-                    error = self.solve_lu(LU_real, err) * gamma0 * h
-                    # error = self.solve_lu(LU_real, h * gamma0 * yp + Z.T.dot(e))
-                    # error = self.solve_lu(LU_real, h * gamma0 * yp + Z.T.dot(e))
-                    # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
+                # ODE error estimate
+                err_ODE = h * MU_REAL * (yp - f) + Z.T.dot(E * MU_REAL)
+                LU_real_ODE = self.lu(MU_REAL / h * self.I - Jy)
+                error_ODE = self.solve_lu(LU_real_ODE, err_ODE) / (MU_REAL * h)
+                # error = error_ODE
 
-                    # print(f"err: {err}")
-                    # print(f"error: {error}")
-                    # print(f"h: {h}")
-                    # error = self.solve_lu(LU_real, err / (h / gamma0))
-                    # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
-                    # error = self.solve_lu(LU_real, err / (h * gamma0))
-                    # error = self.solve_lu(LU_real, (yp + Z.T.dot(e) / (h * gamma0)))
+                # ODE with mass matrix error estimate
+                err_ODE_mass = h * MU_REAL * Jyp @ (yp - f) + Z.T.dot(E * MU_REAL)
+                LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp - Jy)
+                # error_ODE_mass = self.solve_lu(LU_real_ODE_mass, err_ODE_mass) / (MU_REAL * h)
+                # # error_ODE_mass = 1 / MU_REAL * (f + self.mass_matrix.dot(ZE))
+                error_ODE_mass = self.solve_lu(
+                    LU_real_ODE_mass, 
+                    Jyp @ ((yp - f) + Z.T.dot(E) / h),
+                )
+                error = error_ODE_mass
+                # print(f"")
 
-                    # D = np.eye(self.n) / (h * gamma0) + Jy
-                    # error = np.linalg.solve(D, err / (h * gamma0))
-                    pass
-                else:
-                    # error = self.solve_lu(LU_real, err / (h * gamma0))
-                    pass
-                    # error = self.solve_lu(LU_real, err / gamma0h)
-                    # error = self.solve_lu(LU_real, err * gamma0h)
-                    # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
-                    # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
-                    # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
-                    # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                    # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
-                    # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
+
+                # # TODO: These are the correct estimates for ODE Radau
+                # err = h * MU_REAL * f + Z.T.dot(E * MU_REAL)
+                # # error = err
+                # error = self.solve_lu(LU_real, err) / (MU_REAL * h)
+
+                # # improve error estimate for stiff components
+                # if unknown_z:
+                #     error = self.solve_lu(LU_real, err) / (h / MU_REAL)
+                #     # error = self.solve_lu(LU_real, err) * (1 / MU_REAL * h) # TODO: Why is this good?
+                #     # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)# * (1 / MU_REAL * h)
+                #     # error = self.solve_lu(LU_real, err) #/ (MU_REAL * h)
+                #     # # error = self.solve_lu(LU_real, err)
+                #     # error = self.solve_lu(LU_real, err) / gamma0 * h
+                #     # # error = self.solve_lu(LU_real, h * gamma0 * yp + Z.T.dot(e))
+                #     # # error = self.solve_lu(LU_real, h * gamma0 * yp + Z.T.dot(e))
+                #     # # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
+
+                #     # print(f"err: {err}")
+                #     # print(f"error: {error}")
+                #     # print(f"h: {h}")
+                #     # error = self.solve_lu(LU_real, err / (h / gamma0))
+                #     # error = self.solve_lu(LU_real, (h * gamma0 * yp + Jyp @ Z.T.dot(e)))
+                #     # error = self.solve_lu(LU_real, err / (h * gamma0))
+                #     # error = self.solve_lu(LU_real, (yp + Z.T.dot(e) / (h * gamma0)))
+
+                #     # D = np.eye(self.n) / (h * gamma0) + Jy
+                #     # error = np.linalg.solve(D, err / (h * gamma0))
+                #     pass
+                # else:
+                #     # error = self.solve_lu(LU_real, err / (h * gamma0))
+                #     pass
+                #     # error = self.solve_lu(LU_real, err / gamma0h)
+                #     # error = self.solve_lu(LU_real, err * gamma0h)
+                #     # error = self.solve_lu(LU_real, (gamma0h * yp + Z.T.dot(e)) / gamma0h)
+                #     # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                #     # # error = self.solve_lu(LU_real, yp + Z.T.dot(e) / gamma0h)
+                #     # # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                #     # error = self.solve_lu(LU_real, yp + Z.T.dot(E) / h)
+                #     # error = self.solve_lu(LU_real, yp + Jyp @ Z.T.dot(E) / h)
                 
                 error_norm = norm(error / scale)
 
