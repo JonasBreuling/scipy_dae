@@ -476,7 +476,7 @@ class RadauDAE(DaeSolver):
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
             # scale = atol + h * np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if False:
+            if True:
                 # # ######################################################
                 # # # error estimate by difference w.r.t. embedded formula
                 # # ######################################################
@@ -571,12 +571,15 @@ class RadauDAE(DaeSolver):
                 )
                 error = error_ODE_mass
                 
-                # ###############
-                # # Fabien (5.65)
-                # ###############
-                # b0_hat = 0.02
-                # yp_hat_new = (MU_REAL / h) * (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp))
+                ###############
+                # Fabien (5.65)
+                ###############
+                b0_hat = 0.02
+                gamma_hat = 1 / MU_REAL
+                yp_hat_new = (MU_REAL / h) * (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp))
+                y_hat_new = y + h * b_hat @ Yp + h * b0_hat * yp + h * gamma_hat * yp_hat_new
                 # error = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_hat_new))
+                error = y_hat_new - y_new
 
 
 
@@ -650,7 +653,7 @@ class RadauDAE(DaeSolver):
             else:
                 step_accepted = True
 
-        if False:
+        if True:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
