@@ -139,8 +139,7 @@ def test_integration_complex(method, jac):
 
 parameters_rational = product(
     [False], # vectorized
-    ["BDF"], # method
-    # ["BDF", "Radau"], # method
+    ["BDF", "Radau"], # method
     [[5, 9], [5, 1]], # t_span
     [None, J_rational, J_rational_sparse] # jac
 )
@@ -166,7 +165,10 @@ def test_integration_rational(vectorized, method, t_span, jac):
     assert_(res.success)
     assert_equal(res.status, 0)
 
-    assert_(0 < res.njev < 3)
+    if method == "BDF":
+        assert_(0 < res.njev < 3)
+    else: # Radau
+        assert_(0 < res.njev < 4)
     assert_(0 < res.nlu < 10)
 
     y_true = sol_rational(res.t)
@@ -190,14 +192,10 @@ def test_integration_rational(vectorized, method, t_span, jac):
     assert_allclose(res.sol(res.t), res.y, rtol=1e-15, atol=1e-15)
 
 
-parameters_stiff = product(
-    # ["BDF", "Radau"], # method
-    ["BDF"], # method
-    ["stability", "efficiency", None], # NDF_strategy
-    [1, 2, 3, 4, 5, 6], # max_order
-)
-@pytest.mark.parametrize("method, NDF_strategy, max_order", parameters_stiff)
-def test_integration_stiff(method, NDF_strategy, max_order):
+parameters_stiff = ["BDF", "Radau"]
+@pytest.mark.slow
+@pytest.mark.parametrize("method", parameters_stiff)
+def test_integration_stiff(method):
     def fun_robertson(t, state):
         x, y, z = state
         return [
@@ -215,31 +213,39 @@ def test_integration_stiff(method, NDF_strategy, max_order):
     yp0 = fun_robertson(0, y0)
     tspan = [0, 1e8]
 
-    with suppress_warnings() as sup:
-        sup.filter(UserWarning,
-                   "Choosing `max_order = 6` is not recomended due to its "
-                   "poor stability properties.")
+    if method == "BDF":
+        for NDF_strategy, max_order in product(
+            ["stability", "efficiency", None], # NDF_strategy
+            [1, 2, 3, 4, 5, 6], # max_order
+        ):
+            with suppress_warnings() as sup:
+                sup.filter(UserWarning,
+                        "Choosing `max_order = 6` is not recomended due to its "
+                        "poor stability properties.")
+                res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
+                                atol=atol, method=method, max_order=max_order,
+                                NDF_strategy=NDF_strategy)
+    else: # Radau
         res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
-                        atol=atol, method=method, max_order=max_order,
-                        NDF_strategy=NDF_strategy)
+                        atol=atol, method=method)
 
     # If the stiff mode is not activated correctly, these numbers will be much 
     # bigger (see max_order=1 case)
-    if max_order == 1:
+    if method == "BDF" and max_order == 1:
         assert res.nfev < 21000
     else:
         assert res.nfev < 5000
     assert res.njev < 200
     
 if __name__ == "__main__":
-    # for params in parameters_linear:
-    #     test_integration_const_jac(*params)
+    for params in parameters_linear:
+        test_integration_const_jac(*params)
 
-    # for params in parameters_complex:
-    #     test_integration_complex(*params)
+    for params in parameters_complex:
+        test_integration_complex(*params)
 
     for params in parameters_rational:
         test_integration_rational(*params)
 
-    # for params in parameters_stiff:
-    #     test_integration_stiff(*params)
+    for params in parameters_stiff:
+        test_integration_stiff(*params)
