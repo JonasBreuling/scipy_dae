@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from pydaes.integrate import solve_dae, consistent_initial_conditions
+from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 from scipy.optimize._numdiff import approx_derivative
 
 

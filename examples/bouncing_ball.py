@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.testing import assert_allclose
-from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from scipy_dae.integrate import solve_dae, consistent_initial_conditions, BDFDAE
 from scipy.optimize._numdiff import approx_derivative
 
 mass = 1

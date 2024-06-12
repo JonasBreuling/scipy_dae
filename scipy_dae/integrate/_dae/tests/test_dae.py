@@ -4,7 +4,7 @@ from numpy.testing import (assert_, assert_allclose,
                            assert_equal, assert_no_warnings, suppress_warnings)
 import pytest
 from scipy.sparse import coo_matrix, csc_matrix, diags, identity
-from pydaes.integrate import solve_dae
+from scipy_dae.integrate import solve_dae
 
 from scipy.integrate._ivp.tests.test_ivp import fun_linear, jac_linear, sol_linear
 from scipy.integrate._ivp.tests.test_ivp import fun_rational, fun_rational_vectorized, jac_rational, jac_rational_sparse, sol_rational

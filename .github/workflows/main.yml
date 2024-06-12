@@ -23,14 +23,14 @@ jobs:
     - name: Update pip
       run: pip install --upgrade pip
 
-    - name: Install dependencies and pydaes (pydaes)
+    - name: Install dependencies and scipy_dae (scipy_dae)
       run: pip install -e .
 
     - name: Install test dependencies
       run: pip install pytest pytest-cov
 
     - name: Test and coverage report with pytest-cov
-      run: pytest --cov=pydaes --cov-report=term --cov-report=lcov --cov-report=xml
+      run: pytest --cov=scipy_dae --cov-report=term --cov-report=lcov --cov-report=xml
 
     - name: Run tests and collect coverage
       run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
