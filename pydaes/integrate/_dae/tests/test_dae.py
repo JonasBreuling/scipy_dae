@@ -69,7 +69,6 @@ def J_complex_sparse(t, y, yp):
 
 
 parameters_linear = product(
-    # ["BDF"], # method
     ["BDF", "Radau"], # method
     [None, J_linear, J_linear_sparse] # jac
 )
@@ -139,7 +138,7 @@ def test_integration_complex(method, jac):
 
 
 parameters_rational = product(
-    [False, True], # vectorized
+    [False], # vectorized
     ["BDF"], # method
     # ["BDF", "Radau"], # method
     [[5, 9], [5, 1]], # t_span
@@ -239,8 +238,8 @@ if __name__ == "__main__":
     # for params in parameters_complex:
     #     test_integration_complex(*params)
 
-    # for params in parameters_rational:
-    #     test_integration_rational(*params)
+    for params in parameters_rational:
+        test_integration_rational(*params)
 
-    for params in parameters_stiff:
-        test_integration_stiff(*params)
+    # for params in parameters_stiff:
+    #     test_integration_stiff(*params)

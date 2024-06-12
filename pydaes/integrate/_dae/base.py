@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.sparse import issparse, csc_matrix
+from scipy.sparse.sputils import isshape
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
     validate_max_step, validate_tol, num_jac, 
@@ -197,6 +198,19 @@ class DaeSolver:
             fun_single = self._fun
 
             def fun_vectorized(t, y, yp):
+                if isshape(y.shape) or isshape(yp.shape):
+                    if isshape(y.shape):
+                        m = y.shape[1]
+                        yp = np.tile(yp[:, None], m)
+                    else:
+                        m = yp.shape[1]
+                        y = np.tile(y[:, None], m)
+                else:
+                    raise RuntimeError("This case should be impossible")
+                    m = 1
+                    y = np.tile(y[:, None], m)
+                    yp = np.tile(yp[:, None], m)
+
                 f = np.empty_like(y)
                 for i, (yi, ypi) in enumerate(zip(y.T, yp.T)):
                     f[:, i] = self._fun(t, yi, ypi)
@@ -263,11 +277,33 @@ class DaeSolver:
 
             def jac_wrapped(t, y, yp, f):
                 self.njev += 1
+                # Jy, self.jac_factor_y = num_jac(
+                #     lambda t, y: self.fun_vectorized(t, y, np.tile(yp[:, None], self.n)), 
+                #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                # Jyp, self.jac_factor_yp = num_jac(
+                #     lambda t, yp: self.fun_vectorized(t, np.tile(y[:, None], self.n), yp), 
+                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_y)
+                # n_vec = max(y.shape[1], yp.shape[1])
+                # if isshape(y.shape):
+                #     ny, my = y.shape
+                # else:
+                #     ny, my = self.n, 1
+                # if isshape(yp.shape):
+                #     nyp, myp = yp.shape
+                # else:
+                #     nyp, myp = self.n, 1
+                # n, m = max(ny, nyp), max(my, myp)
+
+                # y = np.tile(y[:, None], )
+                # yp = np.atleast_2d(yp)
+
+                # y = np.atleast_2d(y)
+                # yp = np.atleast_2d(yp)
                 Jy, self.jac_factor_y = num_jac(
-                    lambda t, y: self.fun_vectorized(t, y, np.tile(yp[:, None], self.n)), 
+                    lambda t, y: self.fun_vectorized(t, y, yp), 
                     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
                 Jyp, self.jac_factor_yp = num_jac(
-                    lambda t, yp: self.fun_vectorized(t, np.tile(y[:, None], self.n), yp), 
+                    lambda t, yp: self.fun_vectorized(t, y, yp), 
                     t, yp, f, self.atol, self.jac_factor_yp, sparsity_y)
                 
                 return Jy, Jyp

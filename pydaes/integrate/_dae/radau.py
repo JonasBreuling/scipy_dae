@@ -646,10 +646,9 @@ class RadauDAE(DaeSolver):
                 # error = error_ODE
 
                 # ODE with mass matrix error estimate
-                err_ODE_mass = h * MU_REAL * Jyp @ (yp - f) + Z.T.dot(E * MU_REAL)
                 LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp - Jy)
+                # err_ODE_mass = h * MU_REAL * Jyp @ ((yp - f) + Z.T.dot(E * MU_REAL))
                 # error_ODE_mass = self.solve_lu(LU_real_ODE_mass, err_ODE_mass) / (MU_REAL * h)
-                # # error_ODE_mass = 1 / MU_REAL * (f + self.mass_matrix.dot(ZE))
                 error_ODE_mass = self.solve_lu(
                     LU_real_ODE_mass, 
                     Jyp @ ((yp - f) + Z.T.dot(E) / h),

@@ -2,7 +2,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.testing import assert_allclose
-from pydaes.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from pydaes.integrate import solve_dae, consistent_initial_conditions
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -17,7 +17,9 @@ def F(t, y, yp):
     y1p, y2p, zp = yp
 
     F = np.zeros(3, dtype=y.dtype)
+    # TODO: This multiplier enters nonlinear. Can we cope with that?
     F[0] = y1p - (y1 * y2**2 * zp**2)
+    # F[0] = y1p - (y1 * y2**2 * zp)
     F[1] = y2p - (y1**2 * y2**2 - 3 * y2**2 * zp)
     F[2] = y1**2 * y2 - 1.0
 
@@ -38,11 +40,13 @@ def jac(t, y, yp, f):
     Jy, Jyp = J[:, :n], J[:, n:]
     return Jy, Jyp
 
+jac = None
+
 
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 3
+    t1 = 2
     t_span = (t0, t1)
 
     # tolerances
@@ -50,7 +54,10 @@ if __name__ == "__main__":
 
     # initial conditions
     y0 = np.array([1, 1, 0], dtype=float)
-    yp0 = np.array([0, 0, 1], dtype=float)
+    # yp0 = np.array([0, 0, 1], dtype=float) # TODO: Why is this not consistent?
+    yp0 = np.array([1, -2, 1], dtype=float)
+    # print(F(t0, y0, yp0))
+    # exit()
 
     # # TODO: This seems to be wrong here!
     # print(f"y0: {y0}")
@@ -64,8 +71,8 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # method = RadauDAE
-    method = BDFDAE
+    method = "Radau"
+    # method = "BDF"
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()

@@ -56,8 +56,8 @@ if __name__ == "__main__":
     t1 = 1e7
     t_span = (t0, t1)
 
-    method = "BDF"
-    # method = "Radau"
+    # method = "BDF"
+    method = "Radau"
 
     # initial conditions
     y0 = np.array([1, 0, 0], dtype=float)
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-5
+    atol = rtol = 1e-6
 
     ####################
     # reference solution
