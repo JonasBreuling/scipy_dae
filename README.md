@@ -13,7 +13,7 @@ Python implementation of solvers for differential algebraic equation's (DAEs) th
 
 ### Install
 
-Developer mode can be installed via
+An editable developer mode can be installed via
 
 ```bash
 python -m pip install -e .[dev]
@@ -22,5 +22,5 @@ python -m pip install -e .[dev]
 The tests can be started using
 
 ```bash
-python -m pytest test/
+python -m pytest --cov
 ```

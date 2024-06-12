@@ -1,4 +1,5 @@
 import numpy as np
+from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
@@ -77,13 +78,6 @@ NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
-unknown_densities = True
-# unknown_densities = False # better for both, exact and inexact Newton methods
-
-unknown_z = True
-if unknown_z:
-    assert unknown_densities
-
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu):
@@ -128,161 +122,80 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     M_real = MU_REAL / h
     M_complex = MU_COMPLEX / h
 
+    # W = V of Fabien
+    # A_inv = W of Fabien
     Z = Z0
-    if unknown_z:
-        W = TI.dot(Z0)
-        Yp = A_inv @ Z / h
-    else:
-        Yp = A_inv @ Z
-        if unknown_densities:
-            Yp /= h
-        W = TI.dot(Yp)
+    W = TI.dot(Z0)
+    Yp = A_inv @ Z / h
 
     F = np.empty((3, n))
     tau = t + h * C
 
-    if False:
-        if unknown_z:
-            def F_composite(Z):
-                Z = Z.reshape(3, -1, order="C")
-                Yp = A_inv @ Z / h
-                Y = y + Z
-                F = np.empty((3, n))
-                for i in range(3):
-                    F[i] = fun(tau[i], Y[i], Yp[i])
-                F = F.reshape(-1, order="C")
-                return F
-        else:
-            def F_composite(Yp):
-                Yp = Yp.reshape(3, -1, order="C")
-                Z = A @ Yp
-                if unknown_densities:
-                    Z *= h
-                Y = y + Z
-                F = np.empty((3, n))
-                for i in range(3):
-                    if unknown_densities:
-                        F[i] = fun(tau[i], Y[i], Yp[i])
-                    else:
-                        F[i] = fun(tau[i], Y[i], Yp[i] / h)
-                F = F.reshape(-1, order="C")
-                return F
-        
-        from cardillo.math.fsolve import fsolve
-        from cardillo.solver import SolverOptions
-
-        if unknown_z:
-            Z = Z.reshape(-1, order="C")
-            sol = fsolve(F_composite, Z, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
-            Z = sol.x
-            Z = Z.reshape(3, -1, order="C")
-            Yp = A_inv @ Z / h
-        else:
-            Yp = Yp.reshape(-1, order="C")
-            sol = fsolve(F_composite, Yp, options=SolverOptions(numerical_jacobian_method="2-point", newton_max_iter=NEWTON_MAXITER))
-            Yp = sol.x
-            Yp = Yp.reshape(3, -1, order="C")
-            Z = A @ Yp
-            if unknown_densities:
-                Z *= h
-
+    dW_norm_old = None
+    dW = np.empty_like(W)
+    converged = False
+    rate = None
+    for k in range(NEWTON_MAXITER):
+        Z = T.dot(W)
+        Yp = (A_inv / h) @ Z
         Y = y + Z
-        
-        converged = sol.success
-        nit = sol.nit
-        rate = 1
-        return converged, nit, Y, Yp, Z, rate
+        for i in range(3):
+            F[i] = fun(tau[i], Y[i], Yp[i])
 
-    else:
-        dW_norm_old = None
-        dW = np.empty_like(W)
-        converged = False
-        rate = None
-        for k in range(NEWTON_MAXITER):
-            if unknown_z:
-                Z = T.dot(W)
-                Yp = A_inv @ Z / h
-            else:
-                Yp = T.dot(W)
-                Z = A @ Yp
-                if unknown_densities:
-                    Z *= h
-            Y = y + Z
-            for i in range(3):
-                if unknown_densities:
-                    F[i] = fun(tau[i], Y[i], Yp[i])
-                else:
-                    F[i] = fun(tau[i], Y[i], Yp[i] / h)
+        if not np.all(np.isfinite(F)):
+            break
 
-            if not np.all(np.isfinite(F)):
-                break
+        # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
+        # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
 
-            # f_real = F.T.dot(TI_REAL) - M_real * mass_matrix.dot(W[0])
-            # f_complex = F.T.dot(TI_COMPLEX) - M_complex * mass_matrix.dot(W[1] + 1j * W[2])
+        # f_real = -h / MU_REAL * F.T.dot(TI_REAL)
+        # f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
+        U = TI @ F
+        # f_real = -h / MU_REAL * U[0]
+        # f_complex = -h / MU_COMPLEX * (U[1] + 1j * U[2])
+        f_real = -U[0]
+        f_complex = -(U[1] + 1j * U[2])
 
-            if unknown_z:
-                f_real = -h / MU_REAL * F.T.dot(TI_REAL)
-                f_complex = -h / MU_COMPLEX * F.T.dot(TI_COMPLEX)
-                # TIF = TI @ F
-                # f_real = -h / MU_REAL * TIF[0]
-                # f_complex = -h / MU_COMPLEX * (TIF[1] + 1j * TIF[2])
+        # dW_real = solve_lu(LU_real, f_real)
+        # dW_complex = solve_lu(LU_complex, f_complex)
 
-                # P = np.kron(TI, np.eye(n))
-                # QI = np.kron(T, np.eye(n))
-                # B = np.kron(h * Lambda, J)
-                # np.set_printoptions(3, suppress=True)
-                # print(f"P:\n{P}")
-                # print(f"QI:\n{QI}")
-                # J = P @ 
-            else:
-                if unknown_densities:
-                    # TODO: Both formulations are equivalend
-                    f_real = -M_real * F.T.dot(TI_REAL)
-                    f_complex = -M_complex * F.T.dot(TI_COMPLEX)
-                    # TIF = TI @ F
-                    # f_real = -M_real * TIF[0]
-                    # f_complex = -M_complex * (TIF[1] + 1j * TIF[2])
-                else:
-                    f_real = -MU_REAL * F.T.dot(TI_REAL)
-                    f_complex = -MU_COMPLEX * F.T.dot(TI_COMPLEX)
+        # dW[0] = dW_real
+        # dW[1] = dW_complex.real
+        # dW[2] = dW_complex.imag
 
-            dW_real = solve_lu(LU_real, f_real)
-            dW_complex = solve_lu(LU_complex, f_complex)
+        dV_real = solve_lu(LU_real, f_real)
+        dV_complex = solve_lu(LU_complex, f_complex)
 
-            dW[0] = dW_real
-            dW[1] = dW_complex.real
-            dW[2] = dW_complex.imag
+        dW[0] = dV_real
+        dW[1] = dV_complex.real
+        dW[2] = dV_complex.imag
 
-            dW_norm = norm(dW / scale)
-            if dW_norm_old is not None:
-                rate = dW_norm / dW_norm_old
+        # dW = TI @ dW
 
-            # print(F"dW_norm: {dW_norm}")
-            # print(F"rate: {rate}")
-            # if rate is not None:
-            #     print(F"rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm: {rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm}")
-            # print(F"tol: {tol}")
-            if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
-                break
+        dW_norm = norm(dW / scale)
+        if dW_norm_old is not None:
+            rate = dW_norm / dW_norm_old
 
-            W += dW
-            if unknown_z:
-                Z = T.dot(W)
-                Yp = A_inv @ Z / h
-            else:
-                Yp = T.dot(W)
-                Z = A @ Yp
-                if unknown_densities:
-                    Z *= h
-            Y = y + Z
+        # print(F"dW_norm: {dW_norm}")
+        # print(F"rate: {rate}")
+        # if rate is not None:
+        #     print(F"rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm: {rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm}")
+        # print(F"tol: {tol}")
+        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+            break
 
-            if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
-                converged = True
-                break
+        W += dW
+        Z = T.dot(W)
+        Yp = A_inv @ Z / h
+        Y = y + Z
 
-            dW_norm_old = dW_norm
+        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
+            converged = True
+            break
 
-        return converged, k + 1, Y, Yp, Z, rate
+        dW_norm_old = dW_norm
+
+    return converged, k + 1, Y, Yp, Z, rate
 
 
 def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
@@ -314,18 +227,13 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
-    # s = 3
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
         multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
-        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / (s + 1))
 
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** -0.25
-        # factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
-
-    # print(f"factor: {factor}")
 
     return factor
 
@@ -336,9 +244,12 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
 class RadauDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 5.
 
-    The implementation follows [1]_. The error is controlled with a
-    third-order accurate embedded formula. A cubic polynomial which satisfies
-    the collocation conditions is used for the dense output.
+    The implementation follows [4]_, where most of the ideas come from [2]_. 
+    The embedded formula of [3]_ is applied to implicit differential equations.
+    The error is controlled with a third-order accurate embedded formula as 
+    introduced in [2]_ and refined in [3]_. The procedure is slightly adapted 
+    by [4]_ to cope with implicit differential equations. A cubic polynomial 
+    which satisfies the collocation conditions is used for the dense output.
 
     Parameters
     ----------
@@ -443,10 +354,16 @@ class RadauDAE(DaeSolver):
     .. [2] A. Curtis, M. J. D. Powell, and J. Reid, "On the estimation of
            sparse Jacobian matrices", Journal of the Institute of Mathematics
            and its Applications, 13, pp. 117-120, 1974.
+    .. [3] J. de Swart, G. Söderlind, "On the construction of error estimators for 
+           implicit Runge-Kutta methods", Journal of Computational and Applied 
+           Mathematics, 86, pp. 347-358, 1997.
+    .. [4] B. Fabien, "Analytical System Dynamics: Modeling and Simulation", 
+           Sec. 5.3.5.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
                  vectorized=False, first_step=None, **extraneous):
+        warn("RadauDAE is currently under development and not finished. The error estimate is still flawed.")
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
         self.y_old = None
@@ -467,7 +384,6 @@ class RadauDAE(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
-        # print(f"t: {t}")
 
         max_step = self.max_step
         atol = self.atol
@@ -500,7 +416,6 @@ class RadauDAE(DaeSolver):
         message = None
         while not step_accepted:
             if h_abs < min_step:
-                # print(f"h_abs: {h_abs}")
                 return False, self.TOO_SMALL_STEP
 
             h = h_abs * self.direction
@@ -522,17 +437,13 @@ class RadauDAE(DaeSolver):
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    if unknown_z:
-                        # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
-                        # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
-                        LU_real = self.lu(Jyp + h / MU_REAL * Jy)
-                        LU_complex = self.lu(Jyp + h / MU_COMPLEX * Jy)
-                        # # TODO: This is only used for exact newton and the error estimate...
-                        # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                        # LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
-                    else:
-                        LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                        LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
+                    # LU_real = self.lu(h / MU_REAL * Jyp + Jy)
+                    # LU_complex = self.lu(h / MU_COMPLEX * Jyp + Jy)
+                    # LU_real = self.lu(Jyp + h / MU_REAL * Jy)
+                    # LU_complex = self.lu(Jyp + h / MU_COMPLEX * Jy)
+                    # Fabien (5.59) and (5.60)
+                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                    LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
@@ -560,92 +471,97 @@ class RadauDAE(DaeSolver):
             # y_new = y + Z[-1]
             y_new = Y[-1]
             yp_new = Yp[-1]
-            if not unknown_densities:
-                yp_new /= h
 
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             # scale = atol + np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
             # scale = atol + h * np.maximum(np.abs(yp), np.abs(yp_new)) * rtol
 
-            if True:
-                # ######################################################
-                # # error estimate by difference w.r.t. embedded formula
-                # ######################################################
-                # # compute embedded formula
-                # gamma0 = MU_REAL
-                # y_new_hat = y + h * gamma0 * yp + h * b_hat @ Yp
+            if False:
+                # # ######################################################
+                # # # error estimate by difference w.r.t. embedded formula
+                # # ######################################################
+                # # # compute embedded formula
+                # # gamma0 = MU_REAL
+                # # y_new_hat = y + h * gamma0 * yp + h * b_hat @ Yp
 
-                # # # # embedded trapezoidal step
-                # # # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
+                # # # # # embedded trapezoidal step
+                # # # # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
 
-                # # y_new = y + h * (b @ Yp)
-                # error = y_new_hat - y_new
-                # # # error = Yp.T.dot(E) + h * gamma0 * yp
-                # # error = gamma0 * Yp.T.dot(E) + h * yp
+                # # # y_new = y + h * (b @ Yp)
+                # # error = y_new_hat - y_new
+                # # # # error = Yp.T.dot(E) + h * gamma0 * yp
+                # # # error = gamma0 * Yp.T.dot(E) + h * yp
 
-                # # # ZE = Z.T.dot(E) #/ h
-                # # # error = (yp + Jyp.dot(ZE)) * h
-                # # # error = (yp + Z.T @ E / h)
-                # # # error = (yp + Z.T @ E) * h
-                # # # error = Jyp @ (yp + Z.T @ E) * h
-                # # # error = (f + Jyp.dot(ZE)) #* (h / MU_REAL)
-                # # # error = (h * yp + Yp.T @ (b_hat - b)) / h
-                # # error = (yp + Yp.T @ (b_hat - b) / h)
-                # # error = self.solve_lu(LU_real, error)
-                # # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+                # # # # ZE = Z.T.dot(E) #/ h
+                # # # # error = (yp + Jyp.dot(ZE)) * h
+                # # # # error = (yp + Z.T @ E / h)
+                # # # # error = (yp + Z.T @ E) * h
+                # # # # error = Jyp @ (yp + Z.T @ E) * h
+                # # # # error = (f + Jyp.dot(ZE)) #* (h / MU_REAL)
+                # # # # error = (h * yp + Yp.T @ (b_hat - b)) / h
+                # # # error = (yp + Yp.T @ (b_hat - b) / h)
+                # # # error = self.solve_lu(LU_real, error)
+                # # # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
+
+                # # ###########################
+                # # # decomposed error estimate
+                # # ###########################
+                # # gamma0h = MU_REAL * h
+
+                # # # scale E by MU_real since this is already done by Hairer's 
+                # # # E that is used here
+                # # e = E * MU_REAL
+
+                # # # embedded thirs order method
+                # # err = gamma0h * yp + Z.T.dot(e)
+
+                # # # use bad error estimate
+                # # error = err
 
                 # ###########################
                 # # decomposed error estimate
                 # ###########################
-                # gamma0h = MU_REAL * h
+                # # gamma0 = 1 / MU_REAL
+                # gamma0 = MU_REAL
 
                 # # scale E by MU_real since this is already done by Hairer's 
                 # # E that is used here
-                # e = E * MU_REAL
+                # e = E * gamma0
 
-                # # embedded thirs order method
-                # err = gamma0h * yp + Z.T.dot(e)
+                # # embedded third order method
+                # err = h * gamma0 * yp + Z.T.dot(e)
+                # # err = h * MU_REAL * yp + Jyp @ Z.T.dot(E * MU_REAL)
+                # # err = h * gamma0 * (yp - f) + Z.T.dot(e)
+
+                # # embedded third order method, see Fabien2009 (5.65)
+                # b0_hat = 0.02
+                # # gamma_hat = 1 / MU_REAL
+                # # yp_hat_new = (MU_REAL / h) * (y_new - (y + h * Z.T.dot(E * MU_REAL)))
+                # # yp_hat_new = MU_REAL * (Z.T.dot(E * MU_REAL) / h - b0_hat * yp_new)
+                # yp_hat_new = MU_REAL * (Yp.T.dot(E * MU_REAL) - b0_hat * yp)
+                # # yp_hat_new = -(Z.T.dot(E * MU_REAL) / h - b0_hat * yp) / MU_REAL
+                # err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_hat_new))
+                # # err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_new))
+
+                # # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
 
                 # # use bad error estimate
                 # error = err
 
-                ###########################
-                # decomposed error estimate
-                ###########################
-                # gamma0 = 1 / MU_REAL
-                gamma0 = MU_REAL
 
-                # scale E by MU_real since this is already done by Hairer's 
-                # E that is used here
-                e = E * gamma0
 
-                # embedded third order method
-                err = h * gamma0 * yp + Z.T.dot(e)
-                # err = h * MU_REAL * yp + Jyp @ Z.T.dot(E * MU_REAL)
-                # err = h * gamma0 * (yp - f) + Z.T.dot(e)
 
-                # embedded third order method, see Fabien2009 (5.65)
-                b0_hat = 0.02
-                # gamma_hat = 1 / MU_REAL
-                # yp_hat_new = (MU_REAL / h) * (y_new - (y + h * Z.T.dot(E * MU_REAL)))
-                # yp_hat_new = MU_REAL * (Z.T.dot(E * MU_REAL) / h - b0_hat * yp_new)
-                yp_hat_new = MU_REAL * (Yp.T.dot(E * MU_REAL) - b0_hat * yp)
-                # yp_hat_new = -(Z.T.dot(E * MU_REAL) / h - b0_hat * yp) / MU_REAL
-                err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_hat_new))
-                # err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_new))
-
-                # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-
-                # use bad error estimate
-                error = err
-
+                ####################
                 # ODE error estimate
+                ####################
                 err_ODE = h * MU_REAL * (yp - f) + Z.T.dot(E * MU_REAL)
                 LU_real_ODE = self.lu(MU_REAL / h * self.I - Jy)
                 error_ODE = self.solve_lu(LU_real_ODE, err_ODE) / (MU_REAL * h)
                 # error = error_ODE
 
+                #####################################
                 # ODE with mass matrix error estimate
+                #####################################
                 LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp - Jy)
                 # err_ODE_mass = h * MU_REAL * Jyp @ ((yp - f) + Z.T.dot(E * MU_REAL))
                 # error_ODE_mass = self.solve_lu(LU_real_ODE_mass, err_ODE_mass) / (MU_REAL * h)
@@ -654,7 +570,17 @@ class RadauDAE(DaeSolver):
                     Jyp @ ((yp - f) + Z.T.dot(E) / h),
                 )
                 error = error_ODE_mass
-                # print(f"")
+                
+                # ###############
+                # # Fabien (5.65)
+                # ###############
+                # b0_hat = 0.02
+                # yp_hat_new = (MU_REAL / h) * (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp))
+                # error = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_hat_new))
+
+
+
+
 
 
                 # # TODO: These are the correct estimates for ODE Radau
@@ -724,7 +650,7 @@ class RadauDAE(DaeSolver):
             else:
                 step_accepted = True
 
-        if True:
+        if False:
             # Step is converged and accepted
             # TODO: Make this rate a user defined argument
             recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
