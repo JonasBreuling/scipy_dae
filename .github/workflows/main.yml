@@ -23,7 +23,7 @@ jobs:
     - name: Update pip
       run: pip install --upgrade pip
 
-    - name: Install dependencies and scipy_dae (scipy_dae)
+    - name: Install dependencies and scipy_dae
       run: pip install -e .
 
     - name: Install test dependencies
