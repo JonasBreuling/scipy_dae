@@ -9,11 +9,7 @@ from scipy_dae.integrate import solve_dae
 from scipy.integrate._ivp.tests.test_ivp import fun_linear, jac_linear, sol_linear
 from scipy.integrate._ivp.tests.test_ivp import fun_rational, fun_rational_vectorized, jac_rational, jac_rational_sparse, sol_rational
 from scipy.integrate._ivp.tests.test_ivp import fun_complex, jac_complex, jac_complex_sparse, sol_complex
-
-
-def compute_error(y, y_true, rtol, atol):
-    e = (y - y_true) / (atol + rtol * np.abs(y_true))
-    return np.linalg.norm(e, axis=0) / np.sqrt(e.shape[0])
+from scipy.integrate._ivp.tests.test_ivp import compute_error
 
 
 def F_linear(t, y, yp):

@@ -9,23 +9,20 @@ from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
 g = 9.81
-n = 3
-initial_angle = np.pi / 4
+n = 10
+initial_angle = np.pi / 2
 
 ## Initial conditions for each pendulum
 theta_0 = np.ones(n) * initial_angle
 theta_dot0 = np.zeros(n)
 
-m_chord = 1.
-m_final = 1.
-L_chord = 2.
+m_chord = 1.0
+L_chord = 2.0
 m_node = m_chord / (n-1)
-L_rod  = L_chord / n
+L_rod = L_chord / n
 
-r0  = np.array([L_rod for i in range(n)])
-r0s = r0**2
-m   = np.array([m_node for i in range(n)])
-m[-1] = m_final
+r0 = L_rod * np.ones(n)
+m = m_node * np.ones(n)
 
 ###### DAE function and Jacobian
 def F(t, vy, vyp):
@@ -43,48 +40,36 @@ def F(t, vy, vyp):
     mup = vyp[4::6]
     lap = vyp[5::6]
 
+    # distances between each node, accounting for the fixed zero-th node
+    dx = np.hstack((x[0], np.diff(x)))
+    dy = np.hstack((y[0], np.diff(y)))
+
+    # same for velocities
+    du = np.hstack((u[0], np.diff(u)))
+    dv = np.hstack((v[0], np.diff(v)))
+
     F = np.empty((6, x.size), order='C', dtype=np.common_type(y, yp))
     Fx, Fy, Fu, Fv, constraints, constraints_der = F
 
     # kinematics
-    Fx[:] = xp - (u + 2 * x * mup)
-    Fy[:] = yp - (v + 2 * y * mup)
+    Fx[:-1] = xp[:-1] - (u[:-1] + 2 * mup[:-1] * dx[:-1] - 2 * mup[1:] * dx[1:])
+    Fy[:-1] = yp[:-1] - (v[:-1] + 2 * mup[:-1] * dy[:-1] - 2 * mup[1:] * dy[1:])
+    Fx[-1]  = xp[-1] - (u[-1] + 2 * mup[-1] * dx[-1])
+    Fy[-1]  = yp[-1] - (v[-1] + 2 * mup[-1] * dy[-1])
 
-    # # kinetics
-    # Fx[:] = xp - (u + 2 * x * lap)
-    # Fy[:] = yp - (v + 2 * y * lap)
+    # kinetics
+    Fu[:-1] = m[:-1] * up[:-1] - (2 * lap[:-1] * dx[:-1] - 2 * lap[1:] * dx[1:])
+    Fv[:-1] = m[:-1] * vp[:-1] - (2 * lap[:-1] * dy[:-1] - 2 * lap[1:] * dy[1:] - m[:-1] * g)
+    Fu[-1]  = m[-1] * up[-1] - (2 * lap[-1] * dx[-1])
+    Fv[-1]  = m[-1] * vp[-1] - (2 * lap[-1] * dy[-1] - m[-1] * g)
 
-    # dx = np.hstack((x[0], np.diff(x))) # distances between each node, accounting for the fixed zero-th node
-    # dy = np.hstack((y[0], np.diff(y)))
-    dx = np.empty_like(x)
-    dy = np.empty_like(y)
-    dx[0]  = x[0]
-    dx[1:] = np.diff(x) # distances between each node, accounting for the fixed zero-th node
-    dy[0]  = y[0]
-    dy[1:] = np.diff(y) # distances between each node, accounting for the fixed zero-th node
+    # constraints
+    constraints[:] = dx**2 + dy**2 - r0 * r0
+    constraints_der[:] = 2 * dx * du + 2 * dy * dv
 
-    rs = dx**2 + dy**2
-
-    du = np.empty_like(u)
-    dv = np.empty_like(v)
-    du[0]  = u[0]
-    du[1:] = np.diff(u)
-    dv[0]  = v[0]
-    dv[1:] = np.diff(v)
-
-    rsp = 2 * dx * du + 2 * dy * dv
-
-    Fu[:-1] = up[:-1] - (1/m[:-1]) * (+lap[:-1]*dx[:-1]/rs[:-1] - lap[1:]*dx[1:]/rs[1:])
-    Fv[:-1] = vp[:-1] - (1/m[:-1]) * (+lap[:-1]*dy[:-1]/rs[:-1] - lap[1:]*dy[1:]/rs[1:] - m[:-1]*g)
-
-    Fu[-1]  = up[-1] - (1/m[-1]) *  (+lap[-1]*dx[-1]/rs[-1])
-    Fv[-1]  = vp[-1] - (1/m[-1]) *  (+lap[-1]*dy[-1]/rs[-1] - m[-1]*g)
-
-    constraints[:] = rs - r0s
-    constraints_der[:] = rsp
     return F.reshape((-1,), order='F')
 
-def jac(t, y, yp, f):
+def jac(t, y, yp, f=None):
     n = len(y)
     z = np.concatenate((y, yp))
 
@@ -118,28 +103,22 @@ vyp0 = np.zeros_like(vy0)
 vy0, vyp0, fnorm = consistent_initial_conditions(F, jac, 0, vy0, vyp0)
 print(f"fnorm: {fnorm}")
 
-# sparsity = scipy.sparse.diags(diagonals=[np.ones(n*5-abs(i)) for i in range(-10,10)], offsets=[i for i in range(-10,10)],
-# format='csc')
-# # jac = None
-F0 = F(t0, vy0, vyp0)
-Jy0, Jyp0 = jac(t0, vy0, vyp0, F0)
-# sparsity = Jy0, Jyp0
+# F0 = F(t0, vy0, vyp0)
+# Jy0, Jyp0 = jac(t0, vy0, vyp0, F0)
+# # sparsity = Jy0, Jyp0
 sparsity = None
 
 
 if __name__=='__main__':
-    atol = rtol = 1e-2 # relative and absolute tolerances for time adaptation
+    atol = rtol = 1e-3 # relative and absolute tolerances for time adaptation
     t_span = (t0, t1)
+    num = 200
+    t_eval = np.linspace(t0, t1, num=num)
 
-    vyp0 = np.zeros_like(vy0)
-    vy0, vyp0, fnorm = consistent_initial_conditions(F, jac, t0, vy0, vyp0)
-    print(f"fnorm: {fnorm}")
-    # exit()
-
-    method = "BDF"
-    # method = "Radau"
+    # method = "BDF"
+    method = "Radau"
     start = time.time()
-    sol = solve_dae(F, t_span, vy0, vyp0, atol=atol, rtol=rtol, method=method, jac_sparsity=sparsity)
+    sol = solve_dae(F, t_span, vy0, vyp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, jac=jac)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -182,42 +161,44 @@ if __name__=='__main__':
     mu = vy[4::6]
     la = vy[5::6]
 
-    #####################
-    # positions over time
-    #####################
-    fig, ax = plt.subplots(2, 1)
+    # #####################
+    # # positions over time
+    # #####################
+    # fig, ax = plt.subplots(2, 1)
 
-    ax[0].set_title("x")
-    ax[0].plot(t, x.T)
-    ax[0].grid()
+    # ax[0].set_title("x")
+    # ax[0].plot(t, x.T)
+    # ax[0].grid()
 
-    ax[1].set_title("y")
-    ax[1].plot(t, y.T)
-    ax[1].grid()
+    # ax[1].set_title("y")
+    # ax[1].plot(t, y.T)
+    # ax[1].grid()
 
-    ##############
-    # trajectories
-    ##############
+    # ##############
+    # # trajectories
+    # ##############
+    # fig, ax = plt.subplots()
+    # ax.plot(x.T, y.T)
+    # ax.axis("equal")
+    # ax.grid()
+
+    ###########
+    # animation
+    ###########
     fig, ax = plt.subplots()
-    ax.plot(x.T, y.T)
-    ax.axis("equal")
-    ax.grid()
-
-    fig = plt.figure(figsize=(5, 5), dpi=200)
-    xmax = 1.2*np.max(np.abs(x))
-    ymax = max(1.0, 1.2*np.max(y))
-    ymin = 1.2*np.min(y)
-    ax = fig.add_subplot(111, autoscale_on=False, xlim=(-xmax,xmax), ylim=(ymin,ymax))
+    xmax = ymax = 1.5 * L_chord
+    xmin = ymin = -1.5 * L_chord
+    # xmax = 1.2*np.max(np.abs(x))
+    # ymax = max(1.0, 1.2*np.max(y))
+    # ymin = 1.2*np.min(y)
+    # ax = fig.add_subplot(111, autoscale_on=False, xlim=(-xmax,xmax), ylim=(ymin,ymax))
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
     ax.grid()
     ax.set_aspect('equal')
 
     lines, = plt.plot([], [], linestyle='-', linewidth=1.5, marker="o", color='tab:blue') # rods
-    marker='o'
-    # if n<50:
-    #     marker='o'
-    # else:
-    #     marker=None
-    points, = plt.plot([],[], marker=marker, linestyle='', color=[0,0,0]) # mass joints
+    points, = plt.plot([],[], marker='o', linestyle='', color=[0,0,0]) # mass joints
     # paths  = [plt.plot([],[], alpha=0.2, color='tab:orange')[0] for i in range(n)] # paths of the pendulum
     time_template = r'$t = {:.2f}$ s'
     time_text = ax.text(0.05, 0.9, '', transform=ax.transAxes)
@@ -235,7 +216,7 @@ if __name__=='__main__':
         # points.set_data(x,y)
         # points.set_data(x[-1],y[-1]) # only plot last mass
         # points.set_data(x_[-1],y_[-1]) # only plot last mass
-        # time_text.set_text(time_template.format(t))
+        time_text.set_text(time_template.format(t[i]))
 
         return lines, time_text, points
 

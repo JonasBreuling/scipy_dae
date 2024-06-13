@@ -6,7 +6,7 @@ from scipy.optimize._numdiff import approx_derivative
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
-"""RHS of stiff van der Pol equation, see mathworks.
+"""Stiff van der Pol equation, see mathworks.
 References:
 -----------
 mathworks: https://de.mathworks.com/help/matlab/math/solve-stiff-odes.html

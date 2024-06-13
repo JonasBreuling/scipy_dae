@@ -1,8 +1,7 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy.testing import assert_allclose
-from scipy_dae.integrate import solve_dae, consistent_initial_conditions, BDFDAE
+from scipy_dae.integrate import solve_dae
 from scipy.optimize._numdiff import approx_derivative
 
 mass = 1
@@ -19,10 +18,15 @@ def F(t, vy, vyp):
     
     # prox_la = mup * fb(lap, u)
     if y <= 0:
-        prox_la = fb(lap, u)
+        # prox_la = fb(lap, u)
+        prox_la = min(lap, u)
+        # prox_la = u
+        print(f"u: {u}")
     else:
         prox_la = lap
-    prox_mu = fb(mup, y)
+    # prox_mu = fb(mup, y)
+    prox_mu = min(mup, y)
+    prox_mu = mup
     
     return np.array([
                 yp - (u + mup),
@@ -30,6 +34,20 @@ def F(t, vy, vyp):
                 prox_mu,
                 prox_la,
         ])
+
+def jac(t, y, yp, f=None):
+    n = len(y)
+    z = np.concatenate((y, yp))
+
+    def fun_composite(t, z):
+        y, yp = z[:n], z[n:]
+        return F(t, y, yp)
+    
+    J = approx_derivative(lambda z: fun_composite(t, z), 
+                            z, method="3-point", f0=f)
+    J = J.reshape((n, 2 * n))
+    Jy, Jyp = J[:, :n], J[:, n:]
+    return Jy, Jyp
 
 
 if __name__ == "__main__":
@@ -39,7 +57,7 @@ if __name__ == "__main__":
     t_span = (t0, t1)
 
     # tolerances
-    rtol = atol = 1e2
+    rtol = atol = 1e-1
 
     # initial conditions
     y0 = np.array([1, 0, 0, 0], dtype=float)
@@ -52,10 +70,10 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # method = RadauDAE
-    method = BDFDAE
+    # method = "BDF"
+    method = "Radau"
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, max_step=1e-2)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, max_step=1e-1, jac=jac)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
