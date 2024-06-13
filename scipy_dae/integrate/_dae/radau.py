@@ -542,61 +542,55 @@ class RadauDAE(DaeSolver):
 
                 ############################################
                 # error of collocation polynomial of order s
-                ############################################
-                from numpy.polynomial import Polynomial
+                ############################################                
+                # # evaluate polynomial
+                # # TODO: Why is this so bad conditioned?
+                # def eval_collocation_polynomial(xi, C, Y):
+                #     # # compute coefficients
+                #     # V = np.vander(C, increasing=True)
+                #     # # V = np.vander([0, *C], increasing=True)[1:, 1:].T
+                #     # # V_inv = np.linalg.inv(V)
+                #     # # coeffs = V_inv @ Y
+                #     # coeffs = np.linalg.solve(V, Y)
 
-                # def lagrange_polynomial(x, y):
-                #     n = len(x)
-                #     m = y.shape[1]
-                #     L = Polynomial([0.0], domain=[0, 1], window=[0, 1])
-                    
-                #     for j in range(n):
-                #         # Compute the Lagrange basis polynomial l_j(x)
-                #         lj = Polynomial([1.0])
-                #         for m in range(n):
-                #             if m != j:
-                #                 factor = Polynomial([-x[m], 1.0]) / (x[j] - x[m])
-                #                 lj *= factor
-                        
-                #         # Add the current term to the Lagrange polynomial
-                #         L += y[j] * lj
-                    
-                #     return L
+                #     # # compute evaluation point
+                #     # x = (xi - C[0]) / (C[-1] - C[0])
+
+                #     # # add summands
+                #     # return np.sum(
+                #     #     [ci * x**i for i, ci in enumerate(coeffs)],
+                #     #     axis=0,
+                #     # )
+
+                #     # Compute coefficients using Vandermonde matrix
+                #     V = np.vander(C, increasing=True)
+                #     coeffs = np.linalg.solve(V, Y)
+
+                #     # Evaluate polynomial at xi
+                #     n = len(C) - 1  # Degree of the polynomial
+                #     x = (xi - C[0]) / (C[-1] - C[0])
+                #     powers_of_x = np.array([x**i for i in range(n + 1)])
+                #     return np.dot(coeffs.T, powers_of_x)
                 
-                # polynomial = lagrange_polynomial(C, Y)
-                
-                # Note: This computes the basis function but skips the first 
-                # basis and ignores the first coefficient since we use the 
-                # interpolation polynomial of Guglielmi (7).
-                def lagrange_basis_coefficients(x_points):
-                    n = len(x_points)
-                    basis_polynomials = []
+                # Lagrange polynomial
+                def eval_collocation_polynomial(xi, C, Y):
+                    s, m = Y.shape
+                    y = np.zeros(m)
 
-                    # for j in range(n):
-                    for j in range(1, n):
-                        # Compute the Lagrange basis polynomial l_j(x)
-                        lj = Polynomial([1.0])
-                        # for m in range(n):
-                        for m in range(1, n):
-                            if m != j:
-                                factor = Polynomial([-x_points[m], 1.0]) / (x_points[j] - x_points[m])
-                                lj *= factor
-                        
-                        # Append the coefficients of the current basis polynomial
-                        basis_polynomials.append(lj)
+                    for i in range(s):
+                        li = 1.0
+                        for j in range(s):
+                            if j != i:
+                                li *= (xi - C[j]) / (C[i] - C[j])
+                        y += li * Y[i]
 
-                    return basis_polynomials
-                
-                basis = lagrange_basis_coefficients([0, *C])
-                def polynomial(t):
-                    return np.sum([bi(t) * Yi for bi, Yi in zip(basis, Y)], axis=0)
+                    return y
 
-                p1 = polynomial(1) # == Y[-1]
-                assert np.allclose(p1, Y[-1])
-
-                p0 = polynomial(0)
-                error = y - p0
-                
+                p0_ = eval_collocation_polynomial(0.0, C, Y)
+                p1_ = eval_collocation_polynomial(1, C, Y)
+                assert np.allclose(p1_, Y[-1])
+                error = y - p0_
+               
                 # ###############
                 # # Fabien (5.65)
                 # ###############
