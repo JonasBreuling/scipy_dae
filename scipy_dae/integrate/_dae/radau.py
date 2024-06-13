@@ -149,7 +149,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         W += dW
         Z = T.dot(W)
-        Yp = A_inv @ Z / h
+        Yp = (A_inv / h) @ Z
         Y = y + Z
 
         if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
@@ -193,10 +193,12 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 3)
 
     with np.errstate(divide='ignore'):
-        factor = min(1, multiplier) * error_norm ** -0.25
+        # factor = min(1, multiplier) * error_norm ** -0.25
+        factor = min(1, multiplier) * error_norm ** (-1 / 3)
 
     return factor
 
@@ -322,6 +324,8 @@ class RadauDAE(DaeSolver):
            Mathematics, 86, pp. 347-358, 1997.
     .. [4] B. Fabien, "Analytical System Dynamics: Modeling and Simulation", 
            Sec. 5.3.5.
+    .. [5] N. Guglielmi, E. Hairer , "Implementing Radau IIA Methods for Stiff 
+           Delay Differential Equations", Computing 67, 1-12, 2001.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
@@ -423,6 +427,7 @@ class RadauDAE(DaeSolver):
 
             # Hairer1996 (8.2b)
             # y_new = y + Z[-1]
+            # yp_new = ((A_inv / h) @ Z)[-1]
             y_new = Y[-1]
             yp_new = Yp[-1]
 
@@ -509,47 +514,110 @@ class RadauDAE(DaeSolver):
                 # err_ODE = h * MU_REAL * (yp - f) + Z.T.dot(E * MU_REAL)
                 # LU_real_ODE = self.lu(MU_REAL / h * self.I - Jy)
                 # error_ODE = self.solve_lu(LU_real_ODE, err_ODE) / (MU_REAL * h)
-                # # error = error_ODE
+                # error = error_ODE
 
-                #####################################
-                # ODE with mass matrix error estimate
-                #####################################
-                # LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp - Jy)
-                # # Fabien (5.59) and (5.60)
-                # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                LU_real_ODE_mass = LU_real
-                # LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp + Jy)
-                # err_ODE_mass = h * MU_REAL * Jyp @ ((yp - f) + Z.T.dot(E * MU_REAL))
-                # error_ODE_mass = self.solve_lu(LU_real_ODE_mass, err_ODE_mass) / (MU_REAL * h)
+                # #####################################
+                # # ODE with mass matrix error estimate
+                # #####################################
+                # # LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp - Jy)
+                # # # Fabien (5.59) and (5.60)
+                # # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                # # LU_real_ODE_mass = LU_real
+                # # LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp + Jy)
+                # # err_ODE_mass = h * MU_REAL * Jyp @ ((yp - f) + Z.T.dot(E * MU_REAL))
+                # # error_ODE_mass = self.solve_lu(LU_real_ODE_mass, err_ODE_mass) / (MU_REAL * h)
+                # # error_ODE_mass = self.solve_lu(
+                # #     LU_real_ODE_mass, 
+                # #     Jyp @ ((yp - f) + Z.T.dot(E) / h),
+                # # )
                 # error_ODE_mass = self.solve_lu(
-                #     LU_real_ODE_mass, 
-                #     Jyp @ ((yp - f) + Z.T.dot(E) / h),
+                #     LU_real, 
+                #     # # (yp - f) + Jyp @ Z.T @ E / h,
+                #     # yp + Jyp @ Z.T @ E / h,
+                #     Jyp @ (yp + Z.T @ E / h), # TODO: Why is this a good estimate?
                 # )
-                error_ODE_mass = self.solve_lu(
-                    LU_real, 
-                    # # (yp - f) + Jyp @ Z.T @ E / h,
-                    # yp + Jyp @ Z.T @ E / h,
-                    Jyp @ (yp + Z.T @ E / h), # TODO: Why is this a good estimate?
-                )
-                # error_ODE_mass = (yp + Z.T @ E / h) / (MU_REAL / h)
-                error = error_ODE_mass
+                # # error_ODE_mass = (yp + Z.T @ E / h) / (MU_REAL / h)
+                # error = error_ODE_mass
+                # # print(f"error_ODE_mass: {error_ODE_mass}")
+
+                ############################################
+                # error of collocation polynomial of order s
+                ############################################
+                from numpy.polynomial import Polynomial
+
+                # def lagrange_polynomial(x, y):
+                #     n = len(x)
+                #     m = y.shape[1]
+                #     L = Polynomial([0.0], domain=[0, 1], window=[0, 1])
+                    
+                #     for j in range(n):
+                #         # Compute the Lagrange basis polynomial l_j(x)
+                #         lj = Polynomial([1.0])
+                #         for m in range(n):
+                #             if m != j:
+                #                 factor = Polynomial([-x[m], 1.0]) / (x[j] - x[m])
+                #                 lj *= factor
+                        
+                #         # Add the current term to the Lagrange polynomial
+                #         L += y[j] * lj
+                    
+                #     return L
+                
+                # polynomial = lagrange_polynomial(C, Y)
+                
+                # Note: This computes the basis function but skips the first 
+                # basis and ignores the first coefficient since we use the 
+                # interpolation polynomial of Guglielmi (7).
+                def lagrange_basis_coefficients(x_points):
+                    n = len(x_points)
+                    basis_polynomials = []
+
+                    # for j in range(n):
+                    for j in range(1, n):
+                        # Compute the Lagrange basis polynomial l_j(x)
+                        lj = Polynomial([1.0])
+                        # for m in range(n):
+                        for m in range(1, n):
+                            if m != j:
+                                factor = Polynomial([-x_points[m], 1.0]) / (x_points[j] - x_points[m])
+                                lj *= factor
+                        
+                        # Append the coefficients of the current basis polynomial
+                        basis_polynomials.append(lj)
+
+                    return basis_polynomials
+                
+                basis = lagrange_basis_coefficients([0, *C])
+                def polynomial(t):
+                    return np.sum([bi(t) * Yi for bi, Yi in zip(basis, Y)], axis=0)
+
+                p1 = polynomial(1) # == Y[-1]
+                assert np.allclose(p1, Y[-1])
+
+                p0 = polynomial(0)
+                error = y - p0
                 
                 # ###############
                 # # Fabien (5.65)
                 # ###############
-                # # b0_hat = 0.02
+                # b0_hat = 0.02
                 # b0_hat = 1 / MU_REAL # TODO: I prefer this...
                 # gamma_hat = 1 / MU_REAL
                 # # yp_hat_new = (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp)) / (h * gamma_hat)
                 # # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
-                # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
+                # # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
+                # # yp_hat_new = MU_REAL * ((b - b_hat) @ Yp - b0_hat * yp)
+                # # yp_hat_new = MU_REAL * ((b - b_hat) @ (A_inv / h) @ Z - b0_hat * yp)
+                # yp_hat_new = MU_REAL * (-MU_REAL * E @ Z / h - b0_hat * yp)
                 # # yp_hat_new = (Z.T.dot(E) / h - yp)
                 # F = self.fun(t_new, y_new, yp_hat_new)
                 # # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                 # error = self.solve_lu(LU_real, -F)
+                # # error = self.solve_lu(LU_real, -F) / MU_REAL * h
+                # print(f"t_new:          {t_new}")
                 # print(f"yp_new:         {yp_new}")
                 # print(f"yp_hat_new:     {yp_hat_new}")
-                # print(f"error_ODE_mass: {error_ODE_mass}")
+                # # print(f"error_ODE_mass: {error_ODE_mass}")
                 # print(f"error:          {error}")
                 # print(f"")
                 

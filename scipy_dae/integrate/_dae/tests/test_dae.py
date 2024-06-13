@@ -167,9 +167,10 @@ def test_integration_rational(vectorized, method, t_span, jac):
 
     if method == "BDF":
         assert_(0 < res.njev < 3)
+        assert_(0 < res.nlu < 10)
     else: # Radau
         assert_(0 < res.njev < 4)
-    assert_(0 < res.nlu < 10)
+        assert_(0 < res.nlu < 11)
 
     y_true = sol_rational(res.t)
     e = compute_error(res.y, y_true, rtol, atol)
@@ -195,7 +196,7 @@ def test_integration_rational(vectorized, method, t_span, jac):
 parameters_stiff = ["BDF", "Radau"]
 @pytest.mark.slow
 @pytest.mark.parametrize("method", parameters_stiff)
-def test_integration_stiff(method):
+def test_integration_robertson(method):
     def fun_robertson(t, state):
         x, y, z = state
         return [
@@ -225,27 +226,86 @@ def test_integration_stiff(method):
                 res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
                                 atol=atol, method=method, max_order=max_order,
                                 NDF_strategy=NDF_strategy)
+                
+                # If the stiff mode is not activated correctly, these numbers will be much 
+                # bigger (see max_order=1 case)
+                if method == "BDF" and max_order == 1:
+                    assert res.nfev < 21000
+                else:
+                    assert res.nfev < 5000
+                assert res.njev < 50
+
     else: # Radau
         res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
                         atol=atol, method=method)
 
-    # If the stiff mode is not activated correctly, these numbers will be much 
-    # bigger (see max_order=1 case)
-    if method == "BDF" and max_order == 1:
-        assert res.nfev < 21000
-    else:
+        # If the stiff mode is not activated correctly, these numbers will be much bigger
         assert res.nfev < 5000
-    assert res.njev < 200
+        assert res.njev < 50
+
+
+parameters_stiff = ["BDF", "Radau"]
+@pytest.mark.slow
+@pytest.mark.parametrize("method", parameters_stiff)
+def test_integration_robertson_dae(method):
+    def F_robertson(t, y, yp):
+        y1, y2, y3 = y
+        y1p, y2p, y3p = yp
+
+        return [
+            y1p - (-0.04 * y1 + 1e4 * y2 * y3),
+            y2p - (0.04 * y1 - 1e4 * y2 * y3 - 3e7 * y2**2),
+            y1 + y2 + y3 - 1,
+        ]
+    
+    rtol = 1e-6
+    atol = 1e-6
+    y0 = [1, 0, 0]
+    yp0 = [-0.04, 0.04, 0]
+    tspan = [0, 1e8]
+
+    if method == "BDF":
+        for NDF_strategy, max_order in product(
+            ["stability", "efficiency", None], # NDF_strategy
+            [1, 2, 3, 4, 5, 6], # max_order
+        ):
+            with suppress_warnings() as sup:
+                sup.filter(UserWarning,
+                        "Choosing `max_order = 6` is not recomended due to its "
+                        "poor stability properties.")
+                res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
+                                atol=atol, method=method, max_order=max_order,
+                                NDF_strategy=NDF_strategy)
+                
+                # If the stiff mode is not activated correctly, these numbers will be much 
+                # bigger (see max_order=1 case)
+                if method == "BDF" and max_order == 1:
+                    assert res.nfev < 21000
+                else:
+                    assert res.nfev < 3000
+                assert res.njev < 70
+
+    else: # Radau
+        res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
+                        atol=atol, method=method)
+        
+        # If the stiff mode is not activated correctly, these numbers will be much bigger
+        assert res.nfev < 3000
+        assert res.njev < 70
+
     
 if __name__ == "__main__":
-    for params in parameters_linear:
-        test_integration_const_jac(*params)
+    # for params in parameters_linear:
+    #     test_integration_const_jac(*params)
 
-    for params in parameters_complex:
-        test_integration_complex(*params)
+    # for params in parameters_complex:
+    #     test_integration_complex(*params)
 
-    for params in parameters_rational:
-        test_integration_rational(*params)
+    # for params in parameters_rational:
+    #     test_integration_rational(*params)
 
     for params in parameters_stiff:
-        test_integration_stiff(*params)
+        test_integration_robertson(params)
+
+    # for params in parameters_stiff:
+    #     test_integration_robertson_dae(params)
