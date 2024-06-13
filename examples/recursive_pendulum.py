@@ -1,45 +1,31 @@
 import tqdm
 import time
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation  as animation
 import scipy.sparse
 from scipy.optimize._numdiff import approx_derivative
-import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
 g = 9.81
 n = 3
-initial_angle = np.pi / 2
+initial_angle = np.pi / 4
 
 ## Initial conditions for each pendulum
 theta_0 = np.ones(n) * initial_angle
 theta_dot0 = np.zeros(n)
 
-if True: # chord with a mass at the end
-    m_chord = 1.
-    m_final = 1.
-    L_chord = 2.
-    m_node = m_chord / (n-1)
-    L_rod  = L_chord / n
+m_chord = 1.
+m_final = 1.
+L_chord = 2.
+m_node = m_chord / (n-1)
+L_rod  = L_chord / n
 
-    r0  = np.array([L_rod for i in range(n)])
-    r0s = r0**2
-    m   = np.array([m_node for i in range(n)])
-    m[-1] = m_final
-else: # also at the middle
-    m_chord  = 1.
-    m_final  = 5.
-    m_middle = 5.
-
-    L_chord = 2.
-    m_node = m_chord / n
-    L_rod  = L_chord / n
-
-    r0  = np.array([L_rod for i in range(n)])
-    r0s = r0**2
-    m   = np.array([m_node for i in range(n)])
-    m[-1] = m_final
-    m[len(m)//2]=m_middle
+r0  = np.array([L_rod for i in range(n)])
+r0s = r0**2
+m   = np.array([m_node for i in range(n)])
+m[-1] = m_final
 
 ###### DAE function and Jacobian
 def F(t, vy, vyp):
@@ -112,34 +98,38 @@ def jac(t, y, yp, f):
     Jy, Jyp = J[:, :n], J[:, n:]
     return Jy, Jyp
 
-sparsity = scipy.sparse.diags(diagonals=[np.ones(n*5-abs(i)) for i in range(-10,10)], offsets=[i for i in range(-10,10)],
-format='csc')
-# jac = None
-
-## Initial condition (pendulum at an angle)
-x0 =  np.cumsum( r0*np.sin(theta_0))
-y0 =  np.cumsum(-r0*np.cos(theta_0))
-vx0 = np.cumsum( r0*theta_dot0*np.cos(theta_0))
-vy0 = np.cumsum( r0*theta_dot0*np.sin(theta_0))
-la0 = np.zeros(n)#(m*r0*theta_dot0**2 +  m*g*np.cos(theta_0))/r0 # equilibrium along the rod's axis
-# the initial value for lbda does not change the solution, since this variable will be readjusted by the solver
-mu0 = np.zeros(n)
-
-# the initial condition should be consistent with the algebraic equations
-vy0 = np.vstack((x0, y0, vx0, vy0, mu0, la0)).reshape((-1,), order='F')
 
 # theoretical period for a single pendulum of equal length
 T_th = 2 * np.pi * np.sqrt(L_chord / g)
 
+## Initial condition (pendulum at an angle)
+x0 =  np.cumsum( r0 * np.sin(theta_0))
+y0 =  np.cumsum(-r0 * np.cos(theta_0))
+vx0 = np.cumsum( r0 * theta_dot0 * np.cos(theta_0))
+vy0 = np.cumsum( r0 * theta_dot0 * np.sin(theta_0))
+la0 = np.zeros(n)
+mu0 = np.zeros(n)
+
+# the initial condition should be consistent with the algebraic equations
+t0 = 0
+t1 = 2 * T_th
+vy0 = np.vstack((x0, y0, vx0, vy0, mu0, la0)).reshape((-1,), order='F')
+vyp0 = np.zeros_like(vy0)
+vy0, vyp0, fnorm = consistent_initial_conditions(F, jac, 0, vy0, vyp0)
+print(f"fnorm: {fnorm}")
+
+# sparsity = scipy.sparse.diags(diagonals=[np.ones(n*5-abs(i)) for i in range(-10,10)], offsets=[i for i in range(-10,10)],
+# format='csc')
+# # jac = None
+F0 = F(t0, vy0, vyp0)
+Jy0, Jyp0 = jac(t0, vy0, vyp0, F0)
+# sparsity = Jy0, Jyp0
+sparsity = None
+
 
 if __name__=='__main__':
-    atol = rtol = 1e-3 # relative and absolute tolerances for time adaptation
-
-    # F, jac, sparsity, vy0, T_th, m = generateSystem(n, initial_angle)
-    t0 = 0
-    tf = 2 * T_th # simulate 2 periods
-    # tf = 0.1
-    t_span = (t0, tf)
+    atol = rtol = 1e-2 # relative and absolute tolerances for time adaptation
+    t_span = (t0, t1)
 
     vyp0 = np.zeros_like(vy0)
     vy0, vyp0, fnorm = consistent_initial_conditions(F, jac, t0, vy0, vyp0)
@@ -147,8 +137,9 @@ if __name__=='__main__':
     # exit()
 
     method = "BDF"
+    # method = "Radau"
     start = time.time()
-    sol = solve_dae(F, t_span, vy0, vyp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, vy0, vyp0, atol=atol, rtol=rtol, method=method, jac_sparsity=sparsity)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -191,101 +182,26 @@ if __name__=='__main__':
     mu = vy[4::6]
     la = vy[5::6]
 
+    #####################
+    # positions over time
+    #####################
+    fig, ax = plt.subplots(2, 1)
+
+    ax[0].set_title("x")
+    ax[0].plot(t, x.T)
+    ax[0].grid()
+
+    ax[1].set_title("y")
+    ax[1].plot(t, y.T)
+    ax[1].grid()
+
+    ##############
+    # trajectories
+    ##############
     fig, ax = plt.subplots()
-    ax.plot(x.T, y.T, "-o")
-    # ax.set_xlim(-1.5 * r0, 1.5 * r0)
+    ax.plot(x.T, y.T)
     ax.axis("equal")
-    plt.show()
-    exit()
-
-    # dx = np.vstack((x[0,:], np.diff(x, axis=0)))
-    # dy = np.vstack((y[0,:], np.diff(y, axis=0)))
-    # r = (dx**2 + dy**2)**0.5
-    # theta = np.arctan(dx / dy)
-
-    # np.diff(theta, axis=0) * 180/np.pi
-    # length = np.sum(r, axis=0)
-
-    # # plot total energy
-    # Ec = 0.5*(u**2 + v**2).T.dot(m)
-    # Ep = g * y.T.dot(m)
-
-    # plt.figure(dpi=200)
-    # plt.plot(t,Ec,color='r', label='Ec')
-    # plt.plot(t,Ep,color='b', label='Ep')
-    # plt.plot(t,Ec+Ep,color='g', label='Etot', linestyle='--')
-    # plt.legend()
-    # plt.grid()
-    # plt.xlabel('t (s)')
-    # plt.ylabel('Energy (J)')
-
-
-    # # Relative angles
-    # # It does not make much sense to use complex numbers, but anyway...
-    # plt.figure()
-    # # projvec = dx[:-1] + 1j*dy[:-1]
-    # # projvec_norm = (projvec.real**2 + projvec.imag**2)**0.5
-    # # projvec = projvec / projvec_norm
-
-    # # vectors = dx[1:] + 1j*dy[1:]
-    # # vectors_norm = (vectors.real**2 + vectors.imag**2)**0.5
-
-    # # colinear_part = (vectors.real * projvec.real +  vectors.imag * projvec.imag )* projvec
-    # # colinear_part_norm = (colinear_part.real**2 + colinear_part.imag**2)**0.5
-
-    # # perpendicular_part = vectors - colinear_part * projvec
-    # # perpendicular_part_norm = (perpendicular_part.real**2 + perpendicular_part.imag**2)**0.5
-
-    # # assert np.allclose(perpendicular_part_norm**2 + colinear_part_norm**2, vectors_norm**2)
-
-    # # angles = computeAngle(x=colinear_part, y=perpendicular_part)
-
-    # # plt.plot(t, angles.T)
-    # plt.plot(t, np.diff(theta.T,axis=1))
-    # plt.grid()
-    # plt.xlabel('t (s)')
-    # plt.ylabel('angle (rad)')
-    # plt.title('Relative angle between successive rods')
-
-    # # plot joint forces
-    # plt.figure()
-    # plt.semilogy(t, np.abs(la.T))
-    # plt.grid()
-    # plt.xlabel('t (s)')
-    # plt.ylabel('absolute rod tension (N)')
-
-
-    # plt.figure(figsize=(5,5))
-    # for i in range(n):
-    #   plt.plot(x[i, :], y[i, :], linestyle='--')
-    # plt.grid()
-
-    # # add first and last form
-    # plt.plot( np.hstack((0., x[:,-1])), np.hstack((0., y[:,-1])), color='r')
-    # plt.plot( np.hstack((0., x[:,0])), np.hstack((0., y[:,0])), color=[0,0,0])
-    # plt.scatter(0.,0.,marker='o', color=[0,0,0])
-    # for i in range(n):
-    #   for j in [0, -1]:
-    #     plt.scatter(x[i, j], y[i, j],marker='o', color=[0, 0, 0])
-
-    # plt.axis('equal')
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    # L0 = length[0]
-    # plt.ylim(-L0, L0)
-    # plt.xlim(-L0, L0)
-
-    # # Find period
-    # Ep_mean = (np.max(Ep) + np.min(Ep)) / 2
-    # t_change = t[:-1][np.diff(np.sign(Ep - Ep_mean)) < 0]
-    # print('Numerical period={:.2e} s'.format(2 * np.mean(np.diff(t_change)))) # energy oscillates twice as fast
-    # print('Theoretical period={:.2e} s'.format(T_th))
-
-
-    import numpy as np
-    import matplotlib
-    # matplotlib.use('Agg')
-    import matplotlib.animation  as animation
+    ax.grid()
 
     fig = plt.figure(figsize=(5, 5), dpi=200)
     xmax = 1.2*np.max(np.abs(x))
