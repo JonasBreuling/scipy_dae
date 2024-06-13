@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse import issparse, csc_matrix
-from scipy.sparse.sputils import isshape
+from scipy.sparse._sputils import isshape
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
     validate_max_step, validate_tol, num_jac, 

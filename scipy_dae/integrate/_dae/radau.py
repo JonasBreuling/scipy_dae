@@ -190,15 +190,16 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
+    p = 3
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
         # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 3)
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
 
     with np.errstate(divide='ignore'):
         # factor = min(1, multiplier) * error_norm ** -0.25
-        factor = min(1, multiplier) * error_norm ** (-1 / 3)
+        factor = min(1, multiplier) * error_norm ** (-1 / p)
 
     return factor
 
