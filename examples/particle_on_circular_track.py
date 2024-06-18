@@ -22,6 +22,7 @@ def F(t, vy, vyp):
     R = np.zeros(6, dtype=np.common_type(vy, vyp))
     R[0] = x_dot - (u + x * mup)
     R[1] = y_dot - (v + y * mup)
+    # R[2] = u_dot - (-2 * y + x * lap) # TODO: Compute analytical solution of this example!
     R[2] = u_dot - (2 * y + x * lap)
     R[3] = v_dot - (-2 * x + y * lap)
     R[4] = x * u + y * v

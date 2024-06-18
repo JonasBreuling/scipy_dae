@@ -2,6 +2,7 @@ import numpy as np
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
+from .base import DAEDenseOutput as DenseOutput
 
 
 S6 = 6 ** 0.5
@@ -9,6 +10,7 @@ S6 = 6 ** 0.5
 # Butcher tableau. A is not used directly, see below.
 C = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
 E = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
+print(f"E:\n{E}")
 
 # Eigendecomposition of A is done: A = T L T**-1. There is 1 real eigenvalue
 # and a complex conjugate pair. They are written below.
@@ -52,7 +54,36 @@ TLA = T @ Lambda
 A_inv = T @ Lambda @ TI
 A = T @ Lambda_inv @ TI
 b = A[-1, :]
-b_hat = b + (E * gamma) @ A
+# b_hat = b + (E * gamma) @ A
+# (b_hat - b) @ A_inv = MU_REAL * E
+# (b_hat - b) = MU_REAL * E @ A
+b_hat = b + MU_REAL * E @ A
+
+# de Swart1997
+s = 3
+vander = np.zeros((s, s))
+for i in range(s):
+    for j in range(s):
+        vander[i, j] = C[j]**i
+print(f"vander:\n{vander}")
+
+rhs = 1 / np.arange(1, s + 1)
+print(f"rhs:\n{rhs}")
+
+# gamma0 = MU_REAL
+gamma0 = 1 / MU_REAL
+b0_hat = 0.02
+b0_hat = gamma0 # That leads to v!!!!
+# rhs[0] -= gamma0
+rhs[0] -= b0_hat #+ gamma0
+rhs -= gamma0
+print(f"rhs:\n{rhs}")
+
+b_hat = np.linalg.solve(vander, rhs)
+print(f"b_hat:\n{b_hat}")
+
+E = (b_hat - b) @ A_inv / MU_REAL
+print(f"E:\n{E}")
 
 # Interpolator coefficients.
 P = np.array([
@@ -65,8 +96,162 @@ MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
+c1c2c3 = np.prod(C)
+# TODO: How to derive this array: According to Fabien2009 below (5.65) v = b - b_hat.
+# Consequently, his b_hat differs from that of Hairer.
+v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
+v2 = (b - b_hat)
+print(f"v: {v}")
+print(f"v2: {v2}")
+# assert np.allclose(v, v2)
+v = v2
+
+
+from numpy.polynomial import Polynomial as Poly
+
+def lagrange_basis_np(x_nodes, i):
+    """ Construct the Lagrange basis polynomial L_i(x) using numpy.polynomial.Polynomial. """
+    numerator = Poly([1])
+    denominator = 1
+    for j in range(len(x_nodes)):
+        if j != i:
+            numerator *= Poly([-x_nodes[j], 1])
+            denominator *= (x_nodes[i] - x_nodes[j])
+    return numerator / denominator
+
+def hermite_basis_np(x_nodes):
+    """ Construct the Hermite basis polynomials H_i(x) and K_i(x) using numpy.polynomial.Polynomial. """
+    n = len(x_nodes)
+    basis_funcs = []
+
+    for i in range(n):
+        Li = lagrange_basis_np(x_nodes, i)
+        Li_prime = Li.deriv()
+
+        # H_i(x) = (1 - 2 * (x - x_i) * L_i'(x_i)) * (L_i(x))^2
+        Hi = (Poly([1]) - 2 * Poly([-x_nodes[i], 1]) * Li_prime(x_nodes[i])) * (Li**2)
+        
+        # K_i(x) = (x - x_i) * (L_i(x))^2
+        Ki = Poly([-x_nodes[i], 1]) * (Li**2)
+        
+        basis_funcs.append((Hi, Ki))
+    
+    return basis_funcs
+
+
+def eval_Hermite(t, C, Y, Yp):
+    # from numpy.polynomial.hermite import hermvander, Hermite
+
+    # n, m = Y.shape
+    
+    # # Construct the target vector (function values and derivatives)
+    # b = np.zeros((2 * n, m))
+    # b[0::2] = Y
+    # b[1::2] = Yp
+
+    # # # Construct the Hermite Vandermonde matrix
+    # # V = hermvander(C_extended, 2 * n - 1)
+    # # Construct the Hermite Vandermonde matrix
+    # V = np.vander(C, increasing=True)
+    # mult = np.arange(1, n + 1)
+    # # mult[0] = 0
+    # VV = np.block([
+    #     [V, np.zeros_like(V)],
+    #     [np.zeros_like(V), V * mult[None, :]],
+    # ])
+
+    # b = np.concatenate((Y, Yp))
+    # # TODO: This gives two different polynomial coefficients???
+    # coeffs = np.linalg.solve(VV, b)
+
+    # from numpy.polynomial import Polynomial as Poly
+    # ps = []
+    # for coeff in coeffs.T:
+    #     ps.append(
+    #         Poly(coeff, domain=[0, 1], window=[0, 1])
+    #     )
+
+    # y = np.zeros_like(Y[0])
+    # yp = np.zeros_like(Yp[0])
+    # for i, p in enumerate(ps):
+    #     y[i] = p(t)
+    #     yp[i] = p.deriv()(t)
+
+    # return y, yp
+
+    y = np.zeros_like(Y[0])
+    yp = np.zeros_like(Yp[0])
+    basis = hermite_basis_np(C)
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots(2, 1)
+    # ts = np.linspace(0, 1, num=100)
+    # for i, (Hi, Ki) in enumerate(basis):
+    #     ax[0].plot(ts, Hi(ts), label=f"H{i}")
+    #     ax[0].plot(C, np.ones_like(C), "ok", label="C")
+    #     ax[1].plot(ts, Ki(ts), label=f"K{i}")
+    #     # ax[1].plot(ts, Ki.deriv()(ts), label=f"K'{i}")
+    #     ax[1].plot(C, np.ones_like(C), "ok", label="C")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[1].grid()
+    # ax[1].legend()
+    # plt.show()
+    for i, (Hi, Ki) in enumerate(basis):
+        y += Hi(t) * Y[i] + Ki(t) * Yp[i]
+        yp += Hi.deriv()(t) * Y[i] + Ki.deriv()(t) * Yp[i]
+    return y, yp
+
+# Hermite and Lagrange interpolation using Vandermond matrix,
+# see https://nicoguaro.github.io/index-2.html
+def vander_mat(x):
+    n = len(x)
+    van = np.zeros((n, n))
+    power = np.array(range(n))
+    for row in range(n):
+        van[row, :] = x[row]**power
+    return van
+
+
+def conf_vander_mat(x):
+    n = len(x)
+    conf_van = np.zeros((2*n, 2*n))
+    power = np.array(range(2*n))
+    for row in range(n):
+        conf_van[row, :] = x[row]**power
+        conf_van[row + n, :] = power*x[row]**(power - 1)
+    return conf_van
+
+
+def inter_coef(x, inter_type="lagrange"):
+    if inter_type == "lagrange":
+        vand_mat = vander_mat(x)
+    elif inter_type == "hermite":
+        vand_mat = conf_vander_mat(x)
+    # coef = np.linalg.solve(vand_mat, np.eye(vand_mat.shape[0]))
+    coef = np.linalg.inv(vand_mat)
+    return coef
+
+
+def compute_interp(x, f, x_eval, df=None):
+    x_eval = np.atleast_1d(x_eval)
+    n = len(x)
+    if df is None:
+        coef = inter_coef(x, inter_type="lagrange")
+    else:
+        coef = inter_coef(x, inter_type="hermite")
+    f_eval = np.zeros((len(x_eval), f.shape[1]))
+    nmat = coef.shape[0]
+    for row in range(nmat):
+        for col in range(nmat):
+            if col < n or nmat == n:
+                f_eval += coef[row, col]*x_eval**row*f[col]
+            else:
+                f_eval += coef[row, col]*x_eval**row*df[col - n]
+    return f_eval
+
+
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
-                             LU_real, LU_complex, solve_lu):
+                             LU_real, LU_complex, solve_lu, jac, lu):
     """Solve the collocation system.
 
     Parameters
@@ -110,7 +295,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     # A_inv = W of Fabien
     Z = Z0
     W = TI.dot(Z0)
-    Yp = A_inv @ Z / h
+    Yp = (A_inv / h) @ Z
+    Y = y + Z
 
     F = np.empty((3, n))
     tau = t + h * C
@@ -120,9 +306,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        Z = T.dot(W)
-        Yp = (A_inv / h) @ Z
-        Y = y + Z
         for i in range(3):
             F[i] = fun(tau[i], Y[i], Yp[i])
 
@@ -139,6 +322,17 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         dW[0] = dW_real
         dW[1] = dW_complex.real
         dW[2] = dW_complex.imag
+
+        # # solve collocation system without complex transformations
+        # # Jy0, Jyp0 = jac(tau[0], Y[0], Yp[0], F[0])
+        # # Jy1, Jyp1 = jac(tau[1], Y[1], Yp[1], F[1])
+        # Jy2, Jyp2 = jac(tau[2], Y[2], Yp[2], F[2])
+        # J = np.kron(np.eye(3), Jy2) + np.kron((A_inv / h), Jyp2)
+        # # from scipy.linalg import block_diag
+        # # J = block_diag([Jy0, Jy1, Jy2]) + 
+        # LU = lu(J)
+        # dZ = solve_lu(LU, -F.reshape(-1))
+        # dW = TI.dot(dZ.reshape(3, -1))
 
         dW_norm = norm(dW / scale)
         if dW_norm_old is not None:
@@ -206,7 +400,8 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
 
 # TODO:
 # - adapt documentation
-# - fix error estimate
+# - fix error estimate of Fabien2009
+# - dense output for yp
 class RadauDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 5.
 
@@ -396,7 +591,8 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((3, y.shape[0]))
             else:
-                Z0 = self.sol(t + h * C).T - y
+                # Z0 = self.sol(t + h * C).T - y
+                Z0 = self.sol(t + h * C)[0].T - y
 
             scale = atol + np.abs(y) * rtol
 
@@ -409,7 +605,7 @@ class RadauDAE(DaeSolver):
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
-                    LU_real, LU_complex, self.solve_lu)
+                    LU_real, LU_complex, self.solve_lu, self.jac, self.lu)
 
                 if not converged:
                     if current_jac:
@@ -544,34 +740,34 @@ class RadauDAE(DaeSolver):
                 ############################################
                 # error of collocation polynomial of order s
                 ############################################                
-                # # evaluate polynomial
-                # # TODO: Why is this so bad conditioned?
-                # def eval_collocation_polynomial(xi, C, Y):
-                #     # # compute coefficients
-                #     # V = np.vander(C, increasing=True)
-                #     # # V = np.vander([0, *C], increasing=True)[1:, 1:].T
-                #     # # V_inv = np.linalg.inv(V)
-                #     # # coeffs = V_inv @ Y
-                #     # coeffs = np.linalg.solve(V, Y)
+                # evaluate polynomial
+                # TODO: Why is this so bad conditioned?
+                def eval_collocation_polynomial2(xi, C, Y):
+                    # # compute coefficients
+                    # V = np.vander(C, increasing=True)
+                    # # V = np.vander([0, *C], increasing=True)[1:, 1:].T
+                    # # V_inv = np.linalg.inv(V)
+                    # # coeffs = V_inv @ Y
+                    # coeffs = np.linalg.solve(V, Y)
 
-                #     # # compute evaluation point
-                #     # x = (xi - C[0]) / (C[-1] - C[0])
+                    # # compute evaluation point
+                    # x = (xi - C[0]) / (C[-1] - C[0])
 
-                #     # # add summands
-                #     # return np.sum(
-                #     #     [ci * x**i for i, ci in enumerate(coeffs)],
-                #     #     axis=0,
-                #     # )
+                    # # add summands
+                    # return np.sum(
+                    #     [ci * x**i for i, ci in enumerate(coeffs)],
+                    #     axis=0,
+                    # )
 
-                #     # Compute coefficients using Vandermonde matrix
-                #     V = np.vander(C, increasing=True)
-                #     coeffs = np.linalg.solve(V, Y)
+                    # Compute coefficients using Vandermonde matrix
+                    V = np.vander(C, increasing=True)
+                    coeffs = np.linalg.solve(V, Y)
 
-                #     # Evaluate polynomial at xi
-                #     n = len(C) - 1  # Degree of the polynomial
-                #     x = (xi - C[0]) / (C[-1] - C[0])
-                #     powers_of_x = np.array([x**i for i in range(n + 1)])
-                #     return np.dot(coeffs.T, powers_of_x)
+                    # Evaluate polynomial at xi
+                    n = len(C) - 1  # Degree of the polynomial
+                    x = (xi - C[0]) / (C[-1] - C[0])
+                    powers_of_x = np.array([x**i for i in range(n + 1)])
+                    return np.dot(coeffs.T, powers_of_x)
                 
                 # Lagrange polynomial
                 def eval_collocation_polynomial(xi, C, Y):
@@ -587,10 +783,74 @@ class RadauDAE(DaeSolver):
 
                     return y
 
+                # # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
+                # p0_2 = compute_interp(C, Y, 0.0)
+                # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
                 p0_ = eval_collocation_polynomial(0.0, C, Y)
                 p1_ = eval_collocation_polynomial(1, C, Y)
+                # print(f"p0_2 - p0_: {p0_2 - p0_}")
                 assert np.allclose(p1_, Y[-1])
-                error = y - p0_
+                error_collocation = y - p0_
+                error = error_collocation
+                # error = y - p0_2
+                # print(f"p0_ collocation: {p0_}")
+                # print(f"error collocation: {error}")
+
+                # ################
+                # # Hermite spline
+                # ################
+                # Y_augmented = Y
+                # # Y_augmented = np.concatenate((
+                # #     # np.zeros_like(y)[None, :], Y,
+                # #     # y[None, :], Y[:-1],
+                # #     y[None, :], Y,
+                # # ))
+                # # Yp_augmented = b[:, None] * Yp
+                # Yp_augmented = Yp
+                # # Yp_augmented = np.concatenate((
+                # #     # yp[None, :], Yp,
+                # #     # yp[None, :], Yp[:-1],
+                # #     np.zeros_like(yp)[None, :], Yp,
+                # # ))
+                # C_augmented = C
+                # # C_augmented = np.array([0, *C])
+                # # C_augmented = np.array([0, *C[:-1]])
+                # p0_augmented, p0_p_augmented = eval_Hermite(0.0, C_augmented, Y_augmented, Yp_augmented)
+                # p1_augmented, p1_p_augmented = eval_Hermite(C[0], C_augmented, Y_augmented, Yp_augmented)
+                # p2_augmented, p2_p_augmented = eval_Hermite(C[1], C_augmented, Y_augmented, Yp_augmented)
+                # p3_augmented, p3_p_augmented = eval_Hermite(C[2], C_augmented, Y_augmented, Yp_augmented)
+                # error = y - p0_augmented
+                # # error = yp - p0_p_augmented
+                # # error[1:] = 0
+                # # error = y_new - p1_augmented
+                # # TODO: This is still wrong.
+                # # assert np.allclose(p3_augmented, Y[-1])
+                
+                # # p0_ = eval_Hermite(0.0, C, Y, Yp)
+                # # p1_ = eval_Hermite(1.0, C, Y, Yp)
+                # # assert np.allclose(p1_, Y[-1])
+                # # error = y - p0_
+                # print(f"p0_ Hermite: {p0_augmented}")
+                # print(f"y: {y}")
+
+                # print(f"p1_ Hermite: {p1_augmented}")
+                # print(f"Y1:          {Y[0]}")
+                # print(f"p1_p Hermite: {p1_p_augmented}")
+                # print(f"Yp1:          {Yp[0]}")
+
+                # print(f"p2_ Hermite: {p2_augmented}")
+                # print(f"Y2:          {Y[1]}")
+                # print(f"p2_p Hermite: {p2_p_augmented}")
+                # print(f"Yp2:          {Yp[1]}")
+
+                # print(f"p3_ Hermite: {p3_augmented}")
+                # print(f"Y3:          {Y[2]}")
+                # print(f"p3_p Hermite: {p3_p_augmented}")
+                # print(f"Yp3:          {Yp[2]}")
+
+                # print(f"y_new: {y_new}")
+                # print(f"error Hermite: {error}")
+                # print(f"")
                
                 # ###############
                 # # Fabien (5.65)
@@ -598,15 +858,16 @@ class RadauDAE(DaeSolver):
                 # b0_hat = 0.02
                 # b0_hat = 1 / MU_REAL # TODO: I prefer this...
                 # gamma_hat = 1 / MU_REAL
-                # # yp_hat_new = (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp)) / (h * gamma_hat)
+                # yp_hat_new = (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp)) / (h * gamma_hat)
                 # # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
                 # # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
                 # # yp_hat_new = MU_REAL * ((b - b_hat) @ Yp - b0_hat * yp)
                 # # yp_hat_new = MU_REAL * ((b - b_hat) @ (A_inv / h) @ Z - b0_hat * yp)
-                # yp_hat_new = MU_REAL * (-MU_REAL * E @ Z / h - b0_hat * yp)
+                # # yp_hat_new = MU_REAL * (-MU_REAL * E @ Z / h - b0_hat * yp)
                 # # yp_hat_new = (Z.T.dot(E) / h - yp)
                 # F = self.fun(t_new, y_new, yp_hat_new)
-                # # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                # Jy, Jyp = self.jac(t_new, y_new, yp_hat_new, F)
+                # LU_real = self.lu(Jy + MU_REAL / h * Jyp)
                 # error = self.solve_lu(LU_real, -F)
                 # # error = self.solve_lu(LU_real, -F) / MU_REAL * h
                 # print(f"t_new:          {t_new}")
@@ -615,6 +876,17 @@ class RadauDAE(DaeSolver):
                 # # print(f"error_ODE_mass: {error_ODE_mass}")
                 # print(f"error:          {error}")
                 # print(f"")
+
+                # error measure used in ride.m of Fabien2009
+                # TODO: What is v?
+                b0 = 1 / MU_REAL
+                yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
+                F = self.fun(t_new, y_new, yp_hat_new)
+                error_Fabien = self.solve_lu(LU_real, -F)
+                error = error_Fabien
+
+                # # mix embedded error with collocation error as proposed in Guglielmi2001
+                # error = 0.5 * (error_collocation + error_Fabien)
                 
                 error_norm = norm(error / scale)
 
@@ -682,18 +954,24 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        Yp = (A_inv / (self.h_abs * self.direction)) @ self.Z
+        Qp = np.dot(Yp.T, P)
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
     def _dense_output_impl(self):
         return self.sol
 
 class RadauDenseOutput(DenseOutput):
-    def __init__(self, t_old, t, y_old, Q):
+    # def __init__(self, t_old, t, y_old, Q):
+    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)
         self.h = t - t_old
         self.Q = Q
+        self.Qp = Qp
         self.order = Q.shape[1] - 1
         self.y_old = y_old
+        self.yp_old = yp_old
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
@@ -705,9 +983,12 @@ class RadauDenseOutput(DenseOutput):
             p = np.cumprod(p, axis=0)
         # Here we don't multiply by h, not a mistake.
         y = np.dot(self.Q, p)
+        yp = np.dot(self.Qp, p)
         if y.ndim == 2:
             y += self.y_old[:, None]
+            yp += self.yp_old[:, None]
         else:
             y += self.y_old
+            yp += self.yp_old
 
-        return y
+        return y, yp

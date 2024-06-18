@@ -3,6 +3,7 @@ from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
+from .base import DAEDenseOutput as DenseOutput
 
 
 NEWTON_MAXITER = 4
@@ -130,7 +131,6 @@ class BDFDAE(DaeSolver):
 
             * If (array_like, array_like) or (sparse_matrix, sparse_matrix) 
               the Jacobian matrices are assumed to be constant.
-            # TODO: Add constant J_y'!
             * If callable, the Jacobians are assumed to depend on t, y and y'; 
               it will be called as ``jac(t, y, y')``, as necessary. Additional 
               arguments have to be passed if ``args`` is used (see 
@@ -150,18 +150,15 @@ class BDFDAE(DaeSolver):
         speed up the computations [4]_. A zero entry means that a corresponding
         element in the Jacobian is always zero. If None (default), the Jacobian
         is assumed to be dense.
-    # TODO: Adapt and test this
     vectorized : bool, optional
         Whether `fun` can be called in a vectorized fashion. Default is False.
 
-        If ``vectorized`` is False, `fun` will always be called with ``y`` of
-        shape ``(n,)``, where ``n = len(y0)``.
+        If ``vectorized`` is False, `fun` will always be called with ``y`` 
+        and ``yp`` of shape ``(n,)``, where ``n = len(y0) = len(yp0)``.
 
-        If ``vectorized`` is True, `fun` may be called with ``y`` of shape
-        ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
-        such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
-        the returned array is the time derivative of the state corresponding
-        with a column of ``y``).
+        If ``vectorized`` is True, `fun` may be called with ``y`` and ``yp`` of 
+        shape ``(n, k)``, where ``k`` is an integer. In this case, `fun` must 
+        behave such that ``fun(t, y, yp)[:, i] == fun(t, y[:, i], yp[:, i])``.
 
         Setting ``vectorized=True`` allows for faster finite difference
         approximation of the Jacobian by this method, but may result in slower
@@ -181,6 +178,8 @@ class BDFDAE(DaeSolver):
         Current time.
     y : ndarray
         Current state.
+    yp : ndarray
+        Current derivative.
     t_old : float
         Previous time. None if no steps were made yet.
     step_size : float
@@ -441,4 +440,4 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        return y
+        return y, np.zeros_like(y)

@@ -71,11 +71,14 @@ if __name__ == "__main__":
     # solver options
     atol = rtol = 1e-4
 
+    # t_eval = np.linspace(t0, t1, num=int(5e2))
+    t_eval = None
+
     ####################
     # reference solution
     ####################
     start = time.time()
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method)
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
@@ -96,11 +99,12 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
+    yp = sol.yp
     success = sol.success
     status = sol.status
     message = sol.message
@@ -112,7 +116,7 @@ if __name__ == "__main__":
     print(f"nlu: {sol.nlu}")
 
     # visualization
-    fig, ax = plt.subplots(2, 1)
+    fig, ax = plt.subplots(4, 1)
 
     ax[0].plot(t, y[0], "-ok", label=f"y ({method})", mfc="none")
     ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y scipy")
@@ -123,5 +127,17 @@ if __name__ == "__main__":
     ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
     ax[1].legend()
     ax[1].grid()
+
+    yp_scipy = np.array([rhs(ti, yi) for ti, yi in zip(t_scipy, y_scipy.T)]).T
+
+    ax[2].plot(t, yp[0], "-ok", label=f"yp0 ({method})", mfc="none")
+    ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
+    ax[2].legend()
+    ax[2].grid()
+
+    ax[3].plot(t, yp[1], "-ok", label=f"yp1 ({method})", mfc="none")
+    ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
+    ax[3].legend()
+    ax[3].grid()
 
     plt.show()

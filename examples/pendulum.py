@@ -67,7 +67,7 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-3
+    atol = rtol = 1e-6
 
     ##############
     # dae solution
