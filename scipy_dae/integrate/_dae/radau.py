@@ -1,16 +1,164 @@
 import numpy as np
+from numpy.polynomial import Polynomial as Poly
+from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 from .base import DAEDenseOutput as DenseOutput
 
 
+def butcher_tableau(s):
+    # nodes are given by the zeros of the Radau polynomial, see Hairer1999 (7)
+    poly = Poly([0, 1]) ** (s - 1) * Poly([-1, 1]) ** s
+    poly_der = poly.deriv(s - 1)
+    c = poly_der.roots()
+
+    # compute coefficients a_ij, see Hairer1999 (11)
+    A = np.zeros((s, s), dtype=float)
+    for i in range(s):
+        Mi = np.zeros((s, s), dtype=float)
+        ri = np.zeros(s, dtype=float)
+        for q in range(s):
+            Mi[q] = c**q
+            ri[q] = c[i] ** (q + 1) / (q + 1)
+        A[i] = np.linalg.solve(Mi, ri)
+
+    b = A[-1, :]
+    p = 2 * s - 1
+    return A, b, c, p
+
+def radau_constants(s):
+    # Butcher tableau
+    A, b, c, p = butcher_tableau(3)
+    print(f"A:\n{A}")
+
+    # inverse coefficient matrix
+    A_inv = np.linalg.inv(A)
+    print(f"A_inv:\n{A_inv}")
+
+    # eigenvalues and corresponding eigenvectors of inverse coefficient matrix
+    lambdas, V = eig(A_inv)
+    print(f"lambdas:\n{lambdas}")
+    print(f"V:\n{V}")
+
+    # sort eigenvalues and permut eigenvectors accordingly
+    idx = np.argsort(lambdas)[::-1]
+    # idx = np.argsort(np.abs(lambdas.imag))#[::-1]
+    lambdas = lambdas[idx]
+    V = V[:, idx]
+    print(f"lambdas:\n{idx}")
+    print(f"lambdas:\n{lambdas}")
+    print(f"V:\n{V}")
+    # exit()
+
+    # scale eigenvectors to get a "nice" transformation matrix (used by scipy)
+    # TODO: This seems to minimize the condition number of T and TI, but why?
+    for i in range(s):
+        V[:, i] /= V[-1, i]
+
+    # # scale only the first two eigenvectors (used by Hairer)
+    # V[:, 0] /= V[-1, 0]
+    # V[:, 1] /= V[-1, 1]
+
+    print(f"V scaled:\n{V}")
+
+    # convert complex eigenvalues and eigenvectors to real eigenvalues 
+    # in a block diagonal form and the associated real eigenvectors
+    lambdas_real, V_real = cdf2rdf(lambdas, V)
+    print(f"lambdas_real:\n{lambdas_real}")
+    print(f"V_real:\n{V_real}")
+
+    # transform to get scipy's/ Hairer's ordering
+    R = np.fliplr(np.eye(s))
+    R = np.eye(s)
+    Mus = R @ lambdas_real @ R.T
+    print(f"R:\n{R}")
+    print(f"Mus:\n{Mus}")
+
+    T = V_real @ R.T
+    TI = np.linalg.inv(T)
+    print(f"T:\n{T}")
+
+    # check if everything worked
+    assert np.allclose(TI @ A_inv @ T, Mus)
+
+    # extract real and complex eigenvalues
+    real_idx = lambdas.imag == 0
+    complex_idx = ~real_idx
+    gammas = lambdas[real_idx].real
+    alphas_betas = lambdas[complex_idx]
+    alphas = alphas_betas[::2].real
+    betas = alphas_betas[::2].imag
+    print(f"gammas: {gammas}")
+    print(f"alphas: {alphas}")
+    print(f"betas: {betas}")
+    
+    # compute embedded method for error estimate,
+    # see https://arxiv.org/abs/1306.2392 equation (10)
+    # # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
+    # TODO: This is correct, document this extended tableau!
+    c_hat = np.array([0, *c])
+    print(f"c_hat: {c_hat}")
+
+    vander = np.vander(c_hat, increasing=True).T
+    print(f"vander:\n{vander}")
+    # vander = vander[:-1, 1:]
+    # print(f"vander:\n{vander}")
+
+    # # de Swart1997
+    # vander = np.zeros((s, s))
+    # for i in range(s):
+    #     for j in range(s):
+    #         vander[i, j] = c[j]**i
+    # print(f"vander:\n{vander}")
+
+    rhs = 1 / np.arange(1, s + 1)
+    print(f"rhs:\n{rhs}")
+
+    gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
+    b0 = gamma0 # note: this leads to the formula of Fabien!
+    # b0 = 0.02
+    rhs[0] -= gamma0
+    rhs -= b0
+    print(f"rhs:\n{rhs}")
+
+    b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
+    print(f"b_hat:\n{b_hat}")
+
+    E = (b_hat - b) @ A_inv
+    E /= gamma0 # TODO: Why is this done in scipy?
+    print(f"c: {c}")
+    print(f"E:\n{E}")
+
+    v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
+    print(f"v:\n{v}")
+
+    v2 = b - b_hat
+    print(f"v2:\n{v2}")
+
+    # # collocation polynomial
+    # V = np.vander(np.array([0, *C]), increasing=True).T
+    # # print(f"V:\n{V}")
+
+    # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P
+    P = np.linalg.inv(vander)[1:, 1:]
+    print(f"P:\n{P}")
+
+    print(f"")
+    return A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v2
+
+
+s = 3
+A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v = radau_constants(s)
+C = c
+
+
 S6 = 6 ** 0.5
 
-# Butcher tableau. A is not used directly, see below.
-C = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
-E = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
-print(f"E:\n{E}")
+# # Butcher tableau. A is not used directly, see below.
+# C = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
+# E = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
+# print(f"E:\n{E}")
 
 # Eigendecomposition of A is done: A = T L T**-1. There is 1 real eigenvalue
 # and a complex conjugate pair. They are written below.
@@ -18,96 +166,37 @@ MU_REAL = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
 MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
               - 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
 
-# These are transformation matrices.
-T = np.array([
-    [0.09443876248897524, -0.14125529502095421, 0.03002919410514742],
-    [0.25021312296533332, 0.20412935229379994, -0.38294211275726192],
-    [1, 1, 0]])
-TI = np.array([
-    [4.17871859155190428, 0.32768282076106237, 0.52337644549944951],
-    [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
-    [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
+# # These are transformation matrices.
+# T = np.array([
+#     [0.09443876248897524, -0.14125529502095421, 0.03002919410514742],
+#     [0.25021312296533332, 0.20412935229379994, -0.38294211275726192],
+#     [1, 1, 0]])
+# TI = np.array([
+#     [4.17871859155190428, 0.32768282076106237, 0.52337644549944951],
+#     [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
+#     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
 
 # These linear combinations are used in the algorithm.
 TI_REAL = TI[0]
 TI_COMPLEX = TI[1] + 1j * TI[2]
 
-# gamma = MU_REAL
-# alpha = MU_COMPLEX.real
-# beta = -MU_COMPLEX.imag
-gamma = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
-alpha = 3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
-beta = 0.5 * (3 ** (5 / 6) + 3 ** (7 / 6))
-Lambda = np.array([
-    [gamma, 0, 0],
-    [0, alpha, beta],
-    [0, -beta, alpha],
-])
-denom = alpha**2 + beta**2
-Lambda_inv = np.array([
-    [denom / gamma, 0, 0],
-    [0, alpha, -beta],
-    [0, beta, alpha],
-]) / denom
-
-TLA = T @ Lambda
-A_inv = T @ Lambda @ TI
-A = T @ Lambda_inv @ TI
-b = A[-1, :]
-# b_hat = b + (E * gamma) @ A
-# (b_hat - b) @ A_inv = MU_REAL * E
-# (b_hat - b) = MU_REAL * E @ A
-b_hat = b + MU_REAL * E @ A
-
-# de Swart1997
-s = 3
-vander = np.zeros((s, s))
-for i in range(s):
-    for j in range(s):
-        vander[i, j] = C[j]**i
-print(f"vander:\n{vander}")
-
-rhs = 1 / np.arange(1, s + 1)
-print(f"rhs:\n{rhs}")
-
-# gamma0 = MU_REAL
-gamma0 = 1 / MU_REAL
-b0_hat = 0.02
-b0_hat = gamma0 # That leads to v!!!!
-# rhs[0] -= gamma0
-rhs[0] -= b0_hat #+ gamma0
-rhs -= gamma0
-print(f"rhs:\n{rhs}")
-
-b_hat = np.linalg.solve(vander, rhs)
-print(f"b_hat:\n{b_hat}")
-
-E = (b_hat - b) @ A_inv / MU_REAL
-print(f"E:\n{E}")
-
-# Interpolator coefficients.
-P = np.array([
-    [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
-    [13/3 - 7*S6/3, -23/3 + 22*S6/3, 10/3 - 5 * S6],
-    [1/3, -8/3, 10/3]])
+# # Interpolator coefficients.
+# P = np.array([
+#     [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
+#     [13/3 - 7*S6/3, -23/3 + 22*S6/3, 10/3 - 5 * S6],
+#     [1/3, -8/3, 10/3]])
+# print(f"P:\n{P}")
 
 NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
-c1c2c3 = np.prod(C)
-# TODO: How to derive this array: According to Fabien2009 below (5.65) v = b - b_hat.
-# Consequently, his b_hat differs from that of Hairer.
-v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
-v2 = (b - b_hat)
-print(f"v: {v}")
-print(f"v2: {v2}")
-# assert np.allclose(v, v2)
-v = v2
+# # c1c2c3 = np.prod(C)
+# # TODO: How to derive this array: According to Fabien2009 below (5.65) v = b - b_hat.
+# # Consequently, his b_hat differs from that of Hairer.
+# v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
 
-
-from numpy.polynomial import Polynomial as Poly
 
 def lagrange_basis_np(x_nodes, i):
     """ Construct the Lagrange basis polynomial L_i(x) using numpy.polynomial.Polynomial. """
@@ -290,6 +379,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         The rate of convergence.
     """
     n = y.shape[0]
+    tau = t + h * C
 
     # W = V of Fabien
     # A_inv = W of Fabien
@@ -298,61 +388,88 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     Yp = (A_inv / h) @ Z
     Y = y + Z
 
-    F = np.empty((3, n))
-    tau = t + h * C
+    if False:
+        from cardillo.math.fsolve import fsolve
+        from cardillo.solver import SolverOptions
 
-    dW_norm_old = None
-    dW = np.empty_like(W)
-    converged = False
-    rate = None
-    for k in range(NEWTON_MAXITER):
-        for i in range(3):
-            F[i] = fun(tau[i], Y[i], Yp[i])
+        def F_composite(Z):
+            Z = Z.reshape(3, -1, order="C")
+            Yp = A_inv @ Z / h
+            Y = y + Z
+            F = np.empty((3, n))
+            for i in range(3):
+                F[i] = fun(tau[i], Y[i], Yp[i])
+            F = F.reshape(-1, order="C")
+            return F
+        
+        Z = Z.reshape(-1, order="C")
+        options = SolverOptions(numerical_jacobian_method="3-point", newton_max_iter=NEWTON_MAXITER)
+        sol = fsolve(F_composite, Z, options=options)
+        Z = sol.x
+        Z = Z.reshape(3, -1, order="C")
 
-        if not np.all(np.isfinite(F)):
-            break
-
-        U = TI @ F
-        f_real = -U[0]
-        f_complex = -(U[1] + 1j * U[2])
-
-        dW_real = solve_lu(LU_real, f_real)
-        dW_complex = solve_lu(LU_complex, f_complex)
-
-        dW[0] = dW_real
-        dW[1] = dW_complex.real
-        dW[2] = dW_complex.imag
-
-        # # solve collocation system without complex transformations
-        # # Jy0, Jyp0 = jac(tau[0], Y[0], Yp[0], F[0])
-        # # Jy1, Jyp1 = jac(tau[1], Y[1], Yp[1], F[1])
-        # Jy2, Jyp2 = jac(tau[2], Y[2], Yp[2], F[2])
-        # J = np.kron(np.eye(3), Jy2) + np.kron((A_inv / h), Jyp2)
-        # # from scipy.linalg import block_diag
-        # # J = block_diag([Jy0, Jy1, Jy2]) + 
-        # LU = lu(J)
-        # dZ = solve_lu(LU, -F.reshape(-1))
-        # dW = TI.dot(dZ.reshape(3, -1))
-
-        dW_norm = norm(dW / scale)
-        if dW_norm_old is not None:
-            rate = dW_norm / dW_norm_old
-
-        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
-            break
-
-        W += dW
-        Z = T.dot(W)
         Yp = (A_inv / h) @ Z
         Y = y + Z
+        
+        converged = sol.success
+        nit = sol.nit
+        rate = 1
+        return converged, nit, Y, Yp, Z, rate
+    else:
+        F = np.empty((3, n))
 
-        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
-            converged = True
-            break
+        dW_norm_old = None
+        dW = np.empty_like(W)
+        converged = False
+        rate = None
+        for k in range(NEWTON_MAXITER):
+            for i in range(3):
+                F[i] = fun(tau[i], Y[i], Yp[i])
 
-        dW_norm_old = dW_norm
+            if not np.all(np.isfinite(F)):
+                break
 
-    return converged, k + 1, Y, Yp, Z, rate
+            U = TI @ F
+            f_real = -U[0]
+            f_complex = -(U[1] + 1j * U[2])
+
+            dW_real = solve_lu(LU_real, f_real)
+            dW_complex = solve_lu(LU_complex, f_complex)
+
+            dW[0] = dW_real
+            dW[1] = dW_complex.real
+            dW[2] = dW_complex.imag
+
+            # # solve collocation system without complex transformations
+            # # Jy0, Jyp0 = jac(tau[0], Y[0], Yp[0], F[0])
+            # # Jy1, Jyp1 = jac(tau[1], Y[1], Yp[1], F[1])
+            # Jy2, Jyp2 = jac(tau[2], Y[2], Yp[2], F[2])
+            # J = np.kron(np.eye(3), Jy2) + np.kron((A_inv / h), Jyp2)
+            # # from scipy.linalg import block_diag
+            # # J = block_diag([Jy0, Jy1, Jy2]) + 
+            # LU = lu(J)
+            # dZ = solve_lu(LU, -F.reshape(-1))
+            # dW = TI.dot(dZ.reshape(3, -1))
+
+            dW_norm = norm(dW / scale)
+            if dW_norm_old is not None:
+                rate = dW_norm / dW_norm_old
+
+            if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+                break
+
+            W += dW
+            Z = T.dot(W)
+            Yp = (A_inv / h) @ Z
+            Y = y + Z
+
+            if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
+                converged = True
+                break
+
+            dW_norm_old = dW_norm
+
+        return converged, k + 1, Y, Yp, Z, rate
 
 
 def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
@@ -384,16 +501,16 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
-    p = 3
+    p = 4
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
 
     with np.errstate(divide='ignore'):
-        # factor = min(1, multiplier) * error_norm ** -0.25
-        factor = min(1, multiplier) * error_norm ** (-1 / p)
+        factor = min(1, multiplier) * error_norm ** -0.25
+        # factor = min(1, multiplier) * error_norm ** (-1 / p)
 
     return factor
 
@@ -788,13 +905,20 @@ class RadauDAE(DaeSolver):
                 # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
                 p0_ = eval_collocation_polynomial(0.0, C, Y)
                 p1_ = eval_collocation_polynomial(1, C, Y)
-                # print(f"p0_2 - p0_: {p0_2 - p0_}")
-                assert np.allclose(p1_, Y[-1])
-                error_collocation = y - p0_
-                error = error_collocation
-                # error = y - p0_2
-                # print(f"p0_ collocation: {p0_}")
-                # print(f"error collocation: {error}")
+
+                c1, c2, c3 = C
+                l1 = c2 * c3 / ((c1 - c2) * (c1 - c3))
+                l2 = c1 * c3 / ((c2 - c1) * (c2 - c3))
+                l3 = c1 * c2 / ((c3 - c1) * (c3 - c2))
+                error_collocation = y - l1 * Y[0] - l2 * Y[1] - l3 * Y[2]
+
+                # # print(f"p0_2 - p0_: {p0_2 - p0_}")
+                # assert np.allclose(p1_, Y[-1])
+                # error_collocation = y - p0_
+                # error = error_collocation
+                # # error = y - p0_2
+                # # print(f"p0_ collocation: {p0_}")
+                # # print(f"error collocation: {error}")
 
                 # ################
                 # # Hermite spline
@@ -879,14 +1003,29 @@ class RadauDAE(DaeSolver):
 
                 # error measure used in ride.m of Fabien2009
                 # TODO: What is v?
-                b0 = 1 / MU_REAL
+                # b0 = 1 / MU_REAL
+                # b0 = 0.02
                 yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
                 F = self.fun(t_new, y_new, yp_hat_new)
+                # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                 error_Fabien = self.solve_lu(LU_real, -F)
                 error = error_Fabien
 
+                # # b0 = 0.02
+                # b0 = 1 / MU_REAL
+                # gamma0 = MU_REAL
+                # # y_new_hat = y + MU_REAL * h * (-b0 * yp + b_hat @ Yp)
+                # y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
+                # error_embedded = y_new - y_new_hat
+                # error = error_embedded
+
                 # # mix embedded error with collocation error as proposed in Guglielmi2001
                 # error = 0.5 * (error_collocation + error_Fabien)
+                
+                # error = error_collocation
+                # # TODO: only position error of bouncing ball using collocation error
+                # error [1:] = 0
+                # # error [2:] = 0
                 
                 error_norm = norm(error / scale)
 
@@ -928,6 +1067,19 @@ class RadauDAE(DaeSolver):
             self.error_norm_old = error_norm
 
             self.h_abs = h_abs * factor
+
+        # if step_accepted:
+        #     # TODO: Manipulate velocities for 1D bouncing ball to realize newton type impact law
+        #     if y_new[0] <= 0:
+        #         eps = 0.5
+        #         Delta_u = y_new[1] + eps * y[1]
+        #         y_new[1] -= Delta_u
+        #         y[1] -= Delta_u
+        #         # Z[-1] = y_new - y
+        #         Z[:, 1] -= Delta_u
+        #         # y_new[1] = -eps * y[1].copy()
+        #         # y_new[2] = y_new[1] * h
+        #         # yp_new[1] = 0
 
         f_new = self.fun(t_new, y_new, yp_new)
 
