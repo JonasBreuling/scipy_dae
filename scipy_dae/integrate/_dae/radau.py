@@ -27,9 +27,10 @@ def butcher_tableau(s):
     p = 2 * s - 1
     return A, b, c, p
 
+
 def radau_constants(s):
     # Butcher tableau
-    A, b, c, p = butcher_tableau(3)
+    A, b, c, p = butcher_tableau(s)
     print(f"A:\n{A}")
 
     # inverse coefficient matrix
@@ -133,8 +134,8 @@ def radau_constants(s):
     v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
     print(f"v:\n{v}")
 
-    v2 = b - b_hat
-    print(f"v2:\n{v2}")
+    v = b - b_hat
+    print(f"v2:\n{v}")
 
     # # collocation polynomial
     # V = np.vander(np.array([0, *C]), increasing=True).T
@@ -145,15 +146,21 @@ def radau_constants(s):
     print(f"P:\n{P}")
 
     print(f"")
-    return A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v2
+    return A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v, p, gammas, alphas, betas
 
 
-s = 3
-A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v = radau_constants(s)
+# s = 1
+# s = 3
+s = 5
+# s = 7
+# s = 9
+assert s % 2 == 1
+ncs = s // 2 # number of conjugate complex eigenvalues
+A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v, p, gammas, alphas, betas = radau_constants(s)
 C = c
 
 
-S6 = 6 ** 0.5
+# S6 = 6 ** 0.5
 
 # # Butcher tableau. A is not used directly, see below.
 # C = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
@@ -162,9 +169,11 @@ S6 = 6 ** 0.5
 
 # Eigendecomposition of A is done: A = T L T**-1. There is 1 real eigenvalue
 # and a complex conjugate pair. They are written below.
-MU_REAL = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
-MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
-              - 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
+# MU_REAL = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
+# MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
+#               - 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
+MU_REAL = gammas[0]
+MU_COMPLEX = alphas -1j * betas
 
 # # These are transformation matrices.
 # T = np.array([
@@ -177,8 +186,10 @@ MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
 #     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
 
 # These linear combinations are used in the algorithm.
+# TI_REAL = TI[0]
+# TI_COMPLEX = TI[1] + 1j * TI[2]
 TI_REAL = TI[0]
-TI_COMPLEX = TI[1] + 1j * TI[2]
+TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
 # # Interpolator coefficients.
 # P = np.array([
@@ -416,14 +427,14 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         rate = 1
         return converged, nit, Y, Yp, Z, rate
     else:
-        F = np.empty((3, n))
+        F = np.empty((s, n))
 
         dW_norm_old = None
         dW = np.empty_like(W)
         converged = False
         rate = None
         for k in range(NEWTON_MAXITER):
-            for i in range(3):
+            for i in range(s):
                 F[i] = fun(tau[i], Y[i], Yp[i])
 
             if not np.all(np.isfinite(F)):
@@ -431,14 +442,24 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
             U = TI @ F
             f_real = -U[0]
-            f_complex = -(U[1] + 1j * U[2])
+            # f_complex = -(U[1] + 1j * U[2])
+            f_complex = np.empty((ncs, n), dtype=MU_COMPLEX.dtype)
+            for i in range(ncs):
+                # f_complex[i] = F.T.dot(TI_COMPLEX[i]) - M_complex[i] * mass_matrix.dot(W[2 * i + 1] + 1j * W[2 * i + 2])
+                f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
 
             dW_real = solve_lu(LU_real, f_real)
-            dW_complex = solve_lu(LU_complex, f_complex)
+            # dW_complex = solve_lu(LU_complex, f_complex)
+            dW_complex = np.empty_like(f_complex)
+            for i in range(ncs):
+                dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
 
             dW[0] = dW_real
-            dW[1] = dW_complex.real
-            dW[2] = dW_complex.imag
+            # dW[1] = dW_complex.real
+            # dW[2] = dW_complex.imag
+            for i in range(ncs):
+                dW[2 * i + 1] = dW_complex[i].real
+                dW[2 * i + 2] = dW_complex[i].imag
 
             # # solve collocation system without complex transformations
             # # Jy0, Jyp0 = jac(tau[0], Y[0], Yp[0], F[0])
@@ -501,16 +522,15 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
-    p = 4
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
-        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
+        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
 
     with np.errstate(divide='ignore'):
-        factor = min(1, multiplier) * error_norm ** -0.25
-        # factor = min(1, multiplier) * error_norm ** (-1 / p)
+        # factor = min(1, multiplier) * error_norm ** -0.25
+        factor = min(1, multiplier) * error_norm ** (-1 / p)
 
     return factor
 
@@ -706,7 +726,7 @@ class RadauDAE(DaeSolver):
             h_abs = np.abs(h)
 
             if self.sol is None:
-                Z0 = np.zeros((3, y.shape[0]))
+                Z0 = np.zeros((s, y.shape[0]))
             else:
                 # Z0 = self.sol(t + h * C).T - y
                 Z0 = self.sol(t + h * C)[0].T - y
@@ -718,7 +738,8 @@ class RadauDAE(DaeSolver):
                 if LU_real is None or LU_complex is None:
                     # Fabien (5.59) and (5.60)
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
+                    # LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
+                    LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
@@ -905,12 +926,13 @@ class RadauDAE(DaeSolver):
                 # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
                 p0_ = eval_collocation_polynomial(0.0, C, Y)
                 p1_ = eval_collocation_polynomial(1, C, Y)
+                error_collocation = y - p0_
 
-                c1, c2, c3 = C
-                l1 = c2 * c3 / ((c1 - c2) * (c1 - c3))
-                l2 = c1 * c3 / ((c2 - c1) * (c2 - c3))
-                l3 = c1 * c2 / ((c3 - c1) * (c3 - c2))
-                error_collocation = y - l1 * Y[0] - l2 * Y[1] - l3 * Y[2]
+                # c1, c2, c3 = C
+                # l1 = c2 * c3 / ((c1 - c2) * (c1 - c3))
+                # l2 = c1 * c3 / ((c2 - c1) * (c2 - c3))
+                # l3 = c1 * c2 / ((c3 - c1) * (c3 - c2))
+                # error_collocation = y - l1 * Y[0] - l2 * Y[1] - l3 * Y[2]
 
                 # # print(f"p0_2 - p0_: {p0_2 - p0_}")
                 # assert np.allclose(p1_, Y[-1])

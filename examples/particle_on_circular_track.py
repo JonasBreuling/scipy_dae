@@ -116,7 +116,7 @@ if __name__ == "__main__":
     e = compute_error(y, y_true, rtol, atol)
     ep = compute_error(yp, yp_true, rtol, atol)
     # assert np.all(e < 5)
-    print(f"e: {e}")
+    # print(f"e: {e}")
     print(f"max(e): {max(e)}")
     # print(f"max(ep): {max(ep)}")
     # exit()
