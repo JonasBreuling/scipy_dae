@@ -526,11 +526,13 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
         multiplier = 1
     else:
         # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** 0.25
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
+        # multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / p)
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / (s + 1))
 
     with np.errstate(divide='ignore'):
         # factor = min(1, multiplier) * error_norm ** -0.25
-        factor = min(1, multiplier) * error_norm ** (-1 / p)
+        # factor = min(1, multiplier) * error_norm ** (-1 / p)
+        factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
 
     return factor
 
@@ -1031,7 +1033,7 @@ class RadauDAE(DaeSolver):
                 F = self.fun(t_new, y_new, yp_hat_new)
                 # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                 error_Fabien = self.solve_lu(LU_real, -F)
-                error = error_Fabien
+                # error = error_Fabien
 
                 # # b0 = 0.02
                 # b0 = 1 / MU_REAL
@@ -1041,8 +1043,8 @@ class RadauDAE(DaeSolver):
                 # error_embedded = y_new - y_new_hat
                 # error = error_embedded
 
-                # # mix embedded error with collocation error as proposed in Guglielmi2001
-                # error = 0.5 * (error_collocation + error_Fabien)
+                # mix embedded error with collocation error as proposed in Guglielmi2001
+                error = 0.5 * (np.abs(error_collocation)**((s + 1) / s) + np.abs(error_Fabien))
                 
                 # error = error_collocation
                 # # TODO: only position error of bouncing ball using collocation error
