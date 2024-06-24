@@ -1,7 +1,7 @@
 import numpy as np
 from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
+# from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 from .base import DAEDenseOutput as DenseOutput
 

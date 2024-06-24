@@ -7,7 +7,7 @@ from scipy.integrate._ivp.common import (
     validate_first_step,
 )
 from scipy.optimize._numdiff import approx_derivative
-from scipy.integrate._ivp.base import ConstantDenseOutput
+# from scipy.integrate._ivp.base import ConstantDenseOutput
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, issparse, eye
 from scipy.sparse.linalg import splu
@@ -409,7 +409,7 @@ class DaeSolver:
         if self.n == 0 or self.t == self.t_old:
             # Handle corner cases of empty solver and no integration.
             # return ConstantDenseOutput(self.t_old, self.t, self.y)
-            return ConstantDenseOutput(self.t_old, self.t, self.y, self.yp)
+            return ConstantDAEDenseOutput(self.t_old, self.t, self.y, self.yp)
         else:
             return self._dense_output_impl()
 
