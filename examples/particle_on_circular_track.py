@@ -93,9 +93,8 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    # TODO: Using the jacobian matrix is essential here. The scipy.integrate version is somehow flawed.
-    jac = None
     start = time.time()
+    jac = None
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac)
     end = time.time()
     print(f"elapsed time: {end - start}")

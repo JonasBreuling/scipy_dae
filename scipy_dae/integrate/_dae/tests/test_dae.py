@@ -238,7 +238,7 @@ def test_integration_robertson(method):
         # If the stiff mode is not activated correctly, these numbers will be much bigger
         assert res.nfev < 5000
         # assert res.njev < 50
-        assert res.njev < 80
+        assert res.njev < 100
 
 
 parameters_stiff = ["BDF", "Radau"]

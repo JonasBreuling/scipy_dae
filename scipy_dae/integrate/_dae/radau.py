@@ -7,6 +7,11 @@ from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 
 
+NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
+MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
+MAX_FACTOR = 10  # Maximum allowed increase in a step size.
+
+
 def butcher_tableau(s):
     # nodes are given by the zeros of the Radau polynomial, see Hairer1999 (7)
     poly = Poly([0, 1]) ** (s - 1) * Poly([-1, 1]) ** s
@@ -31,53 +36,27 @@ def butcher_tableau(s):
 def radau_constants(s):
     # Butcher tableau
     A, b, c, p = butcher_tableau(s)
-    # print(f"A:\n{A}")
 
     # inverse coefficient matrix
     A_inv = np.linalg.inv(A)
-    # print(f"A_inv:\n{A_inv}")
 
     # eigenvalues and corresponding eigenvectors of inverse coefficient matrix
     lambdas, V = eig(A_inv)
-    # print(f"lambdas:\n{lambdas}")
-    # print(f"V:\n{V}")
 
     # sort eigenvalues and permut eigenvectors accordingly
     idx = np.argsort(lambdas)[::-1]
     lambdas = lambdas[idx]
     V = V[:, idx]
-    # print(f"lambdas:\n{idx}")
-    # print(f"lambdas:\n{lambdas}")
-    # print(f"V:\n{V}")
 
     # scale eigenvectors to get a "nice" transformation matrix (used by scipy)
     # and at the same time minimizes the condition number of V
     for i in range(s):
         V[:, i] /= V[-1, i]
 
-    # # scale only the first two eigenvectors (used by Hairer)
-    # V[:, 0] /= V[-1, 0]
-    # V[:, 1] /= V[-1, 1]
-
-    # print(f"V scaled:\n{V}")
-
     # convert complex eigenvalues and eigenvectors to real eigenvalues 
     # in a block diagonal form and the associated real eigenvectors
-    lambdas_real, V_real = cdf2rdf(lambdas, V)
-    # print(f"lambdas_real:\n{lambdas_real}")
-    # print(f"V_real:\n{V_real}")
-
-    # TODO: Remove this
-    # transform to get scipy's/ Hairer's ordering
-    R = np.fliplr(np.eye(s))
-    R = np.eye(s)
-    Mus = R @ lambdas_real @ R.T
-    # print(f"R:\n{R}")
-    # print(f"Mus:\n{Mus}")
-
-    T = V_real @ R.T
+    Mus, T = cdf2rdf(lambdas, V)
     TI = np.linalg.inv(T)
-    # print(f"T:\n{T}")
 
     # check if everything worked
     assert np.allclose(TI @ A_inv @ T, Mus)
@@ -89,54 +68,28 @@ def radau_constants(s):
     alphas_betas = lambdas[complex_idx]
     alphas = alphas_betas[::2].real
     betas = alphas_betas[::2].imag
-    # print(f"gammas: {gammas}")
-    # print(f"alphas: {alphas}")
-    # print(f"betas: {betas}")
     
     # compute embedded method for error estimate,
     # see https://arxiv.org/abs/1306.2392 equation (10)
     # # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
     # TODO: This is correct, document this extended tableau!
     c_hat = np.array([0, *c])
-    # print(f"c_hat: {c_hat}")
-
     vander = np.vander(c_hat, increasing=True).T
-    # print(f"vander:\n{vander}")
 
     rhs = 1 / np.arange(1, s + 1)
-    # print(f"rhs:\n{rhs}")
-
     gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
     b0 = gamma0 # note: this leads to the formula of Fabien!
-    # b0 = 0.02
-    # b0 *= 0.07275668505489
-    # b0 *= 0.9
+    # b0 = 0.02 # proposed value of de Swart
     rhs[0] -= b0
     rhs -= gamma0
-    # print(f"rhs:\n{rhs}")
 
     b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
-    # print(f"b_hat:\n{b_hat}")
-
-    rhs = 1 / np.arange(1, s + 2)
-
-    E = (b_hat - b) @ A_inv
-    E /= gamma0
-    # print(f"c: {c}")
-    # print(f"E:\n{E}")
-
-    # used by Fabien2009
-    v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
-    # print(f"v:\n{v}")
-
     v = b - b_hat
-    # print(f"v2:\n{v}")
 
-    # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P
+    # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P.
     P = np.linalg.inv(vander)[1:, 1:]
-    # print(f"P:\n{P}")
 
-    # Compute coefficients using Vandermonde matrix
+    # Compute coefficients using Vandermonde matrix.
     vander2 = np.vander(c, increasing=True)
     P2 = np.linalg.inv(vander2)
 
@@ -146,63 +99,7 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    # print(f"")
     return A_inv, c, T, TI, P, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
-
-
-# # s = 1
-# s = 3
-# # s = 5
-# # s = 7
-# # s = 9
-# assert s % 2 == 1
-# ncs = s // 2 # number of conjugate complex eigenvalues
-# A_inv, C, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, Mus, b_hat = radau_constants(s)
-
-# S6 = 6 ** 0.5
-
-# # Butcher tableau. A is not used directly, see below.
-# C = np.array([(4 - S6) / 10, (4 + S6) / 10, 1])
-# E = np.array([-13 - 7 * S6, -13 + 7 * S6, -1]) / 3
-# print(f"E:\n{E}")
-
-# Eigendecomposition of A is done: A = T L T**-1. There is 1 real eigenvalue
-# and a complex conjugate pair. They are written below.
-# MU_REAL = 3 + 3 ** (2 / 3) - 3 ** (1 / 3)
-# MU_COMPLEX = (3 + 0.5 * (3 ** (1 / 3) - 3 ** (2 / 3))
-#               - 0.5j * (3 ** (5 / 6) + 3 ** (7 / 6)))
-# MU_REAL = gammas[0]
-# MU_COMPLEX = alphas -1j * betas
-
-# # These are transformation matrices.
-# T = np.array([
-#     [0.09443876248897524, -0.14125529502095421, 0.03002919410514742],
-#     [0.25021312296533332, 0.20412935229379994, -0.38294211275726192],
-#     [1, 1, 0]])
-# TI = np.array([
-#     [4.17871859155190428, 0.32768282076106237, 0.52337644549944951],
-#     [-4.17871859155190428, -0.32768282076106237, 0.47662355450055044],
-#     [0.50287263494578682, -2.57192694985560522, 0.59603920482822492]])
-
-# These linear combinations are used in the algorithm.
-# TI_REAL = TI[0]
-# TI_COMPLEX = TI[1] + 1j * TI[2]
-# TI_REAL = TI[0]
-# TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
-
-# # Interpolator coefficients.
-# P = np.array([
-#     [13/3 + 7*S6/3, -23/3 - 22*S6/3, 10/3 + 5 * S6],
-#     [13/3 - 7*S6/3, -23/3 + 22*S6/3, 10/3 - 5 * S6],
-#     [1/3, -8/3, 10/3]])
-# print(f"P:\n{P}")
-
-NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
-MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
-MAX_FACTOR = 10  # Maximum allowed increase in a step size.
-# NEWTON_MAXITER = 10  # Maximum number of Newton iterations.
-# MIN_FACTOR = 0.01  # Minimum allowed decrease in a step size.
-# MAX_FACTOR = 1 / MIN_FACTOR  # Maximum allowed increase in a step size.
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -349,7 +246,7 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
 # - fix error estimate of Fabien2009
 # - dense output for yp
 class RadauDAE(DaeSolver):
-    """Implicit Runge-Kutta method of Radau IIA family of order 5.
+    """Implicit Runge-Kutta method of Radau IIA family of order 2s - 1.
 
     The implementation follows [4]_, where most of the ideas come from [2]_. 
     The embedded formula of [3]_ is applied to implicit differential equations.
@@ -361,7 +258,7 @@ class RadauDAE(DaeSolver):
     Parameters
     ----------
     fun : callable
-        Right-hand side of the system. The calling signature is ``fun(t, y)``.
+        Implicit function defining the system. The calling signature is ``fun(t, y)``.
         Here ``t`` is a scalar, and there are two options for the ndarray ``y``:
         It can either have shape (n,); then ``fun`` must return array_like with
         shape (n,). Alternatively it can have shape (n, k); then ``fun``
@@ -377,6 +274,9 @@ class RadauDAE(DaeSolver):
     t_bound : float
         Boundary time - the integration won't continue beyond it. It also
         determines the direction of the integration.
+    stages : int, optional
+        Number of used stages. Default is 3, which corresponds to the 
+        ``solve_ivp`` method.
     first_step : float or None, optional
         Initial step size. Default is ``None`` which means that the algorithm
         should choose.
@@ -397,6 +297,10 @@ class RadauDAE(DaeSolver):
         beneficial to set different `atol` values for different components by
         passing array_like with shape (n,) for `atol`. Default values are
         1e-3 for `rtol` and 1e-6 for `atol`.
+    continuous_error_weight : float, optional
+        Weighting of continuous error of the dense output as introduced in 
+        [5]_. The embedded error is weighted by (1 - continuous_error_weight). 
+        Has to satisfy 0 <= continuous_error_weight <= 1. Default is 0.5.
     jac : {None, array_like, sparse_matrix, callable}, optional
         Jacobian matrix of the right-hand side of the system with respect to
         y, required by this method. The Jacobian matrix has shape (n, n) and

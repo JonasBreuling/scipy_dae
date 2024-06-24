@@ -278,12 +278,21 @@ class DaeSolver:
 
             def jac_wrapped(t, y, yp, f):
                 self.njev += 1
+                # Jy, self.jac_factor_y = num_jac(
+                #     lambda t, y: self.fun_vectorized(t, y, yp), 
+                #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                # Jyp, self.jac_factor_yp = num_jac(
+                #     lambda t, yp: self.fun_vectorized(t, y, yp), 
+                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
+                
+                # TODO: This choice is better but not optimal!
+                threshold = self.atol / self.rtol
                 Jy, self.jac_factor_y = num_jac(
                     lambda t, y: self.fun_vectorized(t, y, yp), 
-                    t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                    t, y, f, threshold, self.jac_factor_y, sparsity_y)
                 Jyp, self.jac_factor_yp = num_jac(
                     lambda t, yp: self.fun_vectorized(t, y, yp), 
-                    t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
+                    t, yp, f, threshold, self.jac_factor_yp, sparsity_yp)
                 
                 # # test better Jacobian approximation
                 # method = "2-point"
