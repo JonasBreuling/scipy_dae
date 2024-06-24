@@ -31,24 +31,24 @@ def butcher_tableau(s):
 def radau_constants(s):
     # Butcher tableau
     A, b, c, p = butcher_tableau(s)
-    print(f"A:\n{A}")
+    # print(f"A:\n{A}")
 
     # inverse coefficient matrix
     A_inv = np.linalg.inv(A)
-    print(f"A_inv:\n{A_inv}")
+    # print(f"A_inv:\n{A_inv}")
 
     # eigenvalues and corresponding eigenvectors of inverse coefficient matrix
     lambdas, V = eig(A_inv)
-    print(f"lambdas:\n{lambdas}")
-    print(f"V:\n{V}")
+    # print(f"lambdas:\n{lambdas}")
+    # print(f"V:\n{V}")
 
     # sort eigenvalues and permut eigenvectors accordingly
     idx = np.argsort(lambdas)[::-1]
     lambdas = lambdas[idx]
     V = V[:, idx]
-    print(f"lambdas:\n{idx}")
-    print(f"lambdas:\n{lambdas}")
-    print(f"V:\n{V}")
+    # print(f"lambdas:\n{idx}")
+    # print(f"lambdas:\n{lambdas}")
+    # print(f"V:\n{V}")
 
     # scale eigenvectors to get a "nice" transformation matrix (used by scipy)
     # and at the same time minimizes the condition number of V
@@ -59,24 +59,25 @@ def radau_constants(s):
     # V[:, 0] /= V[-1, 0]
     # V[:, 1] /= V[-1, 1]
 
-    print(f"V scaled:\n{V}")
+    # print(f"V scaled:\n{V}")
 
     # convert complex eigenvalues and eigenvectors to real eigenvalues 
     # in a block diagonal form and the associated real eigenvectors
     lambdas_real, V_real = cdf2rdf(lambdas, V)
-    print(f"lambdas_real:\n{lambdas_real}")
-    print(f"V_real:\n{V_real}")
+    # print(f"lambdas_real:\n{lambdas_real}")
+    # print(f"V_real:\n{V_real}")
 
+    # TODO: Remove this
     # transform to get scipy's/ Hairer's ordering
     R = np.fliplr(np.eye(s))
     R = np.eye(s)
     Mus = R @ lambdas_real @ R.T
-    print(f"R:\n{R}")
-    print(f"Mus:\n{Mus}")
+    # print(f"R:\n{R}")
+    # print(f"Mus:\n{Mus}")
 
     T = V_real @ R.T
     TI = np.linalg.inv(T)
-    print(f"T:\n{T}")
+    # print(f"T:\n{T}")
 
     # check if everything worked
     assert np.allclose(TI @ A_inv @ T, Mus)
@@ -88,22 +89,22 @@ def radau_constants(s):
     alphas_betas = lambdas[complex_idx]
     alphas = alphas_betas[::2].real
     betas = alphas_betas[::2].imag
-    print(f"gammas: {gammas}")
-    print(f"alphas: {alphas}")
-    print(f"betas: {betas}")
+    # print(f"gammas: {gammas}")
+    # print(f"alphas: {alphas}")
+    # print(f"betas: {betas}")
     
     # compute embedded method for error estimate,
     # see https://arxiv.org/abs/1306.2392 equation (10)
     # # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
     # TODO: This is correct, document this extended tableau!
     c_hat = np.array([0, *c])
-    print(f"c_hat: {c_hat}")
+    # print(f"c_hat: {c_hat}")
 
     vander = np.vander(c_hat, increasing=True).T
-    print(f"vander:\n{vander}")
+    # print(f"vander:\n{vander}")
 
     rhs = 1 / np.arange(1, s + 1)
-    print(f"rhs:\n{rhs}")
+    # print(f"rhs:\n{rhs}")
 
     gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
     b0 = gamma0 # note: this leads to the formula of Fabien!
@@ -112,32 +113,32 @@ def radau_constants(s):
     # b0 *= 0.9
     rhs[0] -= b0
     rhs -= gamma0
-    print(f"rhs:\n{rhs}")
+    # print(f"rhs:\n{rhs}")
 
     b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
-    print(f"b_hat:\n{b_hat}")
+    # print(f"b_hat:\n{b_hat}")
 
     rhs = 1 / np.arange(1, s + 2)
 
     E = (b_hat - b) @ A_inv
     E /= gamma0
-    print(f"c: {c}")
-    print(f"E:\n{E}")
+    # print(f"c: {c}")
+    # print(f"E:\n{E}")
 
     # used by Fabien2009
     v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
-    print(f"v:\n{v}")
+    # print(f"v:\n{v}")
 
     v = b - b_hat
-    print(f"v2:\n{v}")
-
-    # # collocation polynomial
-    # V = np.vander(np.array([0, *C]), increasing=True).T
-    # # print(f"V:\n{V}")
+    # print(f"v2:\n{v}")
 
     # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P
     P = np.linalg.inv(vander)[1:, 1:]
-    print(f"P:\n{P}")
+    # print(f"P:\n{P}")
+
+    # Compute coefficients using Vandermonde matrix
+    vander2 = np.vander(c, increasing=True)
+    P2 = np.linalg.inv(vander2)
 
     # These linear combinations are used in the algorithm.
     MU_REAL = gammas[0]
@@ -145,19 +146,18 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    print(f"")
-    return A_inv, c, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, Mus, b_hat
-    # return A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v, p, gammas, alphas, betas, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX
+    # print(f"")
+    return A_inv, c, T, TI, P, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
 
 
-# s = 1
-s = 3
-# s = 5
-# s = 7
-# s = 9
-assert s % 2 == 1
-ncs = s // 2 # number of conjugate complex eigenvalues
-A_inv, C, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, Mus, b_hat = radau_constants(s)
+# # s = 1
+# s = 3
+# # s = 5
+# # s = 7
+# # s = 9
+# assert s % 2 == 1
+# ncs = s // 2 # number of conjugate complex eigenvalues
+# A_inv, C, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, Mus, b_hat = radau_constants(s)
 
 # S6 = 6 ** 0.5
 
@@ -206,7 +206,8 @@ MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
-                             LU_real, LU_complex, solve_lu):
+                             LU_real, LU_complex, solve_lu,
+                             C, T, TI, A_inv):
     """Solve the collocation system.
 
     Parameters
@@ -244,7 +245,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     rate : float
         The rate of convergence.
     """
-    n = y.shape[0]
+    s, n = Z0.shape
+    ncs = s // 2
     tau = t + h * C
 
     Z = Z0
@@ -266,24 +268,17 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             break
 
         U = TI @ F
-        # U = h * np.linalg.inv(Mus) @ TI @ F
         f_real = -U[0]
-        # f_real = -(h / MU_REAL) * U[0]
-        # f_complex = -(U[1] + 1j * U[2])
-        f_complex = np.empty((ncs, n), dtype=MU_COMPLEX.dtype)
+        f_complex = np.empty((ncs, n), dtype=complex)
         for i in range(ncs):
             f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
-            # f_complex[i] = -(h / MU_COMPLEX[i]) * (U[2 * i + 1] + 1j * U[2 * i + 2])
 
         dW_real = solve_lu(LU_real, f_real)
-        # dW_complex = solve_lu(LU_complex, f_complex)
         dW_complex = np.empty_like(f_complex)
         for i in range(ncs):
             dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
 
         dW[0] = dW_real
-        # dW[1] = dW_complex.real
-        # dW[2] = dW_complex.imag
         for i in range(ncs):
             dW[2 * i + 1] = dW_complex[i].real
             dW[2 * i + 2] = dW_complex[i].imag
@@ -309,7 +304,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     return converged, k + 1, Y, Yp, Z, rate
 
 
-def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
+def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     """Predict by which factor to increase/decrease the step size.
 
     The algorithm is described in [1]_.
@@ -495,11 +490,15 @@ class RadauDAE(DaeSolver):
         # print(f"rtol: {rtol}")
         # print(f"atol: {atol}")
 
+        assert stages % 2 == 1
+        self.stages = stages
+        self.A_inv, self.C, self.T, self.TI, self.P, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat = radau_constants(stages)
+
         self.h_abs_old = None
         self.error_norm_old = None
 
-        self.stages = stages
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
+        assert 0 <= continuous_error_weight <= 1
         self.continuous_error_weight = continuous_error_weight
         self.sol = None
 
@@ -513,6 +512,17 @@ class RadauDAE(DaeSolver):
         y = self.y
         yp = self.yp
         f = self.f
+
+        s = self.stages
+        MU_REAL = self.MU_REAL
+        MU_COMPLEX = self.MU_COMPLEX
+        C = self.C
+        T = self.T
+        TI = self.TI
+        A_inv = self.A_inv
+        v = self.v
+        b0 = self.b0
+        P2 = self.P2
 
         max_step = self.max_step
         atol = self.atol
@@ -568,17 +578,13 @@ class RadauDAE(DaeSolver):
             while not converged:
                 if LU_real is None or LU_complex is None:
                     # Fabien (5.59) and (5.60)
-                    # TODO: Is it benefiction to multipy everything by
-                    # (h * Lambda), hence MU_REAL * h * Jy instead of (1 / h)?
-                    # => doesn't matter for van der pol and pendulum
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                     LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
-                    # LU_real = self.lu(Jyp + (h / MU_REAL) * Jy)
-                    # LU_complex = [self.lu(Jyp + (h / MU) * Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
-                    LU_real, LU_complex, self.solve_lu)
+                    LU_real, LU_complex, self.solve_lu,
+                    C, T, TI, A_inv)
 
                 if not converged:
                     if current_jac:
@@ -590,7 +596,6 @@ class RadauDAE(DaeSolver):
                     LU_complex = None
 
             if not converged:
-                # print(f"not converged")
                 h_abs *= 0.5
                 LU_real = None
                 LU_complex = None
@@ -604,94 +609,16 @@ class RadauDAE(DaeSolver):
 
             ############################################
             # error of collocation polynomial of order s
-            ############################################                
-            # evaluate polynomial
-            # TODO: Preevaluate the coefficients and 
-            def eval_collocation_polynomial2(xi, C, Y):
-                # # compute coefficients
-                # V = np.vander(C, increasing=True)
-                # # V = np.vander([0, *C], increasing=True)[1:, 1:].T
-                # # V_inv = np.linalg.inv(V)
-                # # coeffs = V_inv @ Y
-                # coeffs = np.linalg.solve(V, Y)
-
-                # # compute evaluation point
-                # x = (xi - C[0]) / (C[-1] - C[0])
-
-                # # add summands
-                # return np.sum(
-                #     [ci * x**i for i, ci in enumerate(coeffs)],
-                #     axis=0,
-                # )
-
-                # Compute coefficients using Vandermonde matrix
-                V = np.vander(C, increasing=True)
-                coeffs = np.linalg.solve(V, Y)
-
-                # Evaluate polynomial at xi
-                n = len(C) - 1  # Degree of the polynomial
-                # x = (xi - C[0]) / (C[-1] - C[0])
-                x = xi
-                powers_of_x = np.array([x**i for i in range(n + 1)])
-                return np.dot(coeffs.T, powers_of_x)
-            
-            # Lagrange polynomial
-            def eval_collocation_polynomial(xi, C, Y):
-                s, m = Y.shape
-                y = np.zeros(m)
-
-                for i in range(s):
-                    li = 1.0
-                    for j in range(s):
-                        if j != i:
-                            li *= (xi - C[j]) / (C[i] - C[j])
-                    y += li * Y[i]
-
-                return y
-            
-
-            # Compute coefficients using Vandermonde matrix
-            V = np.vander(C, increasing=True)
-            V_inv = np.linalg.inv(V)
-            coeffs = V_inv @ Y
-            # coeffs = np.linalg.solve(V, Y)
-            p0_2 = coeffs[0] # TODO: That is cheap if V_inv is already available :)
-            p0_2 = V_inv[0] @ Y # and that is even cheaper ;)
-
-            # # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
-            # # p0_2 = compute_interp(C, Y, 0.0)
-            # # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
-            # # p0_ = eval_collocation_polynomial2(0.0, C, Y)
-            # p0_ = eval_collocation_polynomial(0.0, C, Y)
-            # # p1_ = eval_collocation_polynomial(1, C, Y)
-            # # print(f"p0_: {p0_}")
-            # # print(f"p0_2: {p0_2}")
-            # # error_collocation = y - p0_
-            error_collocation = y - p0_2
-
-            # c1, c2, c3 = C
-            # l1 = c2 * c3 / ((c1 - c2) * (c1 - c3))
-            # l2 = c1 * c3 / ((c2 - c1) * (c2 - c3))
-            # l3 = c1 * c2 / ((c3 - c1) * (c3 - c2))
-            # error_collocation = y - l1 * Y[0] - l2 * Y[1] - l3 * Y[2]
-
-            # # print(f"p0_2 - p0_: {p0_2 - p0_}")
-            # assert np.allclose(p1_, Y[-1])
-            # error_collocation = y - p0_
-            # error = error_collocation
-            # # error = y - p0_2
-            # # print(f"p0_ collocation: {p0_}")
-            # # print(f"error collocation: {error}")
+            ############################################
+            error_collocation = y - P2[0] @ Y
             
             ###############
             # Fabien (5.65)
             ###############
-            # # TODO: This is the embedded method that is stabilized below
+            # note: This is the embedded method that is stabilized below
             # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
             yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
             F = self.fun(t_new, y_new, yp_hat_new)
-            # TODO: Is this already l-stable or do we have to add a possible second 
-            # multiplication with LUyp_real?
             error_Fabien = self.solve_lu(LU_real, -F)
 
             # # add another Newton step for stabilization
@@ -734,7 +661,7 @@ class RadauDAE(DaeSolver):
             #     error_norm = norm(error / scale)
 
             if error_norm > 1:
-                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
                 h_abs *= max(MIN_FACTOR, safety * factor)
 
                 LU_real = None
@@ -747,7 +674,7 @@ class RadauDAE(DaeSolver):
         # TODO: Make this rate a user defined argument
         recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
 
-        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
         factor = min(MAX_FACTOR, safety * factor)
 
         if not recompute_jac and factor < 1.2:
@@ -790,7 +717,7 @@ class RadauDAE(DaeSolver):
         return step_accepted, message
 
     def _compute_dense_output(self):
-        Q = np.dot(self.Z.T, P)
+        Q = np.dot(self.Z.T, self.P)
         # Yp = (A_inv / (self.h_abs * self.direction)) @ self.Z
         # Qp = np.dot(Yp.T, P)
         return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
