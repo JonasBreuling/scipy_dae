@@ -440,13 +440,13 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     if dense_output:
         if t_eval is None:
             sol = OdeSolution(
-                # ts, interpolants, #alt_segment=False
-                ts, interpolants, alt_segment=True if method in [BDFDAE] else False
+                ts, interpolants, #alt_segment=False
+                # ts, interpolants, alt_segment=True if method in [BDFDAE] else False
             )
         else:
             sol = OdeSolution(
-                # ti, interpolants, #alt_segment=False
-                ti, interpolants, alt_segment=True if method in [BDFDAE] else False
+                ti, interpolants, #alt_segment=False
+                # ti, interpolants, alt_segment=True if method in [BDFDAE] else False
             )
     else:
         sol = None
