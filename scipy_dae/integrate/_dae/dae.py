@@ -412,9 +412,9 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
                 if sol is None:
                     sol = solver.dense_output()
                 ts.append(t_eval_step)
-                # ys.append(sol(t_eval_step))
-                y, yp = sol(t_eval_step)
-                ys.append(y)
+                ys.append(sol(t_eval_step))
+                # y, yp = sol(t_eval_step)
+                # ys.append(y)
                 yps.append(yp)
                 t_eval_i = t_eval_i_new
 
@@ -424,7 +424,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     message = MESSAGES.get(status, message)
 
     if t_events is not None:
-        raise NotImplementedError("Events are not ready yet")
+        # raise NotImplementedError("Events are not ready yet")
         t_events = [np.asarray(te) for te in t_events]
         y_events = [np.asarray(ye) for ye in y_events]
 
@@ -440,17 +440,17 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     if dense_output:
         if t_eval is None:
             sol = OdeSolution(
-                ts, interpolants, #alt_segment=False
-                # ts, interpolants, alt_segment=True if method in [BDFDAE] else False
+                # ts, interpolants, #alt_segment=False
+                ts, interpolants, alt_segment=True if method in [BDFDAE] else False
             )
         else:
             sol = OdeSolution(
-                ti, interpolants, #alt_segment=False
-                # ti, interpolants, alt_segment=True if method in [BDFDAE] else False
+                # ti, interpolants, #alt_segment=False
+                ti, interpolants, alt_segment=True if method in [BDFDAE] else False
             )
     else:
         sol = None
 
     return OdeResult(t=ts, y=ys, yp=yps, sol=sol, t_events=t_events, y_events=y_events,
                      nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
-                     status=status, message=message, success=status >= 0)
+                     status=status, message=message, success=status>=0)

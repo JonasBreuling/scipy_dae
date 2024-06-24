@@ -278,22 +278,22 @@ class DaeSolver:
 
             def jac_wrapped(t, y, yp, f):
                 self.njev += 1
-                # Jy, self.jac_factor_y = num_jac(
-                #     lambda t, y: self.fun_vectorized(t, y, yp), 
-                #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
-                # Jyp, self.jac_factor_yp = num_jac(
-                #     lambda t, yp: self.fun_vectorized(t, y, yp), 
-                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
+                Jy, self.jac_factor_y = num_jac(
+                    lambda t, y: self.fun_vectorized(t, y, yp), 
+                    t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                Jyp, self.jac_factor_yp = num_jac(
+                    lambda t, yp: self.fun_vectorized(t, y, yp), 
+                    t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
                 
-                # test better Jacobian approximation
-                method = "2-point"
-                # method = "3-point"
-                Jy = approx_derivative(
-                    lambda y: self.fun_single(t, y, yp), 
-                    y, f0=f, sparsity=sparsity_y, method=method)
-                Jyp = approx_derivative(
-                    lambda yp: self.fun_single(t, y, yp), 
-                    yp, f0=f, sparsity=sparsity_yp, method=method)
+                # # test better Jacobian approximation
+                # method = "2-point"
+                # # method = "3-point"
+                # Jy = approx_derivative(
+                #     lambda y: self.fun_single(t, y, yp), 
+                #     y, f0=f, sparsity=sparsity_y, method=method)
+                # Jyp = approx_derivative(
+                #     lambda yp: self.fun_single(t, y, yp), 
+                #     yp, f0=f, sparsity=sparsity_yp, method=method)
                 
                 return Jy, Jyp
             

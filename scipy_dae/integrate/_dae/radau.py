@@ -3,8 +3,8 @@ from numpy.polynomial import Polynomial as Poly
 from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
+# from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
-from .base import DAEDenseOutput as DenseOutput
 
 
 def butcher_tableau(s):
@@ -559,8 +559,8 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                # Z0 = self.sol(t + h * C).T - y
-                Z0 = self.sol(t + h * C)[0].T - y
+                Z0 = self.sol(t + h * C).T - y
+                # Z0 = self.sol(t + h * C)[0].T - y
 
             scale = atol + np.abs(y) * rtol
 
@@ -658,15 +658,15 @@ class RadauDAE(DaeSolver):
             p0_2 = coeffs[0] # TODO: That is cheap if V_inv is already available :)
             p0_2 = V_inv[0] @ Y # and that is even cheaper ;)
 
-            # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
-            # p0_2 = compute_interp(C, Y, 0.0)
-            # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
-            # p0_ = eval_collocation_polynomial2(0.0, C, Y)
-            p0_ = eval_collocation_polynomial(0.0, C, Y)
-            # p1_ = eval_collocation_polynomial(1, C, Y)
-            # print(f"p0_: {p0_}")
-            # print(f"p0_2: {p0_2}")
-            # error_collocation = y - p0_
+            # # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
+            # # p0_2 = compute_interp(C, Y, 0.0)
+            # # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
+            # # p0_ = eval_collocation_polynomial2(0.0, C, Y)
+            # p0_ = eval_collocation_polynomial(0.0, C, Y)
+            # # p1_ = eval_collocation_polynomial(1, C, Y)
+            # # print(f"p0_: {p0_}")
+            # # print(f"p0_2: {p0_2}")
+            # # error_collocation = y - p0_
             error_collocation = y - p0_2
 
             # c1, c2, c3 = C
@@ -691,7 +691,7 @@ class RadauDAE(DaeSolver):
             yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
             F = self.fun(t_new, y_new, yp_hat_new)
             # TODO: Is this already l-stable or do we have to add a possible second 
-            # multiplication with LU_real?
+            # multiplication with LUyp_real?
             error_Fabien = self.solve_lu(LU_real, -F)
 
             # # add another Newton step for stabilization
@@ -791,24 +791,24 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, P)
-        Yp = (A_inv / (self.h_abs * self.direction)) @ self.Z
-        Qp = np.dot(Yp.T, P)
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+        # Yp = (A_inv / (self.h_abs * self.direction)) @ self.Z
+        # Qp = np.dot(Yp.T, P)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
     def _dense_output_impl(self):
         return self.sol
 
 class RadauDenseOutput(DenseOutput):
-    # def __init__(self, t_old, t, y_old, Q):
-    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
+    def __init__(self, t_old, t, y_old, Q):
+    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)
         self.h = t - t_old
         self.Q = Q
-        self.Qp = Qp
+        # self.Qp = Qp
         self.order = Q.shape[1] - 1
         self.y_old = y_old
-        self.yp_old = yp_old
+        # self.yp_old = yp_old
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
@@ -820,12 +820,13 @@ class RadauDenseOutput(DenseOutput):
             p = np.cumprod(p, axis=0)
         # Here we don't multiply by h, not a mistake.
         y = np.dot(self.Q, p)
-        yp = np.dot(self.Qp, p)
+        # yp = np.dot(self.Qp, p)
         if y.ndim == 2:
             y += self.y_old[:, None]
-            yp += self.yp_old[:, None]
+            # yp += self.yp_old[:, None]
         else:
             y += self.y_old
-            yp += self.yp_old
+            # yp += self.yp_old
 
-        return y, yp
+        return y
+        # return y, yp
