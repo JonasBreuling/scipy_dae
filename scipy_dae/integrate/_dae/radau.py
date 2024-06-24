@@ -14,10 +14,10 @@ def butcher_tableau(s):
     c = poly_der.roots()
 
     # compute coefficients a_ij, see Hairer1999 (11)
-    A = np.zeros((s, s), dtype=float)
+    A = np.zeros((s, s))
     for i in range(s):
-        Mi = np.zeros((s, s), dtype=float)
-        ri = np.zeros(s, dtype=float)
+        Mi = np.zeros((s, s))
+        ri = np.zeros(s)
         for q in range(s):
             Mi[q] = c**q
             ri[q] = c[i] ** (q + 1) / (q + 1)
@@ -119,8 +119,10 @@ def radau_constants(s):
     gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
     b0 = gamma0 # note: this leads to the formula of Fabien!
     # b0 = 0.02
-    rhs[0] -= gamma0
-    rhs -= b0
+    # b0 *= 0.07275668505489
+    # b0 *= 0.9
+    rhs[0] -= b0
+    rhs -= gamma0
     print(f"rhs:\n{rhs}")
 
     b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
@@ -663,8 +665,9 @@ class RadauDAE(DaeSolver):
            Delay Differential Equations", Computing 67, 1-12, 2001.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
-                 rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
-                 vectorized=False, first_step=None, **extraneous):
+                 rtol=1e-3, atol=1e-6, continuous_error_weight=0.0,
+                 jac=None, jac_sparsity=None, vectorized=False, 
+                 first_step=None, **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
         self.y_old = None
@@ -673,6 +676,7 @@ class RadauDAE(DaeSolver):
         self.error_norm_old = None
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
+        self.continuous_error_weight = continuous_error_weight
         self.sol = None
 
         self.current_jac = True
@@ -740,7 +744,6 @@ class RadauDAE(DaeSolver):
                 if LU_real is None or LU_complex is None:
                     # Fabien (5.59) and (5.60)
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    # LU_complex = self.lu(MU_COMPLEX / h * Jyp + Jy)
                     LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
@@ -763,349 +766,127 @@ class RadauDAE(DaeSolver):
                 continue
 
             # Hairer1996 (8.2b)
-            # y_new = y + Z[-1]
-            # yp_new = ((A_inv / h) @ Z)[-1]
             y_new = Y[-1]
             yp_new = Yp[-1]
 
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
 
-            if True:
-                # # ######################################################
-                # # # error estimate by difference w.r.t. embedded formula
-                # # ######################################################
-                # # # compute embedded formula
-                # # gamma0 = MU_REAL
-                # # y_new_hat = y + h * gamma0 * yp + h * b_hat @ Yp
+            ############################################
+            # error of collocation polynomial of order s
+            ############################################                
+            # evaluate polynomial
+            # TODO: Why is this so bad conditioned?
+            def eval_collocation_polynomial2(xi, C, Y):
+                # # compute coefficients
+                # V = np.vander(C, increasing=True)
+                # # V = np.vander([0, *C], increasing=True)[1:, 1:].T
+                # # V_inv = np.linalg.inv(V)
+                # # coeffs = V_inv @ Y
+                # coeffs = np.linalg.solve(V, Y)
 
-                # # # # # embedded trapezoidal step
-                # # # # y_new_hat = y + 0.5 * h * (yp + Yp[-1])
+                # # compute evaluation point
+                # x = (xi - C[0]) / (C[-1] - C[0])
 
-                # # # y_new = y + h * (b @ Yp)
-                # # error = y_new_hat - y_new
-                # # # # error = Yp.T.dot(E) + h * gamma0 * yp
-                # # # error = gamma0 * Yp.T.dot(E) + h * yp
-
-                # # # # ZE = Z.T.dot(E) #/ h
-                # # # # error = (yp + Jyp.dot(ZE)) * h
-                # # # # error = (yp + Z.T @ E / h)
-                # # # # error = (yp + Z.T @ E) * h
-                # # # # error = Jyp @ (yp + Z.T @ E) * h
-                # # # # error = (f + Jyp.dot(ZE)) #* (h / MU_REAL)
-                # # # # error = (h * yp + Yp.T @ (b_hat - b)) / h
-                # # # error = (yp + Yp.T @ (b_hat - b) / h)
-                # # # error = self.solve_lu(LU_real, error)
-                # # # # error = self.solve_lu(LU_real, f + self.mass_matrix.dot(ZE))
-
-                # # ###########################
-                # # # decomposed error estimate
-                # # ###########################
-                # # gamma0h = MU_REAL * h
-
-                # # # scale E by MU_real since this is already done by Hairer's 
-                # # # E that is used here
-                # # e = E * MU_REAL
-
-                # # # embedded thirs order method
-                # # err = gamma0h * yp + Z.T.dot(e)
-
-                # # # use bad error estimate
-                # # error = err
-
-                # ###########################
-                # # decomposed error estimate
-                # ###########################
-                # # gamma0 = 1 / MU_REAL
-                # gamma0 = MU_REAL
-
-                # # scale E by MU_real since this is already done by Hairer's 
-                # # E that is used here
-                # e = E * gamma0
-
-                # # embedded third order method
-                # err = h * gamma0 * yp + Z.T.dot(e)
-                # # err = h * MU_REAL * yp + Jyp @ Z.T.dot(E * MU_REAL)
-                # # err = h * gamma0 * (yp - f) + Z.T.dot(e)
-
-                # # embedded third order method, see Fabien2009 (5.65)
-                # b0_hat = 0.02
-                # # gamma_hat = 1 / MU_REAL
-                # # yp_hat_new = (MU_REAL / h) * (y_new - (y + h * Z.T.dot(E * MU_REAL)))
-                # # yp_hat_new = MU_REAL * (Z.T.dot(E * MU_REAL) / h - b0_hat * yp_new)
-                # yp_hat_new = MU_REAL * (Yp.T.dot(E * MU_REAL) - b0_hat * yp)
-                # # yp_hat_new = -(Z.T.dot(E * MU_REAL) / h - b0_hat * yp) / MU_REAL
-                # err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_hat_new))
-                # # err = -self.solve_lu(LU_real, self.fun(t_new, y_new, yp_new))
-
-                # # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-
-                # # use bad error estimate
-                # error = err
-
-
-
-
-                # ####################
-                # # ODE error estimate
-                # ####################
-                # err_ODE = h * MU_REAL * (yp - f) + Z.T.dot(E * MU_REAL)
-                # LU_real_ODE = self.lu(MU_REAL / h * self.I - Jy)
-                # error_ODE = self.solve_lu(LU_real_ODE, err_ODE) / (MU_REAL * h)
-                # error = error_ODE
-
-                # #####################################
-                # # ODE with mass matrix error estimate
-                # #####################################
-                # # LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp - Jy)
-                # # # Fabien (5.59) and (5.60)
-                # # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                # # LU_real_ODE_mass = LU_real
-                # # LU_real_ODE_mass = self.lu(MU_REAL / h * Jyp + Jy)
-                # # err_ODE_mass = h * MU_REAL * Jyp @ ((yp - f) + Z.T.dot(E * MU_REAL))
-                # # error_ODE_mass = self.solve_lu(LU_real_ODE_mass, err_ODE_mass) / (MU_REAL * h)
-                # # error_ODE_mass = self.solve_lu(
-                # #     LU_real_ODE_mass, 
-                # #     Jyp @ ((yp - f) + Z.T.dot(E) / h),
-                # # )
-                # error_ODE_mass = self.solve_lu(
-                #     LU_real, 
-                #     # # (yp - f) + Jyp @ Z.T @ E / h,
-                #     # yp + Jyp @ Z.T @ E / h,
-                #     Jyp @ (yp + Z.T @ E / h), # TODO: Why is this a good estimate?
+                # # add summands
+                # return np.sum(
+                #     [ci * x**i for i, ci in enumerate(coeffs)],
+                #     axis=0,
                 # )
-                # # error_ODE_mass = (yp + Z.T @ E / h) / (MU_REAL / h)
-                # error = error_ODE_mass
-                # # print(f"error_ODE_mass: {error_ODE_mass}")
 
-                ############################################
-                # error of collocation polynomial of order s
-                ############################################                
-                # evaluate polynomial
-                # TODO: Why is this so bad conditioned?
-                def eval_collocation_polynomial2(xi, C, Y):
-                    # # compute coefficients
-                    # V = np.vander(C, increasing=True)
-                    # # V = np.vander([0, *C], increasing=True)[1:, 1:].T
-                    # # V_inv = np.linalg.inv(V)
-                    # # coeffs = V_inv @ Y
-                    # coeffs = np.linalg.solve(V, Y)
+                # Compute coefficients using Vandermonde matrix
+                V = np.vander(C, increasing=True)
+                coeffs = np.linalg.solve(V, Y)
 
-                    # # compute evaluation point
-                    # x = (xi - C[0]) / (C[-1] - C[0])
+                # Evaluate polynomial at xi
+                n = len(C) - 1  # Degree of the polynomial
+                x = (xi - C[0]) / (C[-1] - C[0])
+                powers_of_x = np.array([x**i for i in range(n + 1)])
+                return np.dot(coeffs.T, powers_of_x)
+            
+            # Lagrange polynomial
+            def eval_collocation_polynomial(xi, C, Y):
+                s, m = Y.shape
+                y = np.zeros(m)
 
-                    # # add summands
-                    # return np.sum(
-                    #     [ci * x**i for i, ci in enumerate(coeffs)],
-                    #     axis=0,
-                    # )
+                for i in range(s):
+                    li = 1.0
+                    for j in range(s):
+                        if j != i:
+                            li *= (xi - C[j]) / (C[i] - C[j])
+                    y += li * Y[i]
 
-                    # Compute coefficients using Vandermonde matrix
-                    V = np.vander(C, increasing=True)
-                    coeffs = np.linalg.solve(V, Y)
+                return y
 
-                    # Evaluate polynomial at xi
-                    n = len(C) - 1  # Degree of the polynomial
-                    x = (xi - C[0]) / (C[-1] - C[0])
-                    powers_of_x = np.array([x**i for i in range(n + 1)])
-                    return np.dot(coeffs.T, powers_of_x)
-                
-                # Lagrange polynomial
-                def eval_collocation_polynomial(xi, C, Y):
-                    s, m = Y.shape
-                    y = np.zeros(m)
+            # # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
+            # p0_2 = compute_interp(C, Y, 0.0)
+            # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
+            p0_ = eval_collocation_polynomial(0.0, C, Y)
+            p1_ = eval_collocation_polynomial(1, C, Y)
+            error_collocation = y - p0_
 
-                    for i in range(s):
-                        li = 1.0
-                        for j in range(s):
-                            if j != i:
-                                li *= (xi - C[j]) / (C[i] - C[j])
-                        y += li * Y[i]
+            # c1, c2, c3 = C
+            # l1 = c2 * c3 / ((c1 - c2) * (c1 - c3))
+            # l2 = c1 * c3 / ((c2 - c1) * (c2 - c3))
+            # l3 = c1 * c2 / ((c3 - c1) * (c3 - c2))
+            # error_collocation = y - l1 * Y[0] - l2 * Y[1] - l3 * Y[2]
 
-                    return y
+            # # print(f"p0_2 - p0_: {p0_2 - p0_}")
+            # assert np.allclose(p1_, Y[-1])
+            # error_collocation = y - p0_
+            # error = error_collocation
+            # # error = y - p0_2
+            # # print(f"p0_ collocation: {p0_}")
+            # # print(f"error collocation: {error}")
+            
+            ###############
+            # Fabien (5.65)
+            ###############
+            yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
+            F = self.fun(t_new, y_new, yp_hat_new)
+            error_Fabien = self.solve_lu(LU_real, -F)
 
-                # # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
-                # p0_2 = compute_interp(C, Y, 0.0)
-                # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
-                p0_ = eval_collocation_polynomial(0.0, C, Y)
-                p1_ = eval_collocation_polynomial(1, C, Y)
-                error_collocation = y - p0_
+            # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
+            error = (
+                self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
+                + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
+            )                
+            error_norm = norm(error / scale)
 
-                # c1, c2, c3 = C
-                # l1 = c2 * c3 / ((c1 - c2) * (c1 - c3))
-                # l2 = c1 * c3 / ((c2 - c1) * (c2 - c3))
-                # l3 = c1 * c2 / ((c3 - c1) * (c3 - c2))
-                # error_collocation = y - l1 * Y[0] - l2 * Y[1] - l3 * Y[2]
+            safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-                # # print(f"p0_2 - p0_: {p0_2 - p0_}")
-                # assert np.allclose(p1_, Y[-1])
-                # error_collocation = y - p0_
-                # error = error_collocation
-                # # error = y - p0_2
-                # # print(f"p0_ collocation: {p0_}")
-                # # print(f"error collocation: {error}")
+            if error_norm > 1:
+                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+                h_abs *= max(MIN_FACTOR, safety * factor)
 
-                # ################
-                # # Hermite spline
-                # ################
-                # Y_augmented = Y
-                # # Y_augmented = np.concatenate((
-                # #     # np.zeros_like(y)[None, :], Y,
-                # #     # y[None, :], Y[:-1],
-                # #     y[None, :], Y,
-                # # ))
-                # # Yp_augmented = b[:, None] * Yp
-                # Yp_augmented = Yp
-                # # Yp_augmented = np.concatenate((
-                # #     # yp[None, :], Yp,
-                # #     # yp[None, :], Yp[:-1],
-                # #     np.zeros_like(yp)[None, :], Yp,
-                # # ))
-                # C_augmented = C
-                # # C_augmented = np.array([0, *C])
-                # # C_augmented = np.array([0, *C[:-1]])
-                # p0_augmented, p0_p_augmented = eval_Hermite(0.0, C_augmented, Y_augmented, Yp_augmented)
-                # p1_augmented, p1_p_augmented = eval_Hermite(C[0], C_augmented, Y_augmented, Yp_augmented)
-                # p2_augmented, p2_p_augmented = eval_Hermite(C[1], C_augmented, Y_augmented, Yp_augmented)
-                # p3_augmented, p3_p_augmented = eval_Hermite(C[2], C_augmented, Y_augmented, Yp_augmented)
-                # error = y - p0_augmented
-                # # error = yp - p0_p_augmented
-                # # error[1:] = 0
-                # # error = y_new - p1_augmented
-                # # TODO: This is still wrong.
-                # # assert np.allclose(p3_augmented, Y[-1])
-                
-                # # p0_ = eval_Hermite(0.0, C, Y, Yp)
-                # # p1_ = eval_Hermite(1.0, C, Y, Yp)
-                # # assert np.allclose(p1_, Y[-1])
-                # # error = y - p0_
-                # print(f"p0_ Hermite: {p0_augmented}")
-                # print(f"y: {y}")
-
-                # print(f"p1_ Hermite: {p1_augmented}")
-                # print(f"Y1:          {Y[0]}")
-                # print(f"p1_p Hermite: {p1_p_augmented}")
-                # print(f"Yp1:          {Yp[0]}")
-
-                # print(f"p2_ Hermite: {p2_augmented}")
-                # print(f"Y2:          {Y[1]}")
-                # print(f"p2_p Hermite: {p2_p_augmented}")
-                # print(f"Yp2:          {Yp[1]}")
-
-                # print(f"p3_ Hermite: {p3_augmented}")
-                # print(f"Y3:          {Y[2]}")
-                # print(f"p3_p Hermite: {p3_p_augmented}")
-                # print(f"Yp3:          {Yp[2]}")
-
-                # print(f"y_new: {y_new}")
-                # print(f"error Hermite: {error}")
-                # print(f"")
-               
-                # ###############
-                # # Fabien (5.65)
-                # ###############
-                # b0_hat = 0.02
-                # b0_hat = 1 / MU_REAL # TODO: I prefer this...
-                # gamma_hat = 1 / MU_REAL
-                # yp_hat_new = (y_new - (y + h * b_hat @ Yp + h * b0_hat * yp)) / (h * gamma_hat)
-                # # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
-                # # yp_hat_new = (1 / gamma_hat) * ((b - b_hat) @ Yp - b0_hat * yp)
-                # # yp_hat_new = MU_REAL * ((b - b_hat) @ Yp - b0_hat * yp)
-                # # yp_hat_new = MU_REAL * ((b - b_hat) @ (A_inv / h) @ Z - b0_hat * yp)
-                # # yp_hat_new = MU_REAL * (-MU_REAL * E @ Z / h - b0_hat * yp)
-                # # yp_hat_new = (Z.T.dot(E) / h - yp)
-                # F = self.fun(t_new, y_new, yp_hat_new)
-                # Jy, Jyp = self.jac(t_new, y_new, yp_hat_new, F)
-                # LU_real = self.lu(Jy + MU_REAL / h * Jyp)
-                # error = self.solve_lu(LU_real, -F)
-                # # error = self.solve_lu(LU_real, -F) / MU_REAL * h
-                # print(f"t_new:          {t_new}")
-                # print(f"yp_new:         {yp_new}")
-                # print(f"yp_hat_new:     {yp_hat_new}")
-                # # print(f"error_ODE_mass: {error_ODE_mass}")
-                # print(f"error:          {error}")
-                # print(f"")
-
-                # error measure used in ride.m of Fabien2009
-                # TODO: What is v?
-                # b0 = 1 / MU_REAL
-                # b0 = 0.02
-                yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
-                F = self.fun(t_new, y_new, yp_hat_new)
-                # LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                error_Fabien = self.solve_lu(LU_real, -F)
-                # error = error_Fabien
-
-                # # b0 = 0.02
-                # b0 = 1 / MU_REAL
-                # gamma0 = MU_REAL
-                # # y_new_hat = y + MU_REAL * h * (-b0 * yp + b_hat @ Yp)
-                # y_new_hat = y + h * (gamma0 * yp + b_hat @ Yp)
-                # error_embedded = y_new - y_new_hat
-                # error = error_embedded
-
-                # mix embedded error with collocation error as proposed in Guglielmi2001
-                error = 0.5 * (np.abs(error_collocation)**((s + 1) / s) + np.abs(error_Fabien))
-                
-                # error = error_collocation
-                # # TODO: only position error of bouncing ball using collocation error
-                # error [1:] = 0
-                # # error [2:] = 0
-                
-                error_norm = norm(error / scale)
-
-                safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
-
-                if error_norm > 1:
-                    factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
-                    h_abs *= max(MIN_FACTOR, safety * factor)
-
-                    LU_real = None
-                    LU_complex = None
-                else:
-                    step_accepted = True
+                LU_real = None
+                LU_complex = None
             else:
                 step_accepted = True
 
-        if True:
-            # Step is converged and accepted
-            # TODO: Make this rate a user defined argument
-            recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
+        # Step is converged and accepted
+        # TODO: Make this rate a user defined argument
+        recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
 
-            factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
-            factor = min(MAX_FACTOR, safety * factor)
+        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
+        factor = min(MAX_FACTOR, safety * factor)
 
-            if not recompute_jac and factor < 1.2:
-                factor = 1
-            else:
-                LU_real = None
-                LU_complex = None
-
-            f_new = self.fun(t_new, y_new, yp_new)
-            if recompute_jac:
-                Jy, Jyp = self.jac(t_new, y_new, yp_new, f_new)
-                current_jac = True
-            elif jac is not None:
-                current_jac = False
-
-            self.h_abs_old = self.h_abs
-            self.error_norm_old = error_norm
-
-            self.h_abs = h_abs * factor
-
-        # if step_accepted:
-        #     # TODO: Manipulate velocities for 1D bouncing ball to realize newton type impact law
-        #     if y_new[0] <= 0:
-        #         eps = 0.5
-        #         Delta_u = y_new[1] + eps * y[1]
-        #         y_new[1] -= Delta_u
-        #         y[1] -= Delta_u
-        #         # Z[-1] = y_new - y
-        #         Z[:, 1] -= Delta_u
-        #         # y_new[1] = -eps * y[1].copy()
-        #         # y_new[2] = y_new[1] * h
-        #         # yp_new[1] = 0
+        if not recompute_jac and factor < 1.2:
+            factor = 1
+        else:
+            LU_real = None
+            LU_complex = None
 
         f_new = self.fun(t_new, y_new, yp_new)
+        if recompute_jac:
+            Jy, Jyp = self.jac(t_new, y_new, yp_new, f_new)
+            current_jac = True
+        elif jac is not None:
+            current_jac = False
+
+        self.h_abs_old = self.h_abs
+        self.error_norm_old = error_norm
+
+        self.h_abs = h_abs * factor
 
         self.y_old = y
         self.yp_old = yp

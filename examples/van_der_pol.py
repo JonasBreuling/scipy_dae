@@ -73,12 +73,13 @@ if __name__ == "__main__":
 
     # t_eval = np.linspace(t0, t1, num=int(5e2))
     t_eval = None
+    first_step = 1e-3
 
     ####################
     # reference solution
     ####################
     start = time.time()
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, first_step=first_step)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
@@ -99,7 +100,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, first_step=first_step)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
