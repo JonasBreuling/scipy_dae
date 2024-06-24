@@ -203,153 +203,13 @@ TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
+# NEWTON_MAXITER = 10  # Maximum number of Newton iterations.
+# MIN_FACTOR = 0.01  # Minimum allowed decrease in a step size.
+# MAX_FACTOR = 1 / MIN_FACTOR  # Maximum allowed increase in a step size.
 
-
-# # c1c2c3 = np.prod(C)
 # # TODO: How to derive this array: According to Fabien2009 below (5.65) v = b - b_hat.
 # # Consequently, his b_hat differs from that of Hairer.
 # v = np.array([0.428298294115369, -0.245039074384917, 0.366518439460903])
-
-
-def lagrange_basis_np(x_nodes, i):
-    """ Construct the Lagrange basis polynomial L_i(x) using numpy.polynomial.Polynomial. """
-    numerator = Poly([1])
-    denominator = 1
-    for j in range(len(x_nodes)):
-        if j != i:
-            numerator *= Poly([-x_nodes[j], 1])
-            denominator *= (x_nodes[i] - x_nodes[j])
-    return numerator / denominator
-
-def hermite_basis_np(x_nodes):
-    """ Construct the Hermite basis polynomials H_i(x) and K_i(x) using numpy.polynomial.Polynomial. """
-    n = len(x_nodes)
-    basis_funcs = []
-
-    for i in range(n):
-        Li = lagrange_basis_np(x_nodes, i)
-        Li_prime = Li.deriv()
-
-        # H_i(x) = (1 - 2 * (x - x_i) * L_i'(x_i)) * (L_i(x))^2
-        Hi = (Poly([1]) - 2 * Poly([-x_nodes[i], 1]) * Li_prime(x_nodes[i])) * (Li**2)
-        
-        # K_i(x) = (x - x_i) * (L_i(x))^2
-        Ki = Poly([-x_nodes[i], 1]) * (Li**2)
-        
-        basis_funcs.append((Hi, Ki))
-    
-    return basis_funcs
-
-
-def eval_Hermite(t, C, Y, Yp):
-    # from numpy.polynomial.hermite import hermvander, Hermite
-
-    # n, m = Y.shape
-    
-    # # Construct the target vector (function values and derivatives)
-    # b = np.zeros((2 * n, m))
-    # b[0::2] = Y
-    # b[1::2] = Yp
-
-    # # # Construct the Hermite Vandermonde matrix
-    # # V = hermvander(C_extended, 2 * n - 1)
-    # # Construct the Hermite Vandermonde matrix
-    # V = np.vander(C, increasing=True)
-    # mult = np.arange(1, n + 1)
-    # # mult[0] = 0
-    # VV = np.block([
-    #     [V, np.zeros_like(V)],
-    #     [np.zeros_like(V), V * mult[None, :]],
-    # ])
-
-    # b = np.concatenate((Y, Yp))
-    # # TODO: This gives two different polynomial coefficients???
-    # coeffs = np.linalg.solve(VV, b)
-
-    # from numpy.polynomial import Polynomial as Poly
-    # ps = []
-    # for coeff in coeffs.T:
-    #     ps.append(
-    #         Poly(coeff, domain=[0, 1], window=[0, 1])
-    #     )
-
-    # y = np.zeros_like(Y[0])
-    # yp = np.zeros_like(Yp[0])
-    # for i, p in enumerate(ps):
-    #     y[i] = p(t)
-    #     yp[i] = p.deriv()(t)
-
-    # return y, yp
-
-    y = np.zeros_like(Y[0])
-    yp = np.zeros_like(Yp[0])
-    basis = hermite_basis_np(C)
-    # import matplotlib.pyplot as plt
-    # fig, ax = plt.subplots(2, 1)
-    # ts = np.linspace(0, 1, num=100)
-    # for i, (Hi, Ki) in enumerate(basis):
-    #     ax[0].plot(ts, Hi(ts), label=f"H{i}")
-    #     ax[0].plot(C, np.ones_like(C), "ok", label="C")
-    #     ax[1].plot(ts, Ki(ts), label=f"K{i}")
-    #     # ax[1].plot(ts, Ki.deriv()(ts), label=f"K'{i}")
-    #     ax[1].plot(C, np.ones_like(C), "ok", label="C")
-    # ax[0].grid()
-    # ax[0].legend()
-    # ax[1].grid()
-    # ax[1].legend()
-    # plt.show()
-    for i, (Hi, Ki) in enumerate(basis):
-        y += Hi(t) * Y[i] + Ki(t) * Yp[i]
-        yp += Hi.deriv()(t) * Y[i] + Ki.deriv()(t) * Yp[i]
-    return y, yp
-
-# Hermite and Lagrange interpolation using Vandermond matrix,
-# see https://nicoguaro.github.io/index-2.html
-def vander_mat(x):
-    n = len(x)
-    van = np.zeros((n, n))
-    power = np.array(range(n))
-    for row in range(n):
-        van[row, :] = x[row]**power
-    return van
-
-
-def conf_vander_mat(x):
-    n = len(x)
-    conf_van = np.zeros((2*n, 2*n))
-    power = np.array(range(2*n))
-    for row in range(n):
-        conf_van[row, :] = x[row]**power
-        conf_van[row + n, :] = power*x[row]**(power - 1)
-    return conf_van
-
-
-def inter_coef(x, inter_type="lagrange"):
-    if inter_type == "lagrange":
-        vand_mat = vander_mat(x)
-    elif inter_type == "hermite":
-        vand_mat = conf_vander_mat(x)
-    # coef = np.linalg.solve(vand_mat, np.eye(vand_mat.shape[0]))
-    coef = np.linalg.inv(vand_mat)
-    return coef
-
-
-def compute_interp(x, f, x_eval, df=None):
-    x_eval = np.atleast_1d(x_eval)
-    n = len(x)
-    if df is None:
-        coef = inter_coef(x, inter_type="lagrange")
-    else:
-        coef = inter_coef(x, inter_type="hermite")
-    f_eval = np.zeros((len(x_eval), f.shape[1]))
-    nmat = coef.shape[0]
-    for row in range(nmat):
-        for col in range(nmat):
-            if col < n or nmat == n:
-                f_eval += coef[row, col]*x_eval**row*f[col]
-            else:
-                f_eval += coef[row, col]*x_eval**row*df[col - n]
-    return f_eval
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -665,7 +525,7 @@ class RadauDAE(DaeSolver):
            Delay Differential Equations", Computing 67, 1-12, 2001.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
-                 rtol=1e-3, atol=1e-6, continuous_error_weight=0.0,
+                 rtol=1e-3, atol=1e-6, continuous_error_weight=1.0,
                  jac=None, jac_sparsity=None, vectorized=False, 
                  first_step=None, **extraneous):
         warn_extraneous(extraneous)
@@ -817,11 +677,14 @@ class RadauDAE(DaeSolver):
 
                 return y
 
-            # # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
+            # p0_2 = eval_collocation_polynomial2(0.0, C, Y)
             # p0_2 = compute_interp(C, Y, 0.0)
             # # p0_2 = compute_interp(C, Y, 0.0, df=Yp)
+            # p0_ = eval_collocation_polynomial2(0.0, C, Y)
             p0_ = eval_collocation_polynomial(0.0, C, Y)
-            p1_ = eval_collocation_polynomial(1, C, Y)
+            # p1_ = eval_collocation_polynomial(1, C, Y)
+            # print(f"p0_: {p0_}")
+            # print(f"p0_2: {p0_2}")
             error_collocation = y - p0_
 
             # c1, c2, c3 = C
