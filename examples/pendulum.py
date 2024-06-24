@@ -25,7 +25,7 @@ def F(t, vy, vyp):
 
     return R
 
-def jac(t, y, yp, f):
+def jac(t, y, yp, f=None):
     n = len(y)
     z = np.concatenate((y, yp))
 
@@ -67,13 +67,13 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-6
+    atol = rtol = 1e-4
 
     ##############
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t

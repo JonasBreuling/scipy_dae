@@ -117,6 +117,8 @@ def radau_constants(s):
     b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
     print(f"b_hat:\n{b_hat}")
 
+    rhs = 1 / np.arange(1, s + 2)
+
     E = (b_hat - b) @ A_inv
     E /= gamma0
     print(f"c: {c}")
@@ -144,7 +146,7 @@ def radau_constants(s):
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
     print(f"")
-    return A_inv, c, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX 
+    return A_inv, c, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, Mus, b_hat
     # return A, A_inv, b, c, T, TI, E, P, b_hat, gamma0, b0, v, p, gammas, alphas, betas, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX
 
 
@@ -155,7 +157,7 @@ s = 3
 # s = 9
 assert s % 2 == 1
 ncs = s // 2 # number of conjugate complex eigenvalues
-A_inv, C, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX = radau_constants(s)
+A_inv, C, T, TI, P, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, Mus, b_hat = radau_constants(s)
 
 # S6 = 6 ** 0.5
 
@@ -264,11 +266,14 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             break
 
         U = TI @ F
+        # U = h * np.linalg.inv(Mus) @ TI @ F
         f_real = -U[0]
+        # f_real = -(h / MU_REAL) * U[0]
         # f_complex = -(U[1] + 1j * U[2])
         f_complex = np.empty((ncs, n), dtype=MU_COMPLEX.dtype)
         for i in range(ncs):
             f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
+            # f_complex[i] = -(h / MU_COMPLEX[i]) * (U[2 * i + 1] + 1j * U[2 * i + 2])
 
         dW_real = solve_lu(LU_real, f_real)
         # dW_complex = solve_lu(LU_complex, f_complex)
@@ -471,7 +476,7 @@ class RadauDAE(DaeSolver):
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, stages=3,
                  max_step=np.inf, rtol=1e-3, atol=1e-6, 
-                 continuous_error_weight=0.0, jac=None, 
+                 continuous_error_weight=0.5, jac=None, 
                  jac_sparsity=None, vectorized=False, 
                  first_step=None, **extraneous):
         warn_extraneous(extraneous)
@@ -535,6 +540,7 @@ class RadauDAE(DaeSolver):
         current_jac = self.current_jac
         jac = self.jac
 
+        rejected = False
         step_accepted = False
         message = None
         while not step_accepted:
@@ -564,8 +570,11 @@ class RadauDAE(DaeSolver):
                     # Fabien (5.59) and (5.60)
                     # TODO: Is it benefiction to multipy everything by
                     # (h * Lambda), hence MU_REAL * h * Jy instead of (1 / h)?
+                    # => doesn't matter for van der pol and pendulum
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                     LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
+                    # LU_real = self.lu(Jyp + (h / MU_REAL) * Jy)
+                    # LU_complex = [self.lu(Jyp + (h / MU) * Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, self.newton_tol,
@@ -677,23 +686,52 @@ class RadauDAE(DaeSolver):
             ###############
             # Fabien (5.65)
             ###############
+            # # TODO: This is the embedded method that is stabilized below
+            # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
             yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
             F = self.fun(t_new, y_new, yp_hat_new)
             # TODO: Is this already l-stable or do we have to add a possible second 
             # multiplication with LU_real?
             error_Fabien = self.solve_lu(LU_real, -F)
-            # error_Fabien = self.solve_lu(LU_real, error_Fabien)
-            # # TODO: This is the embedded method that is stabilized above
-            # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
+
+            # # add another Newton step for stabilization
+            # # TODO: This is definitely better for the pendulum problem. I think for the error above
+            # #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
+            # y_hat_new = y_new + error_Fabien
+            # # yp_hat_new = MU_REAL / h * (y_hat_new - y - h * b0 * yp - h * b_hat @ Yp)
+            # yp_hat_new = MU_REAL * (error_Fabien / h - b0 * yp + v @ Yp)
+            # F = self.fun(t_new, y_hat_new, yp_hat_new)
+            # error_Fabien += self.solve_lu(LU_real, -F)
+            # # y_hat_new += self.solve_lu(LU_real, -F)
+            # # error_Fabien = y_hat_new - y_new
 
             # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
             error = (
                 self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
                 + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
-            )                
+            )
             error_norm = norm(error / scale)
 
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
+
+            # if rejected and error_norm > 1: # try with stabilised error estimate
+            # # if True:
+            #     # print(f"rejected")
+            #     # add another Newton step for stabilization
+            #     # TODO: This is definitely better for the pendulum problem. I think for the error above
+            #     #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
+            #     y_hat_new = y_new + error_Fabien
+            #     yp_hat_new = MU_REAL / h * (y_hat_new - y - h * b0 * yp - h * b_hat @ Yp)
+            #     # yp_hat_new = MU_REAL * (error_Fabien / h - b0 * yp + v @ Yp)
+            #     F = self.fun(t_new, y_hat_new, yp_hat_new)
+            #     error_Fabien = self.solve_lu(LU_real, -F)
+
+            #     # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
+            #     error = (
+            #         self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
+            #         + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
+            #     )                
+            #     error_norm = norm(error / scale)
 
             if error_norm > 1:
                 factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
@@ -701,6 +739,7 @@ class RadauDAE(DaeSolver):
 
                 LU_real = None
                 LU_complex = None
+                rejected = True
             else:
                 step_accepted = True
 
