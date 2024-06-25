@@ -88,10 +88,21 @@ def radau_constants(s):
 
     # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P.
     P = np.linalg.inv(vander)[1:, 1:]
+    print(f"P:\n{P}")
+
+    # P1 = np.linalg.inv(vander)
+    V = np.vander(c_hat, increasing=True)
+    print(f"V:\n{V}")
+    V = V[1:, 1:]
+    print(f"V:\n{V}")
+    P1 = np.linalg.inv(V)
+    print(f"P1:\n{P1}")
 
     # Compute coefficients using Vandermonde matrix.
     vander2 = np.vander(c, increasing=True)
     P2 = np.linalg.inv(vander2)
+    print(f"V2:\n{vander2}")
+    print(f"P2:\n{P2}")
 
     # These linear combinations are used in the algorithm.
     MU_REAL = gammas[0]
@@ -99,7 +110,7 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    return A_inv, c, T, TI, P, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
+    return A_inv, c, T, TI, P, P1, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -396,7 +407,7 @@ class RadauDAE(DaeSolver):
 
         assert stages % 2 == 1
         self.stages = stages
-        self.A_inv, self.C, self.T, self.TI, self.P, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat = radau_constants(stages)
+        self.A_inv, self.C, self.T, self.TI, self.P, self.P1, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat = radau_constants(stages)
 
         self.h_abs_old = None
         self.error_norm_old = None
@@ -473,8 +484,9 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                Z0 = self.sol(t + h * C).T - y
-                # Z0 = self.sol(t + h * C)[0].T - y
+                # Z0 = self.sol(t + h * C).T - y
+                Z0 = self.sol(t + h * C)[0].T - y
+                Z0 = np.zeros((s, y.shape[0]))
 
             scale = atol + np.abs(y) * rtol
 
@@ -622,42 +634,89 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
-        # Yp = (A_inv / (self.h_abs * self.direction)) @ self.Z
-        # Qp = np.dot(Yp.T, P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        # Q1 = (self.P1 @ self.Z)
+        # Qp = np.dot(Yp.T, self.P)
+        # # # Qp = np.dot(Yp.T, self.P2)
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, Q1)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.y, self.yp)
         # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
     def _dense_output_impl(self):
         return self.sol
 
 class RadauDenseOutput(DenseOutput):
-    def __init__(self, t_old, t, y_old, Q):
+    # def __init__(self, t_old, t, y_old, Q, Q1):
+    def __init__(self, t_old, t, y_old, yp_old, y, yp):
     # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)
         self.h = t - t_old
-        self.Q = Q
-        # self.Qp = Qp
-        self.order = Q.shape[1] - 1
+        # Y = y_old + Z
+        # Yp = (A_inv / (self.h)) @ Z
+        # self.Q = Q
+        # # self.Q1 = Q1
+        # self.order = Q.shape[1] - 1
         self.y_old = y_old
+        self.yp_old = yp_old
+        self.y = y
+        self.yp = yp
+        # self.Qp = Qp
         # self.yp_old = yp_old
+        # # self.Qp = Q[:, 1:] * np.arange(1, self.order + 1)
+        # self.Y = Y
+        # self.Yp = Yp
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
-        if t.ndim == 0:
-            p = np.tile(x, self.order + 1)
-            p = np.cumprod(p)
-        else:
-            p = np.tile(x, (self.order + 1, 1))
-            p = np.cumprod(p, axis=0)
-        # Here we don't multiply by h, not a mistake.
-        y = np.dot(self.Q, p)
+        # if t.ndim == 0:
+        #     p = np.tile(x, self.order + 1)
+        #     p = np.cumprod(p)
+        #     # pp = p[:-1]
+        #     raise NotImplementedError
+        # else:
+        #     p = np.tile(x, (self.order + 1, 1))
+        #     p = np.cumprod(p, axis=0)
+        #     # # pp = p[:-1] * np.arange(1, self.order + 1)
+        #     # # pp = p * np.arange(0, self.order + 1)
+        #     # pp = p * np.arange(0, self.order + 1)[:, None]
+        #     # # pp = p * np.arange(0, self.order + 1)
+        # # Here we don't multiply by h, not a mistake.
+        # y = np.dot(self.Q, p)
         # yp = np.dot(self.Qp, p)
-        if y.ndim == 2:
-            y += self.y_old[:, None]
-            # yp += self.yp_old[:, None]
-        else:
-            y += self.y_old
-            # yp += self.yp_old
+        # # yp = np.dot(self.Qp, pp)
+        # # yp = np.dot(np.arange(0, self.order + 1) * self.Q, p)
+        # # yp = np.dot(self.Q, pp)
+        # if y.ndim == 2:
+        #     y += self.y_old[:, None]
+        #     yp += self.yp_old[:, None]
+        # else:
+        #     y += self.y_old
+        #     yp += self.yp_old
 
-        return y
-        # return y, yp
+        ###################
+        # use cubic Hermite
+        ###################
+        h00 = 2 * x**3 - 3 * x**2 + 1
+        h00 = h00[None, :]
+        h01 = -2 * x**3 + 3 * x**2
+        h01 = h01[None, :]
+        h10 = x**3 - 2 * x**2 + x
+        h10 = h10[None, :]
+        h11 = x**3 - x**2
+        h11 = h11[None, :]
+
+        h00p = 6 * x**2 - 6 * x
+        h00p = h00p[None, :]
+        h01p = -6 * x**2 + 6 * x
+        h01p = h01p[None, :]
+        h10p = 3 * x**2 - 4 * x + 1
+        h10p = h10p[None, :]
+        h11p = 3 * x**2 - 2 * x
+        h11p = h11p[None, :]
+
+        stack = np.concatenate((self.y_old[None, :], self.y[None, :], self.yp_old[None, :], self.yp[None, :]))
+        y = np.vstack((h00, h01, h10, h11)).T @ stack
+        yp = np.vstack((h00p, h01p, h10p, h11p)).T @ stack
+        return y.T, yp.T
+
+        # return y
+        return y, yp
