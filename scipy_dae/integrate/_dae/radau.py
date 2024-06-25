@@ -695,13 +695,13 @@ def lagrange_interpolation(c, f):
         """
         Compute the Lagrange interpolating polynomial P(x).
         """
-        return sum(f[i] * L(i, x) for i in range(n))
+        return np.sum([f[i] * L(i, x) for i in range(n)], axis=0)
 
     def dP(x):
         """
         Compute the derivative of the Lagrange interpolating polynomial P'(x).
         """
-        return sum(f[i] * L_derivative(i, x) for i in range(n))
+        return np.sum([f[i] * L_derivative(i, x) for i in range(n)], axis=0)
 
     return P, dP
 
@@ -820,6 +820,7 @@ class RadauDenseOutput(DenseOutput):
         ########################
         # Lagrange interpolation
         ########################
+        x = np.atleast_1d(x)
         # P, dP = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
         # P, dP = lagrange_interpolation(self.C, self.Y)
         # y = np.array([P(xi) for xi in x]).T
@@ -827,9 +828,13 @@ class RadauDenseOutput(DenseOutput):
         P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
         # P, _ = lagrange_interpolation(self.C, self.Y)
         y = np.array([P(xi) for xi in x]).T
+        if t.ndim == 0:
+            y = np.squeeze(y)
         P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.yp_old[None, ], self.Yp)))
         # P, _ = lagrange_interpolation(self.C, self.Yp)
         yp = np.array([P(xi) for xi in x]).T
+        if t.ndim == 0:
+            yp = np.squeeze(yp)
         return y, yp
 
         # ###################

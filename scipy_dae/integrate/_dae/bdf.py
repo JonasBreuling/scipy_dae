@@ -1,8 +1,8 @@
 import numpy as np
 from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
-# from .base import DAEDenseOutput as DenseOutput
+# from scipy.integrate._ivp.base import DenseOutput
+from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
 
@@ -440,5 +440,5 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        return y
-        # return y, np.zeros_like(y)
+        # return y
+        return y, np.zeros_like(y)
