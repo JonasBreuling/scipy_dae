@@ -88,21 +88,21 @@ def radau_constants(s):
 
     # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P.
     P = np.linalg.inv(vander)[1:, 1:]
-    print(f"P:\n{P}")
+    # print(f"P:\n{P}")
 
     # P1 = np.linalg.inv(vander)
     V = np.vander(c_hat, increasing=True)
-    print(f"V:\n{V}")
+    # print(f"V:\n{V}")
     V = V[1:, 1:]
-    print(f"V:\n{V}")
+    # print(f"V:\n{V}")
     P1 = np.linalg.inv(V)
-    print(f"P1:\n{P1}")
+    # print(f"P1:\n{P1}")
 
     # Compute coefficients using Vandermonde matrix.
     vander2 = np.vander(c, increasing=True)
     P2 = np.linalg.inv(vander2)
-    print(f"V2:\n{vander2}")
-    print(f"P2:\n{P2}")
+    # print(f"V2:\n{vander2}")
+    # print(f"P2:\n{P2}")
 
     # These linear combinations are used in the algorithm.
     MU_REAL = gammas[0]
@@ -386,7 +386,7 @@ class RadauDAE(DaeSolver):
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, stages=3,
                  max_step=np.inf, rtol=1e-3, atol=1e-6, 
-                 continuous_error_weight=0.5, jac=None, 
+                 continuous_error_weight=0.0, jac=None, 
                  jac_sparsity=None, vectorized=False, 
                  first_step=None, **extraneous):
         warn_extraneous(extraneous)
@@ -486,8 +486,6 @@ class RadauDAE(DaeSolver):
             else:
                 # Z0 = self.sol(t + h * C).T - y
                 Z0 = self.sol(t + h * C)[0].T - y
-                # Z0 = np.zeros((s, y.shape[0]))
-
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -559,7 +557,7 @@ class RadauDAE(DaeSolver):
 
             # if rejected and error_norm > 1: # try with stabilised error estimate
             # # if True:
-            #     # print(f"rejected")
+            #     print(f"rejected")
             #     # add another Newton step for stabilization
             #     # TODO: This is definitely better for the pendulum problem. I think for the error above
             #     #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
