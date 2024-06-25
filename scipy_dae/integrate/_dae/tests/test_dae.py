@@ -484,21 +484,21 @@ def test_integration_robertson_dae(method):
     
 
 if __name__ == "__main__":
-    pass
+    # pass
 
-    # for params in parameters_linear:
-    #     test_integration_const_jac(*params)
+    for params in parameters_linear:
+        test_integration_const_jac(*params)
 
-    # for params in parameters_complex:
-    #     test_integration_complex(*params)
+    for params in parameters_complex:
+        test_integration_complex(*params)
 
-    # for params in parameters_rational:
-    #     test_integration_rational(*params)
+    for params in parameters_rational:
+        test_integration_rational(*params)
 
-    # for params in parameters_stiff:
-    #     test_integration_robertson(params)
+    for params in parameters_stiff:
+        test_integration_robertson(params)
 
-    # for params in parameters_stiff:
-    #     test_integration_robertson_dae(params)
+    for params in parameters_stiff:
+        test_integration_robertson_dae(params)
 
     # test_events()

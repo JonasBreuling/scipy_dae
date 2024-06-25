@@ -110,7 +110,17 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    return A_inv, c, T, TI, P, P1, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
+    # Lagrange polynomial for dense output
+    L = []
+    for i in range(s + 1):
+        # Start with the polynomial P(x) = 1
+        Li = Poly([1.0])
+        for j in range(s + 1):
+            if i != j:
+                Li *= Poly([-c_hat[j], 1]) / (c_hat[i] - c_hat[j])
+        L.append(Li)
+
+    return A_inv, c, T, TI, P, P1, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, L
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -407,7 +417,7 @@ class RadauDAE(DaeSolver):
 
         assert stages % 2 == 1
         self.stages = stages
-        self.A_inv, self.C, self.T, self.TI, self.P, self.P1, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat = radau_constants(stages)
+        self.A_inv, self.C, self.T, self.TI, self.P, self.P1, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat, self.L = radau_constants(stages)
 
         self.h_abs_old = None
         self.error_norm_old = None
@@ -644,64 +654,13 @@ class RadauDAE(DaeSolver):
         # # default with derivative
         # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
         # Lagrange
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv, self.L)
         # # cubic Hermite
         # return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.y, self.yp)
 
     def _dense_output_impl(self):
         return self.sol
-    
-def lagrange_interpolation(c, f):
-    """
-    Perform Lagrange interpolation for the given nodes c and vector-valued functions f.
 
-    Parameters:
-    c (array-like): The x-coordinates of the interpolation nodes.
-    f (array-like): The y-coordinates of the function values at the nodes.
-
-    Returns:
-    P (function): The Lagrange interpolating polynomial.
-    dP (function): The derivative of the Lagrange interpolating polynomial.
-    """
-    n = len(c)
-
-    def L(i, x):
-        """
-        Compute the Lagrange basis polynomial L_i(x).
-        """
-        result = 1
-        for j in range(n):
-            if j != i:
-                result *= (x - c[j]) / (c[i] - c[j])
-        return result
-
-    def L_derivative(i, x):
-        """
-        Compute the derivative of the Lagrange basis polynomial L_i(x).
-        """
-        sum_term = 0
-        for j in range(n):
-            if j != i:
-                product_term = 1
-                for k in range(n):
-                    if k != i and k != j:
-                        product_term *= (x - c[k]) / (c[i] - c[k])
-                sum_term += product_term / (c[i] - c[j])
-        return sum_term
-
-    def P(x):
-        """
-        Compute the Lagrange interpolating polynomial P(x).
-        """
-        return np.sum([f[i] * L(i, x) for i in range(n)], axis=0)
-
-    def dP(x):
-        """
-        Compute the derivative of the Lagrange interpolating polynomial P'(x).
-        """
-        return np.sum([f[i] * L_derivative(i, x) for i in range(n)], axis=0)
-
-    return P, dP
 
 class RadauDenseOutput(DenseOutput):
     # # default
@@ -709,7 +668,7 @@ class RadauDenseOutput(DenseOutput):
     # # default with derivative
     # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
     # Lagrange
-    def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv):
+    def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv, L):
     # # cubic Hermite
     # def __init__(self, t_old, t, y_old, yp_old, y, yp):
     # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
@@ -740,6 +699,7 @@ class RadauDenseOutput(DenseOutput):
         self.Yp = (A_inv / self.h) @ Z
         self.y_old = y_old
         self.yp_old = yp_old
+        self.L = L
 
         # ###############
         # # cubic Hermite
@@ -819,20 +779,35 @@ class RadauDenseOutput(DenseOutput):
         # Lagrange interpolation
         ########################
         x = np.atleast_1d(x)
-        # P, dP = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
-        # P, dP = lagrange_interpolation(self.C, self.Y)
-        # y = np.array([P(xi) for xi in x]).T
-        # yp = np.array([dP(xi) for xi in x]).T
-        P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
-        # P, _ = lagrange_interpolation(self.C, self.Y)
-        y = np.array([P(xi) for xi in x]).T
+
+        stack = np.concatenate((self.y_old[None, ], self.Y))
+        y = np.array([
+            np.sum([Li(xj) * Yi for Li, Yi in zip(self.L, stack)], axis=0) for xj in x
+        ]).T
         if t.ndim == 0:
             y = np.squeeze(y)
-        P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.yp_old[None, ], self.Yp)))
-        # P, _ = lagrange_interpolation(self.C, self.Yp)
-        yp = np.array([P(xi) for xi in x]).T
+                   
+        stackp = np.concatenate((self.yp_old[None, ], self.Yp))
+        yp = np.array([
+            np.sum([Li(xj) * Ypi for Li, Ypi in zip(self.L, stackp)], axis=0) for xj in x
+        ]).T
         if t.ndim == 0:
             yp = np.squeeze(yp)
+
+        # # P, dP = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
+        # # P, dP = lagrange_interpolation(self.C, self.Y)
+        # # y = np.array([P(xi) for xi in x]).T
+        # # yp = np.array([dP(xi) for xi in x]).T
+        # P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
+        # # P, _ = lagrange_interpolation(self.C, self.Y)
+        # y = np.array([P(xi) for xi in x]).T
+        # if t.ndim == 0:
+        #     y = np.squeeze(y)
+        # P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.yp_old[None, ], self.Yp)))
+        # # P, _ = lagrange_interpolation(self.C, self.Yp)
+        # yp = np.array([P(xi) for xi in x]).T
+        # if t.ndim == 0:
+        #     yp = np.squeeze(yp)
         return y, yp
 
         # ###################
