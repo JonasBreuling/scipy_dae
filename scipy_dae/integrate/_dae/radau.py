@@ -642,19 +642,18 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
-        Yp = (self.A_inv / (self.h_abs_old * self.direction)) @ self.Z.copy()
-        # Yp = self.A_inv @ self.Z
+        h = self.t - self.t_old
+        Yp = (self.A_inv / h) @ self.Z
         Zp = Yp - self.yp_old
-        # Qp = np.dot(Yp.T, self.P)
         Qp = np.dot(Zp.T, self.P)
-        # Qp = np.dot(Yp.T, self.P2)
 
         # # default
         # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
-        # # default with derivative
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
-        # Lagrange
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv, self.L)
+        # default with derivative
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp, self.Z, self.A_inv, self.P)
+        # # Lagrange
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv, self.L)
         # # cubic Hermite
         # return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.y, self.yp)
 
@@ -665,10 +664,11 @@ class RadauDAE(DaeSolver):
 class RadauDenseOutput(DenseOutput):
     # # default
     # def __init__(self, t_old, t, y_old, Q):
-    # # default with derivative
-    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
-    # Lagrange
-    def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv, L):
+    # default with derivative
+    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
+    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp, Z, A_inv, P):
+    # # Lagrange
+    # def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv, L):
     # # cubic Hermite
     # def __init__(self, t_old, t, y_old, yp_old, y, yp):
     # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
@@ -682,24 +682,28 @@ class RadauDenseOutput(DenseOutput):
         # self.order = Q.shape[1] - 1
         # self.y_old = y_old
 
-        # #########################
-        # # default with derivative
-        # #########################
-        # self.Q = Q
-        # self.Qp = Qp
-        # self.order = Q.shape[1] - 1
-        # self.y_old = y_old
-        # self.yp_old = yp_old
-
-        ##########
-        # Lagrange
-        ##########
-        self.C = C
-        self.Y = y_old + Z
-        self.Yp = (A_inv / self.h) @ Z
+        #########################
+        # default with derivative
+        #########################
+        self.Q = Q
+        self.Qp = Qp
+        self.order = Q.shape[1] - 1
         self.y_old = y_old
         self.yp_old = yp_old
-        self.L = L
+        # self.Yp = (A_inv / self.h) @ Z
+        # Zp = self.Yp - yp_old
+        # self.P = P
+        # self.Qp = np.dot(Zp.T, P)
+
+        # ##########
+        # # Lagrange
+        # ##########
+        # self.C = C
+        # self.Y = y_old + Z
+        # self.Yp = (A_inv / self.h) @ Z
+        # self.y_old = y_old
+        # self.yp_old = yp_old
+        # self.L = L
 
         # ###############
         # # cubic Hermite
@@ -753,10 +757,21 @@ class RadauDenseOutput(DenseOutput):
         # # return y
         # return y, yp
 
-        # #########################
-        # # default with derivative
-        # # TODO: Find bug here
-        # #########################
+        #########################
+        # default with derivative
+        #########################
+        x = np.atleast_1d(x)
+        p = np.tile(x, (self.order + 1, 1))
+        p = np.cumprod(p, axis=0)
+        # Here we don't multiply by h, not a mistake.
+        y = np.dot(self.Q, p)
+        yp = np.dot(self.Qp, p)
+        y += self.y_old[:, None]
+        yp += self.yp_old[:, None]
+        if t.ndim == 0:
+            y = np.squeeze(y)
+            yp = np.squeeze(yp)
+    
         # if t.ndim == 0:
         #     p = np.tile(x, self.order + 1)
         #     p = np.cumprod(p)
@@ -775,24 +790,24 @@ class RadauDenseOutput(DenseOutput):
 
         # return y, yp
 
-        ########################
-        # Lagrange interpolation
-        ########################
-        x = np.atleast_1d(x)
+        # ########################
+        # # Lagrange interpolation
+        # ########################
+        # x = np.atleast_1d(x)
 
-        stack = np.concatenate((self.y_old[None, ], self.Y))
-        y = np.array([
-            np.sum([Li(xj) * Yi for Li, Yi in zip(self.L, stack)], axis=0) for xj in x
-        ]).T
-        if t.ndim == 0:
-            y = np.squeeze(y)
+        # stack = np.concatenate((self.y_old[None, ], self.Y))
+        # y = np.array([
+        #     np.sum([Li(xj) * Yi for Li, Yi in zip(self.L, stack)], axis=0) for xj in x
+        # ]).T
+        # if t.ndim == 0:
+        #     y = np.squeeze(y)
                    
-        stackp = np.concatenate((self.yp_old[None, ], self.Yp))
-        yp = np.array([
-            np.sum([Li(xj) * Ypi for Li, Ypi in zip(self.L, stackp)], axis=0) for xj in x
-        ]).T
-        if t.ndim == 0:
-            yp = np.squeeze(yp)
+        # stackp = np.concatenate((self.yp_old[None, ], self.Yp))
+        # yp = np.array([
+        #     np.sum([Li(xj) * Ypi for Li, Ypi in zip(self.L, stackp)], axis=0) for xj in x
+        # ]).T
+        # if t.ndim == 0:
+        #     yp = np.squeeze(yp)
 
         # # P, dP = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
         # # P, dP = lagrange_interpolation(self.C, self.Y)
