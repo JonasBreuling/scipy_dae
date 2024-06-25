@@ -486,7 +486,7 @@ class RadauDAE(DaeSolver):
             else:
                 # Z0 = self.sol(t + h * C).T - y
                 Z0 = self.sol(t + h * C)[0].T - y
-                Z0 = np.zeros((s, y.shape[0]))
+                # Z0 = np.zeros((s, y.shape[0]))
 
             scale = atol + np.abs(y) * rtol
 
@@ -634,12 +634,17 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
-        # Q1 = (self.P1 @ self.Z)
+        Yp = (self.A_inv / (self.h_abs_old * self.direction)) @ self.Z.copy()
+        # Yp = self.A_inv @ self.Z
+        Zp = Yp - self.yp_old
         # Qp = np.dot(Yp.T, self.P)
-        # # # Qp = np.dot(Yp.T, self.P2)
+        Qp = np.dot(Zp.T, self.P)
+        # Qp = np.dot(Yp.T, self.P2)
 
         # # default
         # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        # # default with derivative
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
         # Lagrange
         return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv)
         # # cubic Hermite
@@ -703,6 +708,8 @@ def lagrange_interpolation(c, f):
 class RadauDenseOutput(DenseOutput):
     # # default
     # def __init__(self, t_old, t, y_old, Q):
+    # # default with derivative
+    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
     # Lagrange
     def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv):
     # # cubic Hermite
@@ -718,12 +725,20 @@ class RadauDenseOutput(DenseOutput):
         # self.order = Q.shape[1] - 1
         # self.y_old = y_old
 
+        # #########################
+        # # default with derivative
+        # #########################
+        # self.Q = Q
+        # self.Qp = Qp
+        # self.order = Q.shape[1] - 1
+        # self.y_old = y_old
+        # self.yp_old = yp_old
+
         ##########
         # Lagrange
         ##########
         self.C = C
         self.Y = y_old + Z
-        self.Yp = y_old + Z
         self.Yp = (A_inv / self.h) @ Z
         self.y_old = y_old
         self.yp_old = yp_old
@@ -778,6 +793,28 @@ class RadauDenseOutput(DenseOutput):
         #     # yp += self.yp_old
 
         # # return y
+        # return y, yp
+
+        # #########################
+        # # default with derivative
+        # # TODO: Find bug here
+        # #########################
+        # if t.ndim == 0:
+        #     p = np.tile(x, self.order + 1)
+        #     p = np.cumprod(p)
+        # else:
+        #     p = np.tile(x, (self.order + 1, 1))
+        #     p = np.cumprod(p, axis=0)
+        # # Here we don't multiply by h, not a mistake.
+        # y = np.dot(self.Q, p)
+        # yp = np.dot(self.Qp, p)
+        # if y.ndim == 2:
+        #     y += self.y_old[:, None]
+        #     yp += self.yp_old[:, None]
+        # else:
+        #     y += self.y_old
+        #     yp += self.yp_old
+
         # return y, yp
 
         ########################

@@ -412,9 +412,10 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
                 if sol is None:
                     sol = solver.dense_output()
                 ts.append(t_eval_step)
-                ys.append(sol(t_eval_step))
-                # y, yp = sol(t_eval_step)
-                # ys.append(y)
+                # TODO: Dense output for derivatives
+                # ys.append(sol(t_eval_step))
+                y, yp = sol(t_eval_step)
+                ys.append(y)
                 yps.append(yp)
                 t_eval_i = t_eval_i_new
 

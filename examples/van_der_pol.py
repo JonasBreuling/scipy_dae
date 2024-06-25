@@ -71,8 +71,8 @@ if __name__ == "__main__":
     # solver options
     atol = rtol = 1e-4
 
-    # t_eval = np.linspace(t0, t1, num=int(5e2))
-    t_eval = None
+    t_eval = np.linspace(t0, t1, num=int(1e3))
+    # t_eval = None
     first_step = 1e-3
 
     ####################
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
-    # yp = sol.yp
+    yp = sol.yp
     success = sol.success
     status = sol.status
     message = sol.message
@@ -131,12 +131,12 @@ if __name__ == "__main__":
 
     yp_scipy = np.array([rhs(ti, yi) for ti, yi in zip(t_scipy, y_scipy.T)]).T
 
-    # ax[2].plot(t, yp[0], "-ok", label=f"yp0 ({method})", mfc="none")
+    ax[2].plot(t, yp[0], "-ok", label=f"yp0 ({method})", mfc="none")
     ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
     ax[2].legend()
     ax[2].grid()
 
-    # ax[3].plot(t, yp[1], "-ok", label=f"yp1 ({method})", mfc="none")
+    ax[3].plot(t, yp[1], "-ok", label=f"yp1 ({method})", mfc="none")
     ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
     ax[3].legend()
     ax[3].grid()
