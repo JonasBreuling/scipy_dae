@@ -60,13 +60,13 @@ if __name__ == "__main__":
     yp0 = rhs(t0, y0)
     z0 = np.concatenate((y0, yp0))
 
-    yp0 = np.zeros_like(y0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    print(f"fnorm: {fnorm}")
+    # yp0 = np.zeros_like(y0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # print(f"fnorm: {fnorm}")
 
     # solver options
     atol = rtol = 1e-4

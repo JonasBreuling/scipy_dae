@@ -1,7 +1,6 @@
 import numpy as np
 from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-# from scipy.integrate._ivp.base import DenseOutput
 from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
@@ -163,6 +162,7 @@ class BDFDAE(DaeSolver):
         Setting ``vectorized=True`` allows for faster finite difference
         approximation of the Jacobian by this method, but may result in slower
         execution overall in some circumstances (e.g. small ``len(y0)``).
+        Default is False.
 
     Attributes
     ----------

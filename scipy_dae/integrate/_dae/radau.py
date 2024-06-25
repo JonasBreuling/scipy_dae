@@ -2,8 +2,7 @@ import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
-# from .base import DAEDenseOutput as DenseOutput
+from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
 
@@ -48,8 +47,8 @@ def radau_constants(s):
     lambdas = lambdas[idx]
     V = V[:, idx]
 
-    # scale eigenvectors to get a "nice" transformation matrix (used by scipy)
-    # and at the same time minimizes the condition number of V
+    # scale eigenvectors to get a "nice" transformation matrix (used by original 
+    # scipy code) and at the same time minimizes the condition number of V
     for i in range(s):
         V[:, i] /= V[-1, i]
 
@@ -69,16 +68,13 @@ def radau_constants(s):
     alphas = alphas_betas[::2].real
     betas = alphas_betas[::2].imag
     
-    # compute embedded method for error estimate,
-    # see https://arxiv.org/abs/1306.2392 equation (10)
-    # # TODO: This is not correct yet, see also here: https://math.stackexchange.com/questions/4441391/embedding-methods-into-implicit-runge-kutta-schemes
-    # TODO: This is correct, document this extended tableau!
+    # compute embedded method for error estimate
     c_hat = np.array([0, *c])
     vander = np.vander(c_hat, increasing=True).T
 
     rhs = 1 / np.arange(1, s + 1)
     gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
-    b0 = gamma0 # note: this leads to the formula of Fabien!
+    b0 = gamma0 # note: this leads to the formula implemented inr ride.m by Fabien
     # b0 = 0.02 # proposed value of de Swart
     rhs[0] -= b0
     rhs -= gamma0
@@ -88,21 +84,10 @@ def radau_constants(s):
 
     # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P.
     P = np.linalg.inv(vander)[1:, 1:]
-    # print(f"P:\n{P}")
-
-    # P1 = np.linalg.inv(vander)
-    V = np.vander(c_hat, increasing=True)
-    # print(f"V:\n{V}")
-    V = V[1:, 1:]
-    # print(f"V:\n{V}")
-    P1 = np.linalg.inv(V)
-    # print(f"P1:\n{P1}")
 
     # Compute coefficients using Vandermonde matrix.
     vander2 = np.vander(c, increasing=True)
     P2 = np.linalg.inv(vander2)
-    # print(f"V2:\n{vander2}")
-    # print(f"P2:\n{P2}")
 
     # These linear combinations are used in the algorithm.
     MU_REAL = gammas[0]
@@ -110,17 +95,7 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    # Lagrange polynomial for dense output
-    L = []
-    for i in range(s + 1):
-        # Start with the polynomial P(x) = 1
-        Li = Poly([1.0])
-        for j in range(s + 1):
-            if i != j:
-                Li *= Poly([-c_hat[j], 1]) / (c_hat[i] - c_hat[j])
-        L.append(Li)
-
-    return A_inv, c, T, TI, P, P1, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, L
+    return A_inv, c, T, TI, P, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -138,7 +113,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         Current state.
     h : float
         Step to try.
-    Z0 : ndarray, shape (3, n)
+    Z0 : ndarray, shape (s, n)
         Initial guess for the solution. It determines new values of `y` at
         ``t + h * C`` as ``y + Z0``, where ``C`` is the Radau method constants.
     scale : ndarray, shape (n)
@@ -151,6 +126,12 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     solve_lu : callable
         Callable which solves a linear system given a LU decomposition. The
         signature is ``solve_lu(LU, b)``.
+    C : ndarray, shape (s,)
+        Array containing the Radau IIA nodes.
+    T, TI : ndarray, shape (s, s)
+        Transformation matrix and inverse of the methods coefficient matrix A.
+    A_inv : ndarray, shape (s, s)
+        Inverse the methods coefficient matrix A.
 
     Returns
     -------
@@ -235,6 +216,8 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     error_norm, error_norm_old : float
         Current and previous values of the error norm, `error_norm_old` can
         be None (see Notes).
+    s : int
+        Number of stages of the Radau IIA method.
 
     Returns
     -------
@@ -262,42 +245,42 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     return factor
 
 
-# TODO:
-# - adapt documentation
-# - fix error estimate of Fabien2009
-# - dense output for yp
 class RadauDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 2s - 1.
 
     The implementation follows [4]_, where most of the ideas come from [2]_. 
     The embedded formula of [3]_ is applied to implicit differential equations.
-    The error is controlled with a third-order accurate embedded formula as 
+    The error is controlled with a (s)th-order accurate embedded formula as 
     introduced in [2]_ and refined in [3]_. The procedure is slightly adapted 
-    by [4]_ to cope with implicit differential equations. A cubic polynomial 
-    which satisfies the collocation conditions is used for the dense output.
+    by [4]_ to cope with implicit differential equations. The embedded error 
+    estimate can be mixed with the contunous error of the lower order 
+    collocation polynomial as porposed in [5]_ and [6]_.
+    
+    A cubic polynomial 
+    which satisfies the collocation conditions is used for the dense output of 
+    both state and derivatives.
 
     Parameters
     ----------
     fun : callable
-        Implicit function defining the system. The calling signature is ``fun(t, y)``.
-        Here ``t`` is a scalar, and there are two options for the ndarray ``y``:
-        It can either have shape (n,); then ``fun`` must return array_like with
-        shape (n,). Alternatively it can have shape (n, k); then ``fun``
-        must return an array_like with shape (n, k), i.e., each column
-        corresponds to a single column in ``y``. The choice between the two
-        options is determined by `vectorized` argument (see below). The
-        vectorized implementation allows a faster approximation of the Jacobian
-        by finite differences (required for this solver).
+        Function defining the DAE system: ``f(t, y, yp) = 0``. The calling 
+        signature is ``fun(t, y, yp)``, where ``t`` is a scalar and 
+        ``y, yp`` are ndarrays with 
+        ``len(y) = len(yp) = len(y0) = len(yp0)``. ``fun`` must return 
+        an array of the same shape as ``y, yp``. See `vectorized` for more
+        information.
     t0 : float
         Initial time.
     y0 : array_like, shape (n,)
         Initial state.
+    yp0 : array_like, shape (n,)
+        Initial derivative.
     t_bound : float
         Boundary time - the integration won't continue beyond it. It also
         determines the direction of the integration.
     stages : int, optional
         Number of used stages. Default is 3, which corresponds to the 
-        ``solve_ivp`` method.
+        ``solve_ivp`` method. Only odd number of stages are allowed.
     first_step : float or None, optional
         Initial step size. Default is ``None`` which means that the algorithm
         should choose.
@@ -320,8 +303,9 @@ class RadauDAE(DaeSolver):
         1e-3 for `rtol` and 1e-6 for `atol`.
     continuous_error_weight : float, optional
         Weighting of continuous error of the dense output as introduced in 
-        [5]_. The embedded error is weighted by (1 - continuous_error_weight). 
-        Has to satisfy 0 <= continuous_error_weight <= 1. Default is 0.5.
+        [5]_ and [6]_. The embedded error is weighted by (1 - continuous_error_weight). 
+        Has to satisfy 0 <= continuous_error_weight <= 1. Default is 0.0, i.e., only 
+        the embedded error is considered.
     jac : {None, array_like, sparse_matrix, callable}, optional
         Jacobian matrix of the right-hand side of the system with respect to
         y, required by this method. The Jacobian matrix has shape (n, n) and
@@ -339,6 +323,7 @@ class RadauDAE(DaeSolver):
 
         It is generally recommended to provide the Jacobian rather than
         relying on a finite-difference approximation.
+    # TODO: Adapt and test this.
     jac_sparsity : {None, array_like, sparse matrix}, optional
         Defines a sparsity structure of the Jacobian matrix for a
         finite-difference approximation. Its shape must be (n, n). This argument
@@ -348,11 +333,19 @@ class RadauDAE(DaeSolver):
         element in the Jacobian is always zero. If None (default), the Jacobian
         is assumed to be dense.
     vectorized : bool, optional
-        Whether `fun` is implemented in a vectorized fashion. Default is False.
-    mass_matrix : {None, array_like, sparse_matrix}, optional
-        Defined the constant mass matrix of the system, with shape (n,n).
-        It may be singular, thus defining a problem of the differential-
-        algebraic type (DAE), see [1]. The default value is None.
+        Whether `fun` can be called in a vectorized fashion. Default is False.
+
+        If ``vectorized`` is False, `fun` will always be called with ``y`` 
+        and ``yp`` of shape ``(n,)``, where ``n = len(y0) = len(yp0)``.
+
+        If ``vectorized`` is True, `fun` may be called with ``y`` and ``yp`` of 
+        shape ``(n, k)``, where ``k`` is an integer. In this case, `fun` must 
+        behave such that ``fun(t, y, yp)[:, i] == fun(t, y[:, i], yp[:, i])``.
+
+        Setting ``vectorized=True`` allows for faster finite difference
+        approximation of the Jacobian by this method, but may result in slower
+        execution overall in some circumstances (e.g. small ``len(y0)``).
+        Default is False.
 
     Attributes
     ----------
@@ -368,6 +361,8 @@ class RadauDAE(DaeSolver):
         Current time.
     y : ndarray
         Current state.
+    yp : ndarray
+        Current derivative.
     t_old : float
         Previous time. None if no steps were made yet.
     step_size : float
@@ -391,8 +386,11 @@ class RadauDAE(DaeSolver):
            Mathematics, 86, pp. 347-358, 1997.
     .. [4] B. Fabien, "Analytical System Dynamics: Modeling and Simulation", 
            Sec. 5.3.5.
-    .. [5] N. Guglielmi, E. Hairer , "Implementing Radau IIA Methods for Stiff 
+    .. [5] N. Guglielmi, E. Hairer, "Implementing Radau IIA Methods for Stiff 
            Delay Differential Equations", Computing 67, 1-12, 2001.
+    .. [6] N. Guglielmi, "Open issues in devising software for the numerical 
+           solution of implicit delay differential equations", Journal of 
+           Computational and Applied Mathematics 185, 261-277, 2006.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, stages=3,
                  max_step=np.inf, rtol=1e-3, atol=1e-6, 
@@ -417,7 +415,7 @@ class RadauDAE(DaeSolver):
 
         assert stages % 2 == 1
         self.stages = stages
-        self.A_inv, self.C, self.T, self.TI, self.P, self.P1, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat, self.L = radau_constants(stages)
+        self.A_inv, self.C, self.T, self.TI, self.P, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat = radau_constants(stages)
 
         self.h_abs_old = None
         self.error_norm_old = None
@@ -540,6 +538,7 @@ class RadauDAE(DaeSolver):
             # Fabien (5.65)
             ###############
             # note: This is the embedded method that is stabilized below
+            # TODO: Store MU_REAL * v during construction.
             # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
             yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
             F = self.fun(t_new, y_new, yp_hat_new)
@@ -595,7 +594,6 @@ class RadauDAE(DaeSolver):
                 step_accepted = True
 
         # Step is converged and accepted
-        # TODO: Make this rate a user defined argument
         recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
 
         factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
@@ -646,120 +644,24 @@ class RadauDAE(DaeSolver):
         Yp = (self.A_inv / h) @ self.Z
         Zp = Yp - self.yp_old
         Qp = np.dot(Zp.T, self.P)
-
-        # # default
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
-        # default with derivative
         return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp, self.Z, self.A_inv, self.P)
-        # # Lagrange
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv, self.L)
-        # # cubic Hermite
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.y, self.yp)
 
     def _dense_output_impl(self):
         return self.sol
 
 
 class RadauDenseOutput(DenseOutput):
-    # # default
-    # def __init__(self, t_old, t, y_old, Q):
-    # default with derivative
     def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
-    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp, Z, A_inv, P):
-    # # Lagrange
-    # def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv, L):
-    # # cubic Hermite
-    # def __init__(self, t_old, t, y_old, yp_old, y, yp):
-    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)
         self.h = t - t_old
-
-        # #########
-        # # default
-        # #########
-        # self.Q = Q
-        # self.order = Q.shape[1] - 1
-        # self.y_old = y_old
-
-        #########################
-        # default with derivative
-        #########################
         self.Q = Q
         self.Qp = Qp
         self.order = Q.shape[1] - 1
         self.y_old = y_old
         self.yp_old = yp_old
-        # self.Yp = (A_inv / self.h) @ Z
-        # Zp = self.Yp - yp_old
-        # self.P = P
-        # self.Qp = np.dot(Zp.T, P)
-
-        # ##########
-        # # Lagrange
-        # ##########
-        # self.C = C
-        # self.Y = y_old + Z
-        # self.Yp = (A_inv / self.h) @ Z
-        # self.y_old = y_old
-        # self.yp_old = yp_old
-        # self.L = L
-
-        # ###############
-        # # cubic Hermite
-        # ###############
-        # self.y_old = y_old
-        # self.yp_old = yp_old
-        # self.y = y
-        # self.yp = yp
-
-        # self.yp_old = yp_old
-        # self.y = y
-        # self.yp = yp
-        # # self.Qp = Qp
-        # # self.yp_old = yp_old
-        # # # self.Qp = Q[:, 1:] * np.arange(1, self.order + 1)
-        # # self.Y = Y
-        # # self.Yp = Yp
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
-
-        # #########
-        # # default
-        # #########
-        # if t.ndim == 0:
-        #     p = np.tile(x, self.order + 1)
-        #     p = np.cumprod(p)
-        #     # pp = p[:-1]
-        #     raise NotImplementedError
-        # else:
-        #     p = np.tile(x, (self.order + 1, 1))
-        #     p = np.cumprod(p, axis=0)
-        #     # # pp = p[:-1] * np.arange(1, self.order + 1)
-        #     # # pp = p * np.arange(0, self.order + 1)
-        #     # pp = p * np.arange(0, self.order + 1)[:, None]
-        #     # # pp = p * np.arange(0, self.order + 1)
-        # # Here we don't multiply by h, not a mistake.
-        # y = np.dot(self.Q, p)
-        # yp = 0 * y
-        # # yp = np.dot(self.Qp, p)
-        # # yp = np.dot(self.Qp, pp)
-        # # yp = np.dot(np.arange(0, self.order + 1) * self.Q, p)
-        # # yp = np.dot(self.Q, pp)
-        # if y.ndim == 2:
-        #     y += self.y_old[:, None]
-        #     # yp += self.yp_old[:, None]
-        # else:
-        #     y += self.y_old
-        #     # yp += self.yp_old
-
-        # # return y
-        # return y, yp
-
-        #########################
-        # default with derivative
-        #########################
         x = np.atleast_1d(x)
         p = np.tile(x, (self.order + 1, 1))
         p = np.cumprod(p, axis=0)
@@ -771,82 +673,4 @@ class RadauDenseOutput(DenseOutput):
         if t.ndim == 0:
             y = np.squeeze(y)
             yp = np.squeeze(yp)
-    
-        # if t.ndim == 0:
-        #     p = np.tile(x, self.order + 1)
-        #     p = np.cumprod(p)
-        # else:
-        #     p = np.tile(x, (self.order + 1, 1))
-        #     p = np.cumprod(p, axis=0)
-        # # Here we don't multiply by h, not a mistake.
-        # y = np.dot(self.Q, p)
-        # yp = np.dot(self.Qp, p)
-        # if y.ndim == 2:
-        #     y += self.y_old[:, None]
-        #     yp += self.yp_old[:, None]
-        # else:
-        #     y += self.y_old
-        #     yp += self.yp_old
-
-        # return y, yp
-
-        # ########################
-        # # Lagrange interpolation
-        # ########################
-        # x = np.atleast_1d(x)
-
-        # stack = np.concatenate((self.y_old[None, ], self.Y))
-        # y = np.array([
-        #     np.sum([Li(xj) * Yi for Li, Yi in zip(self.L, stack)], axis=0) for xj in x
-        # ]).T
-        # if t.ndim == 0:
-        #     y = np.squeeze(y)
-                   
-        # stackp = np.concatenate((self.yp_old[None, ], self.Yp))
-        # yp = np.array([
-        #     np.sum([Li(xj) * Ypi for Li, Ypi in zip(self.L, stackp)], axis=0) for xj in x
-        # ]).T
-        # if t.ndim == 0:
-        #     yp = np.squeeze(yp)
-
-        # # P, dP = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
-        # # P, dP = lagrange_interpolation(self.C, self.Y)
-        # # y = np.array([P(xi) for xi in x]).T
-        # # yp = np.array([dP(xi) for xi in x]).T
-        # P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
-        # # P, _ = lagrange_interpolation(self.C, self.Y)
-        # y = np.array([P(xi) for xi in x]).T
-        # if t.ndim == 0:
-        #     y = np.squeeze(y)
-        # P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.yp_old[None, ], self.Yp)))
-        # # P, _ = lagrange_interpolation(self.C, self.Yp)
-        # yp = np.array([P(xi) for xi in x]).T
-        # if t.ndim == 0:
-        #     yp = np.squeeze(yp)
         return y, yp
-
-        # ###################
-        # # use cubic Hermite
-        # ###################
-        # h00 = 2 * x**3 - 3 * x**2 + 1
-        # h00 = h00[None, :]
-        # h01 = -2 * x**3 + 3 * x**2
-        # h01 = h01[None, :]
-        # h10 = x**3 - 2 * x**2 + x
-        # h10 = h10[None, :]
-        # h11 = x**3 - x**2
-        # h11 = h11[None, :]
-
-        # h00p = 6 * x**2 - 6 * x
-        # h00p = h00p[None, :]
-        # h01p = -6 * x**2 + 6 * x
-        # h01p = h01p[None, :]
-        # h10p = 3 * x**2 - 4 * x + 1
-        # h10p = h10p[None, :]
-        # h11p = 3 * x**2 - 2 * x
-        # h11p = h11p[None, :]
-
-        # stack = np.concatenate((self.y_old[None, :], self.y[None, :], self.yp_old[None, :], self.yp[None, :]))
-        # y = np.vstack((h00, h01, h10, h11)).T @ stack
-        # yp = np.vstack((h00p, h01p, h10p, h11p)).T @ stack
-        # return y.T, yp.T
