@@ -637,36 +637,120 @@ class RadauDAE(DaeSolver):
         # Q1 = (self.P1 @ self.Z)
         # Qp = np.dot(Yp.T, self.P)
         # # # Qp = np.dot(Yp.T, self.P2)
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, Q1)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.y, self.yp)
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+
+        # # default
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        # Lagrange
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.C, self.Z, self.A_inv)
+        # # cubic Hermite
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, self.yp_old, self.y, self.yp)
 
     def _dense_output_impl(self):
         return self.sol
+    
+def lagrange_interpolation(c, f):
+    """
+    Perform Lagrange interpolation for the given nodes c and vector-valued functions f.
+
+    Parameters:
+    c (array-like): The x-coordinates of the interpolation nodes.
+    f (array-like): The y-coordinates of the function values at the nodes.
+
+    Returns:
+    P (function): The Lagrange interpolating polynomial.
+    dP (function): The derivative of the Lagrange interpolating polynomial.
+    """
+    n = len(c)
+
+    def L(i, x):
+        """
+        Compute the Lagrange basis polynomial L_i(x).
+        """
+        result = 1
+        for j in range(n):
+            if j != i:
+                result *= (x - c[j]) / (c[i] - c[j])
+        return result
+
+    def L_derivative(i, x):
+        """
+        Compute the derivative of the Lagrange basis polynomial L_i(x).
+        """
+        sum_term = 0
+        for j in range(n):
+            if j != i:
+                product_term = 1
+                for k in range(n):
+                    if k != i and k != j:
+                        product_term *= (x - c[k]) / (c[i] - c[k])
+                sum_term += product_term / (c[i] - c[j])
+        return sum_term
+
+    def P(x):
+        """
+        Compute the Lagrange interpolating polynomial P(x).
+        """
+        return sum(f[i] * L(i, x) for i in range(n))
+
+    def dP(x):
+        """
+        Compute the derivative of the Lagrange interpolating polynomial P'(x).
+        """
+        return sum(f[i] * L_derivative(i, x) for i in range(n))
+
+    return P, dP
 
 class RadauDenseOutput(DenseOutput):
-    # def __init__(self, t_old, t, y_old, Q, Q1):
-    def __init__(self, t_old, t, y_old, yp_old, y, yp):
+    # # default
+    # def __init__(self, t_old, t, y_old, Q):
+    # Lagrange
+    def __init__(self, t_old, t, y_old, yp_old, C, Z, A_inv):
+    # # cubic Hermite
+    # def __init__(self, t_old, t, y_old, yp_old, y, yp):
     # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)
         self.h = t - t_old
-        # Y = y_old + Z
-        # Yp = (A_inv / (self.h)) @ Z
+
+        # #########
+        # # default
+        # #########
         # self.Q = Q
-        # # self.Q1 = Q1
         # self.order = Q.shape[1] - 1
+        # self.y_old = y_old
+
+        ##########
+        # Lagrange
+        ##########
+        self.C = C
+        self.Y = y_old + Z
+        self.Yp = y_old + Z
+        self.Yp = (A_inv / self.h) @ Z
         self.y_old = y_old
         self.yp_old = yp_old
-        self.y = y
-        self.yp = yp
-        # self.Qp = Qp
+
+        # ###############
+        # # cubic Hermite
+        # ###############
+        # self.y_old = y_old
         # self.yp_old = yp_old
-        # # self.Qp = Q[:, 1:] * np.arange(1, self.order + 1)
-        # self.Y = Y
-        # self.Yp = Yp
+        # self.y = y
+        # self.yp = yp
+
+        # self.yp_old = yp_old
+        # self.y = y
+        # self.yp = yp
+        # # self.Qp = Qp
+        # # self.yp_old = yp_old
+        # # # self.Qp = Q[:, 1:] * np.arange(1, self.order + 1)
+        # # self.Y = Y
+        # # self.Yp = Yp
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
+
+        # #########
+        # # default
+        # #########
         # if t.ndim == 0:
         #     p = np.tile(x, self.order + 1)
         #     p = np.cumprod(p)
@@ -681,42 +765,58 @@ class RadauDenseOutput(DenseOutput):
         #     # # pp = p * np.arange(0, self.order + 1)
         # # Here we don't multiply by h, not a mistake.
         # y = np.dot(self.Q, p)
-        # yp = np.dot(self.Qp, p)
+        # yp = 0 * y
+        # # yp = np.dot(self.Qp, p)
         # # yp = np.dot(self.Qp, pp)
         # # yp = np.dot(np.arange(0, self.order + 1) * self.Q, p)
         # # yp = np.dot(self.Q, pp)
         # if y.ndim == 2:
         #     y += self.y_old[:, None]
-        #     yp += self.yp_old[:, None]
+        #     # yp += self.yp_old[:, None]
         # else:
         #     y += self.y_old
-        #     yp += self.yp_old
+        #     # yp += self.yp_old
 
-        ###################
-        # use cubic Hermite
-        ###################
-        h00 = 2 * x**3 - 3 * x**2 + 1
-        h00 = h00[None, :]
-        h01 = -2 * x**3 + 3 * x**2
-        h01 = h01[None, :]
-        h10 = x**3 - 2 * x**2 + x
-        h10 = h10[None, :]
-        h11 = x**3 - x**2
-        h11 = h11[None, :]
+        # # return y
+        # return y, yp
 
-        h00p = 6 * x**2 - 6 * x
-        h00p = h00p[None, :]
-        h01p = -6 * x**2 + 6 * x
-        h01p = h01p[None, :]
-        h10p = 3 * x**2 - 4 * x + 1
-        h10p = h10p[None, :]
-        h11p = 3 * x**2 - 2 * x
-        h11p = h11p[None, :]
-
-        stack = np.concatenate((self.y_old[None, :], self.y[None, :], self.yp_old[None, :], self.yp[None, :]))
-        y = np.vstack((h00, h01, h10, h11)).T @ stack
-        yp = np.vstack((h00p, h01p, h10p, h11p)).T @ stack
-        return y.T, yp.T
-
-        # return y
+        ########################
+        # Lagrange interpolation
+        ########################
+        # P, dP = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
+        # P, dP = lagrange_interpolation(self.C, self.Y)
+        # y = np.array([P(xi) for xi in x]).T
+        # yp = np.array([dP(xi) for xi in x]).T
+        P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.y_old[None, ], self.Y)))
+        # P, _ = lagrange_interpolation(self.C, self.Y)
+        y = np.array([P(xi) for xi in x]).T
+        P, _ = lagrange_interpolation([0, *self.C], np.concatenate((self.yp_old[None, ], self.Yp)))
+        # P, _ = lagrange_interpolation(self.C, self.Yp)
+        yp = np.array([P(xi) for xi in x]).T
         return y, yp
+
+        # ###################
+        # # use cubic Hermite
+        # ###################
+        # h00 = 2 * x**3 - 3 * x**2 + 1
+        # h00 = h00[None, :]
+        # h01 = -2 * x**3 + 3 * x**2
+        # h01 = h01[None, :]
+        # h10 = x**3 - 2 * x**2 + x
+        # h10 = h10[None, :]
+        # h11 = x**3 - x**2
+        # h11 = h11[None, :]
+
+        # h00p = 6 * x**2 - 6 * x
+        # h00p = h00p[None, :]
+        # h01p = -6 * x**2 + 6 * x
+        # h01p = h01p[None, :]
+        # h10p = 3 * x**2 - 4 * x + 1
+        # h10p = h10p[None, :]
+        # h11p = 3 * x**2 - 2 * x
+        # h11p = h11p[None, :]
+
+        # stack = np.concatenate((self.y_old[None, :], self.y[None, :], self.yp_old[None, :], self.yp[None, :]))
+        # y = np.vstack((h00, h01, h10, h11)).T @ stack
+        # yp = np.vstack((h00p, h01p, h10p, h11p)).T @ stack
+        # return y.T, yp.T
