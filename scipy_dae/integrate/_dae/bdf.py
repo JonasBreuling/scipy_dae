@@ -63,10 +63,6 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
     return converged, k + 1, y, yp, d
 
 
-# TODO:
-# - adapt documentation
-# - add consistent initial conditions somehow
-# - add dense output for yp
 class BDFDAE(DaeSolver):
     """Implicit method based on backward-differentiation formulas.
 
@@ -104,6 +100,21 @@ class BDFDAE(DaeSolver):
     first_step : float or None, optional
         Initial step size. Default is ``None`` which means that the algorithm
         should choose.
+    max_order : int, optional
+        Highest order of the method with 1 <= max_order <= 6, although 
+        max_order = 6 should be used with care due to the limited stability 
+        propoerties of the corresponding BDF method.
+    NDF_strategy : string, optional
+        The strategy that is applied for obtaining numerical differentiation 
+        formulas (NDF):
+
+            * 'stability' (default): Increase A(alpha) stability without decreasing 
+              efficiency too much. This uses the coefficients of [5]_ but also 
+              enhances the first order coefficient as proposed in [2]_.
+            * 'efficiency': Increase efficiency without decreasing A(alpha) 
+              stability too much, see [2]_.
+            * otherwise: BDF case with improved efficiency for first and second 
+              order method as proposed in [2]_ and [5]_.
     max_step : float, optional
         Maximum allowed step size. Default is np.inf, i.e., the step size is not
         bounded and determined solely by the solver.
@@ -225,24 +236,20 @@ class BDFDAE(DaeSolver):
         self.max_order = max_order
 
         if NDF_strategy == "stability":
-            # Increase A(alpha) stability without decreasing efficiency  
-            # too much. This uses the coefficients of [5] but also enhances 
-            # the first order coefficient as proposed in [2].
-            kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:max_order + 1]
+            kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])
         elif NDF_strategy == "efficiency":
-            # Increase efficiency without decreasing A(alpha) stability 
-            # too much, see [2].
-            kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])[:max_order + 1]
+            kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])
         else:
-            # BDF case with improved efficiency for first and second order 
-            # method as proposed in [2] and [5].
-            kappa = np.array([0, -37 / 200, -1/9, 0, 0, 0, 0])[:max_order + 1]
+            kappa = np.array([0, -37 / 200, -1/9, 0, 0, 0, 0])
 
+        kappa = kappa[:max_order + 1]
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, max_order + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, max_order + 2)
 
-        D = np.empty((max_order + 3, self.n), dtype=self.y.dtype)
+        # TODO: Use empty later!
+        D = np.zeros((max_order + 3, self.n), dtype=self.y.dtype)
+        # D = np.empty((max_order + 3, self.n), dtype=self.y.dtype)
         D[0] = self.y
         D[1] = self.yp * self.h_abs * self.direction
         self.D = D
@@ -370,10 +377,12 @@ class BDFDAE(DaeSolver):
         # D^{j + 1} y_n = D^{j} y_n - D^{j} y_{n - 1}. Keep in mind that D
         # contained difference for previous interpolating polynomial and
         # d = D^{k + 1} y_n. Thus this elegant code follows.
+        # print(f"D before:\n{D}")
         D[order + 2] = d - D[order + 1]
         D[order + 1] = d
         for i in reversed(range(order + 1)):
             D[i] += D[i + 1]
+        # print(f"D after:\n{D}")
 
         if self.n_equal_steps < order + 1:
             return True, None
@@ -434,11 +443,80 @@ class BdfDenseOutput(DenseOutput):
             x = (t - self.t_shift[:, None]) / self.denom[:, None]
             p = np.cumprod(x, axis=0)
 
+        # Interpolated solution y(t)
         y = np.dot(self.D[1:].T, p)
         if y.ndim == 1:
             y += self.D[0]
         else:
             y += self.D[0, :, None]
 
+        # x_prime = np.ones_like(x) / self.denom[:, None]
+        # p_prime = np.cumprod(np.insert(x_prime, 0, 1, axis=0), axis=0)[:-1] # Adjust to match dimensions
+        # yp = np.dot(self.D[1:].T, p_prime)
+
+        # Interpolated first derivative y'(t)
+        if t.ndim == 0:
+            x_prime = 1 / self.denom
+            p_prime = np.cumprod(np.insert(x_prime, 0, 1))[:-1]  # Adjust to match dimensions
+        else:
+            x_prime = 1 / self.denom[:, None]
+            # p_prime = np.cumprod(np.insert(x_prime, 0, np.ones_like(t)), axis=0)[:-1]  # Adjust to match dimensions
+            # p_prime = np.cumprod(np.insert(x_prime, 0, np.ones_like(t), axis=0), axis=0)[:-1]  # Adjust to match dimensions
+            # p_prime = np.cumprod(np.insert(x_prime, np.zeros_like(t), np.ones_like(t), axis=0), axis=0)[:-1]  # Adjust to match dimensions
+            # p_prime = np.concatenate((np.ones_like(t)[:, None], x_prime), axis=0)
+            p_prime = np.ones((p.shape[0] + 1, p.shape[1]))
+            p_prime[len(t):] = x_prime.T
+            p_prime = np.cumprod(p_prime, axis=0)[:-1]  # Adjust to match dimensions
+
+        y_prime = np.dot(self.D[1:].T, p_prime)
+        if y_prime.ndim == 1:
+            y_prime += self.D[0]
+        else:
+            y_prime += self.D[0, :, None]
+
+        yp = y_prime
         # return y
-        return y, np.zeros_like(y)
+        # return y, np.zeros_like(y)
+        return y, yp
+    
+
+# class BdfDenseOutput(DenseOutput):
+#     def __init__(self, t_old, t, h, order, D):
+#         super().__init__(t_old, t)
+#         self.order = order
+#         self.t_shift = self.t - h * np.arange(self.order)
+#         self.denom = h * (1 + np.arange(self.order))
+#         self.D = D
+
+#     def _call_impl(self, t):
+#         if t.ndim == 0:
+#             x = (t - self.t_shift) / self.denom
+#             p = np.cumprod(x)
+#         else:
+#             x = (t - self.t_shift[:, None]) / self.denom[:, None]
+#             p = np.cumprod(x, axis=0)
+
+#         y = np.dot(self.D[1:].T, p)
+#         if y.ndim == 1:
+#             y += self.D[0]
+#         else:
+#             y += self.D[0, :, None]
+
+#         return y
+
+# class BdfDenseOutput(DenseOutput):
+#     def __init__(self, t_old, t, h, order, D):
+#         super().__init__(t_old, t)
+#         self.order = order
+#         self.t_shift = self.t - h * np.arange(self.order)
+#         self.denom = h * (1 + np.arange(self.order))
+#         self.D = D
+
+#     def _call_impl(self, t):
+#         x = (t - self.t_shift) / self.denom
+#         p = np.cumprod(x)
+
+#         y = np.dot(self.D[1:].T, p)
+#         yp = np.zeros_like(y)
+#         y += self.D[0]
+#         return y

@@ -16,17 +16,23 @@ def F(t, vy, vyp):
     def fb(a, b):
         return a + b - np.sqrt(a**2 + b**2)
     
-    # prox_la = mup * fb(lap, u)
-    if y <= 0:
-        # prox_la = fb(lap, u)
-        prox_la = min(lap, u)
-        # prox_la = u
-        print(f"u: {u}")
-    else:
-        prox_la = lap
+    def prox(a, b, r=1):
+        return a + np.minimum(0, r * b - a)
+
+    prox_la = prox(lap, y, r=1e-1)
+    # if y <= 0:
+    #     # prox_la = fb(lap, u)
+    #     # prox_la = min(lap, u)
+    #     prox_la = prox(lap, u, r=1e-0)
+    #     # prox_la = u
+    #     print(f"u: {u}")
+    # else:
+    #     prox_la = lap
+
     # prox_mu = fb(mup, y)
-    prox_mu = min(mup, y)
+    # prox_mu = min(mup, y)
     prox_mu = mup
+    # prox_mu = prox(mup, y, r=1e1)
     
     return np.array([
                 yp - (u + mup),
@@ -57,7 +63,9 @@ if __name__ == "__main__":
     t_span = (t0, t1)
 
     # tolerances
-    rtol = atol = 1e-1
+    rtol = atol = 1e-3
+    max_step = 1e-2
+    # max_step = np.inf
 
     # initial conditions
     y0 = np.array([1, 0, 0, 0], dtype=float)
@@ -73,7 +81,7 @@ if __name__ == "__main__":
     # method = "BDF"
     method = "Radau"
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, max_step=1e-1, jac=jac)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, max_step=max_step, jac=jac)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
