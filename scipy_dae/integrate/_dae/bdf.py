@@ -454,8 +454,8 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        # yp = np.zeros_like(y)
-        # return y, yp
+        yp = np.zeros_like(y)
+        return y, yp
 
         # x_prime = np.ones_like(x) / self.denom[:, None]
         # p_prime = np.cumprod(np.insert(x_prime, 0, 1, axis=0), axis=0)[:-1] # Adjust to match dimensions
