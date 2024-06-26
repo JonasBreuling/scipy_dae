@@ -1,8 +1,8 @@
 import numpy as np
 from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
-# from .base import DAEDenseOutput as DenseOutput
+# from scipy.integrate._ivp.base import DenseOutput
+from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
 
@@ -160,6 +160,9 @@ class BDFDAE(DaeSolver):
         elements in *each* row, providing the sparsity structure will greatly
         speed up the computations [4]_. A zero entry means that a corresponding
         element in the Jacobian is always zero. If None (default), the Jacobian
+    # t_eval = np.concatenate((t, t + t1)) / 2
+    t_eval = np.array([t0, *(t0 + 1e-3 + np.cumsum(np.diff(t)))])
+    # t_eval = np.concatenate((t, t + t1, t + 2 * t1)) / 3
         is assumed to be dense.
     vectorized : bool, optional
         Whether `fun` can be called in a vectorized fashion. Default is False.
@@ -451,4 +454,33 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        return y
+        # yp = np.zeros_like(y)
+        # return y, yp
+
+        # x_prime = np.ones_like(x) / self.denom[:, None]
+        # p_prime = np.cumprod(np.insert(x_prime, 0, 1, axis=0), axis=0)[:-1] # Adjust to match dimensions
+        # yp = np.dot(self.D[1:].T, p_prime)
+
+        # Interpolated first derivative y'(t)
+        if t.ndim == 0:
+            x_prime = 1 / self.denom
+            p_prime = np.cumprod(np.insert(x_prime, 0, 1))[:-1]  # Adjust to match dimensions
+        else:
+            x_prime = 1 / self.denom[:, None]
+            # p_prime = np.cumprod(np.insert(x_prime, 0, np.ones_like(t)), axis=0)[:-1]  # Adjust to match dimensions
+            # p_prime = np.cumprod(np.insert(x_prime, 0, np.ones_like(t), axis=0), axis=0)[:-1]  # Adjust to match dimensions
+            # p_prime = np.cumprod(np.insert(x_prime, np.zeros_like(t), np.ones_like(t), axis=0), axis=0)[:-1]  # Adjust to match dimensions
+            # p_prime = np.concatenate((np.ones_like(t)[:, None], x_prime), axis=0)
+            p_prime = np.ones((p.shape[0] + 1, p.shape[1]))
+            p_prime[len(t):] = x_prime.T
+            p_prime = np.cumprod(p_prime, axis=0)[:-1]  # Adjust to match dimensions
+
+        y_prime = np.dot(self.D[1:].T, p_prime)
+        if y_prime.ndim == 1:
+            y_prime += self.D[0]
+        else:
+            y_prime += self.D[0, :, None]
+
+        yp = y_prime
+        return y, yp
+    

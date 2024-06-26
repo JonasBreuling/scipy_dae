@@ -1,9 +1,185 @@
 import numpy as np
+
+
+# def hermite_confluent_vandermonde(x):
+#     """
+#     Compute the confluent Vandermonde matrix for Hermite interpolation.
+
+#     Parameters:
+#     x : array_like
+#         The array of x points (nodes) where the function and its derivative are known.
+
+#     Returns:
+#     V : ndarray
+#         The confluent Vandermonde matrix.
+#     """
+#     n = len(x)
+#     V = np.zeros((2*n, 2*n))
+
+#     for i in range(n):
+#         for j in range(2*n):
+#             V[2*i, j] = x[i]**j  # For function values
+#             if j == 0:
+#                 V[2*i+1, j] = 0
+#             else:
+#                 V[2*i+1, j] = j * x[i]**(j-1)  # For derivative values
+
+#     return V
+
+
+# def hermite_interpolation(x, y, dy):
+#     """
+#     Perform Hermite interpolation.
+
+#     Parameters:
+#     x : array_like
+#         The array of x points (nodes).
+#     y : array_like
+#         The array of function values at the x points.
+#     dy : array_like
+#         The array of derivatives at the x points.
+
+#     Returns:
+#     coeffs : ndarray
+#         The coefficients of the interpolating polynomial.
+#     """
+#     n, m = y.shape
+#     V = hermite_confluent_vandermonde(x)
+    
+#     # Create the right-hand side vector with function values and their derivatives
+#     b = np.zeros((2*n, m))
+#     for i in range(n):
+#         b[2*i] = y[i]
+#         b[2*i+1] = dy[i]
+    
+#     # Solve the linear system to find the coefficients
+#     coeffs = np.linalg.solve(V, b)
+    
+#     return coeffs
+
+
+# def evaluate_polynomial(x, x_nodes, y_values, dy_values):
+#     """
+#     Evaluate a polynomial given its coefficients at the points x.
+
+#     Parameters:
+#     coeffs : array_like
+#         The coefficients of the polynomial.
+#     x : array_like
+#         The points at which to evaluate the polynomial.
+
+#     Returns:
+#     y : ndarray
+#         The evaluated polynomial values at the points x.
+#     """
+#     coeffs = hermite_interpolation(x_nodes, y_values, dy_values)
+#     n, m = y_values.shape
+#     p = len(x)
+#     y = np.zeros((m, p), dtype=float)
+#     yp = np.zeros((m, p), dtype=float)
+#     for i in range(2 * n):
+#         y += np.outer(coeffs[i], x**i)
+#         if i > 0:
+#             yp += i * np.outer(coeffs[i], x**(i-1))
+#     return y, yp
+
+
+
+def hermite_confluent_vandermonde(x):
+    """
+    Compute the confluent Vandermonde matrix for Hermite interpolation.
+
+    Parameters:
+    x : array_like
+        The array of x points (nodes) where the function and its derivative are known.
+
+    Returns:
+    V : ndarray
+        The confluent Vandermonde matrix.
+    """
+    n = len(x)
+    V = np.zeros((2*n, 2*n))
+
+    for i in range(n):
+        for j in range(2*n):
+            V[2*i, j] = x[i]**j  # For function values
+            if j == 0:
+                V[2*i+1, j] = 0
+            else:
+                V[2*i+1, j] = j * x[i]**(j-1)  # For derivative values
+
+    return V
+
+def hermite_interpolation(x, y, dy):
+    """
+    Perform Hermite interpolation.
+
+    Parameters:
+    x : array_like
+        The array of x points (nodes).
+    y : array_like
+        The array of function values at the x points.
+    dy : array_like
+        The array of derivatives at the x points.
+
+    Returns:
+    coeffs : ndarray
+        The coefficients of the interpolating polynomial.
+    """
+    n, m = y.shape
+    V = hermite_confluent_vandermonde(x)
+    
+    # Create the right-hand side vector with function values and their derivatives
+    b = np.zeros((2*n, m))
+    for i in range(n):
+        b[2*i] = y[i]
+        b[2*i+1] = dy[i]
+    
+    # Solve the linear system to find the coefficients
+    coeffs = np.linalg.solve(V, b)
+    
+    return coeffs
+
+def evaluate_polynomial(x, x_nodes, y_values, dy_values):
+    """
+    Evaluate a polynomial given its coefficients at the points x.
+
+    Parameters:
+    x : array_like
+        The points at which to evaluate the polynomial.
+    x_nodes : array_like
+        The nodes where the function and its derivative values are known.
+    y_values : array_like
+        The function values at the nodes.
+    dy_values : array_like
+        The derivative values at the nodes.
+
+    Returns:
+    y : ndarray
+        The evaluated polynomial values at the points x.
+    dy : ndarray
+        The evaluated first derivative values at the points x.
+    """
+    coeffs = hermite_interpolation(x_nodes, y_values, dy_values)
+    n, m = y_values.shape
+    p = len(x)
+    y = np.zeros((m, p), dtype=float)
+    dy = np.zeros((m, p), dtype=float)
+    for i in range(2*n):
+    # for i in range(n):
+        y += np.outer(coeffs[i], x**i)
+        if i > 0:
+            dy += i * np.outer(coeffs[i], x**(i-1))
+    return y, dy
+
+
+
+import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
-# from .base import DAEDenseOutput as DenseOutput
+# from scipy.integrate._ivp.base import DenseOutput
+from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
 
@@ -493,8 +669,9 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                Z0 = self.sol(t + h * C).T - y
+                # Z0 = self.sol(t + h * C).T - y
                 # Z0 = self.sol(t + h * C)[0].T - y
+                Z0 = np.zeros((s, y.shape[0]))
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -566,7 +743,7 @@ class RadauDAE(DaeSolver):
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
             # if rejected and error_norm > 1: # try with stabilised error estimate
-            # # if True:
+            # # if True:sol(t
             #     print(f"rejected")
             #     # add another Newton step for stabilization
             #     # TODO: This is definitely better for the pendulum problem. I think for the error above
@@ -642,17 +819,20 @@ class RadauDAE(DaeSolver):
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
         h = self.t - self.t_old
+        Y = self.y_old + self.Z
         Yp = (self.A_inv / h) @ self.Z
         Zp = Yp - self.yp_old
         Qp = np.dot(Zp.T, self.P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp, self.C, Y, Yp)
 
     def _dense_output_impl(self):
         return self.sol
 
 
 class RadauDenseOutput(DenseOutput):
-    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
+    # def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
+    def __init__(self, t_old, t, y_old, Q, yp_old, Qp, C, Y, Yp):
         super().__init__(t_old, t)
         self.h = t - t_old
         self.Q = Q
@@ -661,6 +841,10 @@ class RadauDenseOutput(DenseOutput):
         self.y_old = y_old
         self.yp_old = yp_old
 
+        self.C = C
+        self.Y = Y
+        self.Yp = Yp
+
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
         x = np.atleast_1d(x)
@@ -668,11 +852,27 @@ class RadauDenseOutput(DenseOutput):
         p = np.cumprod(p, axis=0)
         # Here we don't multiply by h, not a mistake.
         y = np.dot(self.Q, p)
-        # yp = np.dot(self.Qp, p)
+        yp = np.dot(self.Qp, p)
         y += self.y_old[:, None]
-        # yp += self.yp_old[:, None]
+        yp += self.yp_old[:, None]
+
+        # #######################
+        # # Hermite interpolation
+        # #######################
+        # Cs = np.array([0, *self.C])
+        # Ys = np.concatenate((self.y_old[None, :], self.Y))
+        # Yps = np.concatenate((self.yp_old[None, :], self.Yp))
+        # # Cs = np.array([0, self.C[-1]])
+        # # Ys = np.concatenate((self.y_old[None, :], self.Y[-1][None, :]))
+        # # Yps = np.concatenate((self.yp_old[None, :], self.Yp[-1][None, :]))
+        # y, yp = evaluate_polynomial(x, Cs, Ys, Yps)
+
+        # ys, yps = evaluate_polynomial(Cs, Cs, Ys, Yps)
+        # assert np.allclose(ys, Ys.T)
+        # assert np.allclose(yps, Yps.T)
+
         if t.ndim == 0:
             y = np.squeeze(y)
-            # yp = np.squeeze(yp)
-        return y
-        # return y, yp
+            yp = np.squeeze(yp)
+
+        return y, yp
