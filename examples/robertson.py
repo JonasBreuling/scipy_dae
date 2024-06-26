@@ -57,7 +57,7 @@ if __name__ == "__main__":
     t1 = 1e7
     t_span = (t0, t1)
     t_eval = np.logspace(-7, 7, num=int(1e2))
-    t_eval = None
+    # t_eval = None
 
     # method = "BDF"
     method = "Radau"

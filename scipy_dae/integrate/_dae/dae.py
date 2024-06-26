@@ -6,8 +6,8 @@
 import inspect
 import numpy as np
 from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, find_active_events
-# from scipy.integrate._ivp.common import OdeSolution
-from .common import DaeSolution as OdeSolution
+from scipy.integrate._ivp.common import OdeSolution
+# from .common import DaeSolution as OdeSolution
 from .base import DaeSolver
 from .bdf import BDFDAE
 from .radau import RadauDAE
@@ -26,8 +26,8 @@ MESSAGES = {0: "The solver successfully reached the end of the integration inter
 # TODO:
 # - expect consistent initial conditions and add a helper function that computes them as done by matlab?
 # - add events depending on y'(t)?
-# - return y' and interpolate y' somehow?
-def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None, 
+# - dense output for y'
+def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
               dense_output=False, events=None, vectorized=False, 
               args=None, **options):
     """Solve an initial value problem for a system of differential algebraic 
@@ -414,10 +414,10 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
                     sol = solver.dense_output()
                 ts.append(t_eval_step)
                 # TODO: Dense output for derivatives
-                # ys.append(sol(t_eval_step))
-                y, yp = sol(t_eval_step)
-                ys.append(y)
-                yps.append(yp)
+                ys.append(sol(t_eval_step))
+                # y, yp = sol(t_eval_step)
+                # ys.append(y)
+                # yps.append(yp)
                 t_eval_i = t_eval_i_new
 
         if t_eval is not None and dense_output:
@@ -437,7 +437,20 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     elif ts:
         ts = np.hstack(ts)
         ys = np.hstack(ys)
-        yps = np.hstack(yps)
+        # yps = np.hstack(yps)
+        
+        # estimate yps via finite differences
+        # t_final = ts[-1]
+        # h_final = ts[-1] - ts[-2]
+        # t_final1 = ts[-1] + h_final
+        # yp_final = (ys[:, -1] - ys[:, -2]) / h_final
+        # y_final = ys[:, -1]
+        # y_final1 = y_final + h_final * yp_final
+        t_final1 = 2 * ts[-1] - ts[-2]
+        y_final1 = 2 * ys[:, -1] - ys[:, -2]
+        ts1 = np.array([*ts, t_final1])
+        ys1 = np.concatenate((ys, y_final1[:, None]), axis=1)
+        yps = np.diff(ys1) / np.diff(ts1)
 
     if dense_output:
         if t_eval is None:

@@ -1,7 +1,8 @@
 import numpy as np
 from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from .base import DAEDenseOutput as DenseOutput
+from scipy.integrate._ivp.base import DenseOutput
+# from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
 
@@ -66,7 +67,7 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
 class BDFDAE(DaeSolver):
     """Implicit method based on backward-differentiation formulas.
 
-    This is a variable order method with the order varying automatically from
+    This is a variable order method with the ordet_evalr varying automatically from
     1 to 5. The general framework of the BDF algorithm is described in [1]_.
     This class implements a quasi-constant step size as explained in [2]_.
     The error estimation strategy for the constant-step BDF is derived in [3]_.
@@ -450,73 +451,4 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        # x_prime = np.ones_like(x) / self.denom[:, None]
-        # p_prime = np.cumprod(np.insert(x_prime, 0, 1, axis=0), axis=0)[:-1] # Adjust to match dimensions
-        # yp = np.dot(self.D[1:].T, p_prime)
-
-        # Interpolated first derivative y'(t)
-        if t.ndim == 0:
-            x_prime = 1 / self.denom
-            p_prime = np.cumprod(np.insert(x_prime, 0, 1))[:-1]  # Adjust to match dimensions
-        else:
-            x_prime = 1 / self.denom[:, None]
-            # p_prime = np.cumprod(np.insert(x_prime, 0, np.ones_like(t)), axis=0)[:-1]  # Adjust to match dimensions
-            # p_prime = np.cumprod(np.insert(x_prime, 0, np.ones_like(t), axis=0), axis=0)[:-1]  # Adjust to match dimensions
-            # p_prime = np.cumprod(np.insert(x_prime, np.zeros_like(t), np.ones_like(t), axis=0), axis=0)[:-1]  # Adjust to match dimensions
-            # p_prime = np.concatenate((np.ones_like(t)[:, None], x_prime), axis=0)
-            p_prime = np.ones((p.shape[0] + 1, p.shape[1]))
-            p_prime[len(t):] = x_prime.T
-            p_prime = np.cumprod(p_prime, axis=0)[:-1]  # Adjust to match dimensions
-
-        y_prime = np.dot(self.D[1:].T, p_prime)
-        if y_prime.ndim == 1:
-            y_prime += self.D[0]
-        else:
-            y_prime += self.D[0, :, None]
-
-        yp = y_prime
-        # return y
-        # return y, np.zeros_like(y)
-        return y, yp
-    
-
-# class BdfDenseOutput(DenseOutput):
-#     def __init__(self, t_old, t, h, order, D):
-#         super().__init__(t_old, t)
-#         self.order = order
-#         self.t_shift = self.t - h * np.arange(self.order)
-#         self.denom = h * (1 + np.arange(self.order))
-#         self.D = D
-
-#     def _call_impl(self, t):
-#         if t.ndim == 0:
-#             x = (t - self.t_shift) / self.denom
-#             p = np.cumprod(x)
-#         else:
-#             x = (t - self.t_shift[:, None]) / self.denom[:, None]
-#             p = np.cumprod(x, axis=0)
-
-#         y = np.dot(self.D[1:].T, p)
-#         if y.ndim == 1:
-#             y += self.D[0]
-#         else:
-#             y += self.D[0, :, None]
-
-#         return y
-
-# class BdfDenseOutput(DenseOutput):
-#     def __init__(self, t_old, t, h, order, D):
-#         super().__init__(t_old, t)
-#         self.order = order
-#         self.t_shift = self.t - h * np.arange(self.order)
-#         self.denom = h * (1 + np.arange(self.order))
-#         self.D = D
-
-#     def _call_impl(self, t):
-#         x = (t - self.t_shift) / self.denom
-#         p = np.cumprod(x)
-
-#         y = np.dot(self.D[1:].T, p)
-#         yp = np.zeros_like(y)
-#         y += self.D[0]
-#         return y
+        return y

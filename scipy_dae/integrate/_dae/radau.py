@@ -2,7 +2,8 @@ import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from .base import DAEDenseOutput as DenseOutput
+from scipy.integrate._ivp.base import DenseOutput
+# from .base import DAEDenseOutput as DenseOutput
 from .dae import DaeSolver
 
 
@@ -492,8 +493,8 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                # Z0 = self.sol(t + h * C).T - y
-                Z0 = self.sol(t + h * C)[0].T - y
+                Z0 = self.sol(t + h * C).T - y
+                # Z0 = self.sol(t + h * C)[0].T - y
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -667,10 +668,11 @@ class RadauDenseOutput(DenseOutput):
         p = np.cumprod(p, axis=0)
         # Here we don't multiply by h, not a mistake.
         y = np.dot(self.Q, p)
-        yp = np.dot(self.Qp, p)
+        # yp = np.dot(self.Qp, p)
         y += self.y_old[:, None]
-        yp += self.yp_old[:, None]
+        # yp += self.yp_old[:, None]
         if t.ndim == 0:
             y = np.squeeze(y)
-            yp = np.squeeze(yp)
-        return y, yp
+            # yp = np.squeeze(yp)
+        return y
+        # return y, yp
