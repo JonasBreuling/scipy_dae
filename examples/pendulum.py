@@ -49,11 +49,9 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 10
     t_span = (t0, t1)
-    t_eval = np.linspace(t0, t1, num=int(1e3))
-    t_eval = None
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0 = np.array([l, 0, 0, 0, 0, 0], dtype=float)
@@ -75,7 +73,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac, t_eval=t_eval)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac, t_eval=None, dense_output=True)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -91,24 +89,33 @@ if __name__ == "__main__":
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
 
+    t_eval = np.linspace(t0, t1, num=int(1e4))
+    y_eval, yp_eval = sol.sol(t_eval)
+
     # visualization
     fig, ax = plt.subplots(4, 1)
 
-    ax[0].plot(t, y[0], "-ok", label="x")
-    ax[0].plot(t, y[1], "--xk", label="y")
+    ax[0].plot(t, y[0], "ok", label="x")
+    ax[0].plot(t_eval, y_eval[0], "-k", label="x_dense")
+    ax[0].plot(t, y[1], "xk", label="y")
+    ax[0].plot(t_eval, y_eval[1], "--k", label="y_dense")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[2], "-ok", label="u")
-    ax[1].plot(t, y[3], "--xk", label="v")
+    ax[1].plot(t, y[2], "ok", label="u")
+    ax[1].plot(t_eval, y_eval[2], "-k", label="u_dense")
+    ax[1].plot(t, y[3], "xk", label="v")
+    ax[1].plot(t_eval, y_eval[3], "--k", label="v_dense")
     ax[1].legend()
     ax[1].grid()
 
-    ax[2].plot(t, yp[4], "-ok", label="la")
+    ax[2].plot(t, yp[4], "ok", label="la")
+    ax[2].plot(t_eval, yp_eval[4], "-k", label="la_dense")
     ax[2].legend()
     ax[2].grid()
 
-    ax[3].plot(t, yp[5], "--xk", label="mu")
+    ax[3].plot(t, yp[5], "ok", label="mu")
+    ax[3].plot(t_eval, yp_eval[5], "-k", label="mu_dense")
     ax[3].legend()
     ax[3].grid()
 

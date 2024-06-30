@@ -52,8 +52,8 @@ if __name__ == "__main__":
     t1 = 3e3
     t_span = (t0, t1)
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
@@ -71,7 +71,6 @@ if __name__ == "__main__":
     # solver options
     atol = rtol = 1e-4
 
-    t_eval = np.linspace(t0, t1, num=int(1e3))
     t_eval = None
     first_step = 1e-3
 
@@ -128,20 +127,24 @@ if __name__ == "__main__":
     ax[0].grid()
 
     ax[1].plot(t, y[1], "ok", label=f"y_dot ({method})", mfc="none")
-    ax[1].plot(t_eval, y_eval[1], "-k", label=f"y_dense ({method})", mfc="none")
+    ax[1].plot(t_eval, y_eval[1], "-xk", label=f"y_dense ({method})", mfc="none")
     ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
     ax[1].legend()
     ax[1].grid()
 
     yp_scipy = np.array([rhs(ti, yi) for ti, yi in zip(t_scipy, y_scipy.T)]).T
 
-    ax[2].plot(t, yp[0], "-ok", label=f"yp0 ({method})", mfc="none")
-    ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
+    ax[2].plot(t, yp[0], "ok", label=f"yp0 ({method})", mfc="none")
+    ax[2].plot(t_eval, yp_eval[0], "-k", label=f"yp0_dense ({method})", mfc="none")
+    # ax[2].plot(t_eval, yp_eval[0], "-xk", label=f"yp0_dense ({method})", mfc="none")
+    # ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
     ax[2].legend()
     ax[2].grid()
 
-    ax[3].plot(t, yp[1], "-ok", label=f"yp1 ({method})", mfc="none")
-    ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
+    ax[3].plot(t, yp[1], "ok", label=f"yp1 ({method})", mfc="none")
+    ax[3].plot(t_eval, yp_eval[1], "-k", label=f"yp1_dense ({method})", mfc="none")
+    # ax[3].plot(t_eval, yp_eval[1], "-xk", label=f"yp1_dense ({method})", mfc="none")
+    # ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
     ax[3].legend()
     ax[3].grid()
 

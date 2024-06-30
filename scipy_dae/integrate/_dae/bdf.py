@@ -306,6 +306,7 @@ class BDFDAE(DaeSolver):
 
             h = h_abs * self.direction
             t_new = t + h
+            # print(f"t_new: {t_new}; h: {h}")
 
             if self.direction * (t_new - self.t_bound) > 0:
                 t_new = self.t_bound
@@ -388,6 +389,7 @@ class BDFDAE(DaeSolver):
             D[i] += D[i + 1]
         # print(f"D after:\n{D}")
 
+        # print(f"order: {order}")
         if self.n_equal_steps < order + 1:
             return True, None
 
@@ -416,6 +418,7 @@ class BDFDAE(DaeSolver):
         # delta_order = np.argmin(error_norms) - 1
 
         order += delta_order
+        # order = max(2, order) # don't allow first order method after the first step
         self.order = order
 
         factor = min(MAX_FACTOR, safety * np.max(factors))
@@ -436,16 +439,20 @@ class BdfDenseOutput(DenseOutput):
         super().__init__(t_old, t)
         self.order = order
         self.t_shift = self.t - h * np.arange(self.order)
-        self.denom = h * (1 + np.arange(self.order))
+        self.denom = h * np.arange(1, self.order + 1)
         self.D = D
+
+        self.h = h
 
     def _call_impl(self, t):
         if t.ndim == 0:
             x = (t - self.t_shift) / self.denom
             p = np.cumprod(x)
+            dp = np.array([np.prod(x[:i]) * np.prod(x[i+1:]) for i in range(len(x))])
         else:
             x = (t - self.t_shift[:, None]) / self.denom[:, None]
             p = np.cumprod(x, axis=0)
+            dp = np.array([[np.prod(x[:i, j]) * np.prod(x[i+1:, j]) for j in range(x.shape[1])] for i in range(x.shape[0])])
 
         # Interpolated solution y(t)
         y = np.dot(self.D[1:].T, p)
@@ -454,8 +461,47 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        yp = np.zeros_like(y)
+        return y, np.zeros_like(y)
+
+        # dp = 0; p=a[n];
+        # for k=n-1 downto 0 do
+        #     dp = dp * (x-x[k]);
+        #     dp = dp + p;
+        #     p = p * (x-x[k]); 
+        #     p = p + a[k];
+        # next k
+        # dp = np.zeros_like(t)
+        # for k in range(self.order, 0, -1):
+        #     dp *= ()
+        # see https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf
+        # https://math.stackexchange.com/questions/808738/algorithm-to-compute-newton-polynomial-derivative
+        dp = np.zeros_like(p)
+        dp[0] = 0
+        for i in range(1, self.order):
+            dp[i] = p[i - 1] + x[i - 1] * dp[i - 1]
+
+        # # estimate yps via finite differences
+        # t_final1 = 2 * ts[-1] - ts[-2]
+        # y_final1 = 2 * ys[:, -1] - ys[:, -2]
+        # ts1 = np.array([*ts, t_final1])
+        # ys1 = np.concatenate((ys, y_final1[:, None]), axis=1)
+        # yps = np.diff(ys1) / np.diff(ts1)
+
+
+        yp = np.diff(y, prepend=self.D[1, :, None]) / np.diff(t, prepend=self.t_old)
+
+        # Interpolated derivative y'(t)
+        y_prime = np.dot(self.D[2:].T, dp[:-1])
+        # y_prime = np.dot(self.D[2:].T, p[1:])
+        if y_prime.ndim == 1:
+            y_prime += self.D[1] / self.denom[0]  # Adding the first term's derivative
+        else:
+            y_prime += self.D[1, :, None] / self.denom[0]  # Adding the first term's derivative
+
+        yp = y_prime
         return y, yp
+
+        # return y_prime
 
         # x_prime = np.ones_like(x) / self.denom[:, None]
         # p_prime = np.cumprod(np.insert(x_prime, 0, 1, axis=0), axis=0)[:-1] # Adjust to match dimensions
@@ -483,4 +529,3 @@ class BdfDenseOutput(DenseOutput):
 
         yp = y_prime
         return y, yp
-    

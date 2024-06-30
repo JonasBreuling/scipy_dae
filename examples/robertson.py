@@ -115,6 +115,20 @@ if __name__ == "__main__":
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
 
+    # export solution
+    import sys
+    from pathlib import Path
+    path = Path(sys.modules["__main__"].__file__)
+    header = "t, y1, y2, y3"
+    export_data = np.concatenate((t[None, :], y), axis=0)
+    np.savetxt(
+        path.parent / f"{path.stem}.txt",
+        export_data.T,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
     # visualization
     fig, ax = plt.subplots()
 
