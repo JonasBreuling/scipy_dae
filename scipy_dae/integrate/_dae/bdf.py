@@ -66,7 +66,7 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
 class BDFDAE(DaeSolver):
     """Implicit method based on backward-differentiation formulas.
 
-    This is a variable order method with the ordet_evalr varying automatically from
+    This is a variable order method with the order varying automatically from
     1 to 5. The general framework of the BDF algorithm is described in [1]_.
     This class implements a quasi-constant step size as explained in [2]_.
     The error estimation strategy for the constant-step BDF is derived in [3]_.
