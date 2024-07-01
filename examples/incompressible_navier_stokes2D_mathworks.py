@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy_dae.integrate import solve_dae
 from scipy.optimize._numdiff import approx_derivative
+from scipy.sparse import diags, block_diag, lil_matrix, csc_matrix
 
 
 # see https://github.com/mathworks/2D-Lid-Driven-Cavity-Flow-Incompressible-Navier-Stokes-Solver/blob/master/docs_part1/vanilaCavityFlow_EN.md
@@ -40,7 +41,6 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
     u_top = u_left = u_right = u_bottom = 0
     v_left = v_right = v_top = v_bottom = 0
     u_top = 1
-    # v_top = 1
 
     # initial conditions
     u_init = np.zeros((Nx + 1, Ny + 2))
@@ -111,11 +111,81 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
         v_red[:, -1] = 2 * v_top - v_red[:, -2]
 
         return u_red, v_red, p_red, ut_red, vt_red, pt_red
-        
+
+
+    def create_diff_operators():
+        # u = u.reshape((Nx - 1, Ny))
+        # v = v.reshape((Nx, Ny - 1))
+
+        # Dxx = diags([1, -2, 1], [-1, 0, 1], shape=(Nx, Nx)) / dx**2
+        # Dyy = diags([1, -2, 1], [-1, 0, 1], shape=(Ny, Ny)) / dy**2
+        # D2x = block_diag([Dxx for _ in range(Ny)])
+        # D2y = block_diag([Dyy for _ in range(Nx)]).T
+
+        Dxx = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Nx + 2)) / dx**2
+        Dyy = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Nx + 2)) / dy**2
+        Du2x = block_diag([Dxx for _ in range(Ny + 1)])
+        Du2y = block_diag([Dyy for _ in range(Ny + 1)]).T
+        Dv2x = block_diag([Dxx for _ in range(Nx + 1)])
+        Dv2y = block_diag([Dyy for _ in range(Nx + 1)]).T
+
+        # Dx = diags([-1, 1], [0, 1], shape=(Nx, Nx)) / dx
+        # Dy = diags([-1, 1], [0, 1], shape=(Ny, Ny)) / dy
+        # Dx = block_diag([Dx for _ in range(Ny)])
+        # Dy = block_diag([Dy for _ in range(Nx)]).T
+
+        Dx = diags([-1, 1], [0, 1], shape=(Nx + 2, Nx + 2)) / dx
+        Dy = diags([-1, 1], [0, 1], shape=(Ny + 2, Ny + 2)) / dy
+        Dpx = diags([-1, 1], [0, 1], shape=(Nx, Nx)) / dx
+        Dpy = diags([-1, 1], [0, 1], shape=(Ny, Ny)) / dy
+        Dux = block_diag([Dx for _ in range(Ny + 1)])
+        Duy = block_diag([Dy for _ in range(Ny + 1)]).T
+        Dvx = block_diag([Dx for _ in range(Nx + 1)])
+        Dvy = block_diag([Dy for _ in range(Nx + 1)]).T
+        Dpx = block_diag([Dpx for _ in range(Ny)])
+        Dpy = block_diag([Dpy for _ in range(Nx)]).T
+
+        return Du2x, Du2y, Dv2x, Dv2y, Dux, Duy, Dvx, Dvy, Dpx, Dpy
+
+    Du2x, Du2y, Dv2x, Dv2y, Dux, Duy, Dvx, Dvy, Dpx, Dpy = create_diff_operators()
+    # Dxx, Dyy, Dx, Dy = create_diff_operators()
+
     def F(t, y, yp):
         # set boundary conditions
         u, v, p, ut, vt, pt = redundant_coordinates(y, yp)
         p = pt # TODO: Index reduction!
+
+        # Fu = ut.flatten() - (Du2x + Du2y) @ u.flatten() / Re
+        # Fv = vt.flatten() - (Dv2x + Dv2y) @ v.flatten() / Re
+
+        # # Non-linear terms
+        # Fu += (
+        #     u.flatten() * (Dux @ u.flatten())
+        #     + v.flatten() * (Duy @ u.flatten())
+        # )
+        # Fv += (
+        #     u.flatten() * (Dvx @ v.flatten())
+        #     + v.flatten() * (Dvy * v.flatten())
+        # )
+
+        # # Pressure terms
+        # # TODO: Understand pressure gradient term; currently has wrong shape.
+        # Fu.reshape((Nx + 1, Ny + 2))[:-1, 1:-1] += (Dpx @ p.flatten()).reshape((Nx, Ny))
+        # Fv.reshape((Nx + 2, Ny + 1))[1:-1, :-1] += (Dpy @ p.flatten()).reshape((Nx, Ny))
+
+        # # Continuity equation
+        # Fp = (
+        #     Dpx @ u.reshape((Nx + 1, Ny + 2))[:-1, 1:-1].flatten()
+        #     + Dpy @ v.reshape((Nx + 2, Ny + 1))[1:-1, :-1].flatten()
+        # )
+
+        # # do not solve for unknowns on the boundaries
+        # F = np.concatenate((
+        #     Fu.reshape((Nx + 1, Ny + 2))[1:-1, 1:-1].flatten(), 
+        #     Fv.reshape((Nx + 2, Ny + 1))[1:-1, 1:-1].flatten(), 
+        #     Fp,
+        # ))
+        # return F
 
         # residual
         Fu = np.zeros_like(u)
@@ -268,8 +338,6 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
     
     def animate_velocity_field(x, y, u, v, interval=50):
         fig, ax = plt.subplots()
-        # contour = ax.contour(x, y, np.sqrt(u[:, :, 0]**2 + v[:, :, 0]**2), alpha=0.5)
-        # quiver = ax.quiver(x, y, u[:, :, 0], v[:, :, 0])
         
         def update_quiver(num):
             ax.clear()
@@ -280,10 +348,7 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
             contour = ax.contourf(x, y, np.sqrt(u[:, :, num]**2 + v[:, :, num]**2), alpha=0.5)
             # with np.errstate(divide='ignore'):
             quiver = ax.quiver(x, y, u[:, :, num], v[:, :, num])
-            # return contour,
-            # quiver.set_UVC(u[:, :, num], v[:, :, num])
             return quiver, contour
-            # return quiver,
 
         anim = animation.FuncAnimation(fig, update_quiver, frames=u.shape[-1], interval=interval, blit=True)
         plt.show()
@@ -296,25 +361,31 @@ if __name__ == "__main__":
     Lx = 1
     Ly = 1
     # Number of spatial points
-    Nx = 10
-    Ny = 10
-    # Re = 300
+    Nx = 20
+    Ny = 20
+    # Re = 100
     Re = 30
 
     xce, yce, xco, yco, dx, dy, y0, yp0, redundant_coordinates, F, animate_velocity_field = generate_system(Lx, Ly, Nx, Ny, Re)
 
     # time span
     t0 = 0
-    t1 = 10
+    t1 = 20
     t_span = (t0, t1)
+    t_eval = np.linspace(t0, t1, num=int(1e3))
 
-    # Jy0 = approx_derivative(lambda y: F(t0, y, yp0), y0)
-    # print(f"Jy0.shape: {Jy0.shape}")
-    # print(f"np.linalg.matrix_rank(J0): {np.linalg.matrix_rank(Jy0)}")
+    Jy0 = approx_derivative(lambda y: F(t0, y, yp0), y0, method="2-point")
+    sparsity_Jy = csc_matrix(Jy0)
+    print(f"Jy0.shape: {Jy0.shape}")
+    print(f"np.linalg.matrix_rank(J0): {np.linalg.matrix_rank(Jy0)}")
 
-    # Jyp0 = approx_derivative(lambda yp: F(t0, y0, yp), yp0)
-    # print(f"Jyp0.shape: {Jyp0.shape}")
-    # print(f"np.linalg.matrix_rank(Jyp0): {np.linalg.matrix_rank(Jyp0)}")
+    Jyp0 = approx_derivative(lambda yp: F(t0, y0, yp), yp0, method="2-point")
+    sparsity_Jyp = csc_matrix(Jyp0)
+    print(f"Jyp0.shape: {Jyp0.shape}")
+    print(f"np.linalg.matrix_rank(Jyp0): {np.linalg.matrix_rank(Jyp0)}")
+
+    jac_sparsity = (sparsity_Jy, sparsity_Jyp)
+    # jac_sparsity = None
 
     # J = Jy0 + Jyp0
     # print(f"J.shape: {J.shape}")
@@ -331,7 +402,7 @@ if __name__ == "__main__":
 
     # solve the system
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, dense_output=True, first_step=1e-5)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, jac_sparsity=jac_sparsity, first_step=1e-5)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
