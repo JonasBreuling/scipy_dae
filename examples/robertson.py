@@ -25,6 +25,7 @@ def f(t, y):
     return yp
 
 def F(t, y, yp):
+    # return yp - f(t, y)
     y1, y2, y3 = y
     y1p, y2p, y3p = yp
 
@@ -55,6 +56,8 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1e7
     t_span = (t0, t1)
+    t_eval = np.logspace(-7, 7, num=int(1e2))
+    # t_eval = None
 
     # method = "BDF"
     method = "Radau"
@@ -78,7 +81,7 @@ if __name__ == "__main__":
     # reference solution
     ####################
     start = time.time()
-    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method=method)
+    sol = solve_ivp(f, t_span, y0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
@@ -97,7 +100,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t

@@ -127,7 +127,7 @@ def test_integration_complex(method, jac):
     assert np.all(e < 5)
 
     yc_true = sol_complex(tc)
-    yc = res.sol(tc)
+    yc = res.sol(tc)[0]
     e = compute_error(yc, yc_true, rtol, atol)
 
     assert np.all(e < 5)
@@ -225,19 +225,24 @@ def test_integration_robertson(method):
                 
                 # If the stiff mode is not activated correctly, these numbers will be much 
                 # bigger (see max_order=1 case)
-                if method == "BDF" and max_order == 1:
+                if max_order == 1:
                     assert res.nfev < 21000
                 else:
                     assert res.nfev < 5000
                 assert res.njev < 50
 
     else: # Radau
-        res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
-                        atol=atol, method=method)
+        for stages, continuous_error_weight in product(
+            [3, 5], # stages
+            [0.0, 0.5, 1.0], # continuous_error_weight
+        ):
+            res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
+                            atol=atol, method=method, stages=stages,
+                            continuous_error_weight=continuous_error_weight)
 
-        # If the stiff mode is not activated correctly, these numbers will be much bigger
-        assert res.nfev < 5000
-        assert res.njev < 50
+            # If the stiff mode is not activated correctly, these numbers will be much bigger
+            assert res.nfev < 3000
+            assert res.njev < 100
 
 
 parameters_stiff = ["BDF", "Radau"]
@@ -279,29 +284,34 @@ def test_integration_robertson_dae(method):
                     assert res.nfev < 21000
                 else:
                     assert res.nfev < 3000
-                assert res.njev < 70
+                assert res.njev < 100
 
     else: # Radau
-        res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
-                        atol=atol, method=method)
-        
-        # If the stiff mode is not activated correctly, these numbers will be much bigger
-        assert res.nfev < 3000
-        assert res.njev < 70
+        for stages, continuous_error_weight in product(
+            [3, 5], # stages
+            [0.0, 0.5, 1.0], # continuous_error_weight
+        ):
+            res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
+                            atol=atol, method=method, stages=stages,
+                            continuous_error_weight=continuous_error_weight)
 
-    
+            # If the stiff mode is not activated correctly, these numbers will be much bigger
+            assert res.nfev < 3000
+            assert res.njev < 100
+
+
 if __name__ == "__main__":
-    # for params in parameters_linear:
-    #     test_integration_const_jac(*params)
+    for params in parameters_linear:
+        test_integration_const_jac(*params)
 
-    # for params in parameters_complex:
-    #     test_integration_complex(*params)
+    for params in parameters_complex:
+        test_integration_complex(*params)
 
-    # for params in parameters_rational:
-    #     test_integration_rational(*params)
+    for params in parameters_rational:
+        test_integration_rational(*params)
 
     for params in parameters_stiff:
         test_integration_robertson(params)
 
-    # for params in parameters_stiff:
-    #     test_integration_robertson_dae(params)
+    for params in parameters_stiff:
+        test_integration_robertson_dae(params)

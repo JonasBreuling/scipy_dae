@@ -6,6 +6,7 @@ from scipy.integrate._ivp.common import (
     validate_max_step, validate_tol, num_jac, 
     validate_first_step,
 )
+from scipy.optimize._numdiff import approx_derivative
 from scipy.integrate._ivp.base import ConstantDenseOutput
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, issparse, eye
@@ -278,33 +279,30 @@ class DaeSolver:
             def jac_wrapped(t, y, yp, f):
                 self.njev += 1
                 # Jy, self.jac_factor_y = num_jac(
-                #     lambda t, y: self.fun_vectorized(t, y, np.tile(yp[:, None], self.n)), 
+                #     lambda t, y: self.fun_vectorized(t, y, yp), 
                 #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
                 # Jyp, self.jac_factor_yp = num_jac(
-                #     lambda t, yp: self.fun_vectorized(t, np.tile(y[:, None], self.n), yp), 
-                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_y)
-                # n_vec = max(y.shape[1], yp.shape[1])
-                # if isshape(y.shape):
-                #     ny, my = y.shape
-                # else:
-                #     ny, my = self.n, 1
-                # if isshape(yp.shape):
-                #     nyp, myp = yp.shape
-                # else:
-                #     nyp, myp = self.n, 1
-                # n, m = max(ny, nyp), max(my, myp)
-
-                # y = np.tile(y[:, None], )
-                # yp = np.atleast_2d(yp)
-
-                # y = np.atleast_2d(y)
-                # yp = np.atleast_2d(yp)
+                #     lambda t, yp: self.fun_vectorized(t, y, yp), 
+                #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
+                
+                # TODO: This choice is better but not optimal!
+                threshold = self.atol / self.rtol
                 Jy, self.jac_factor_y = num_jac(
                     lambda t, y: self.fun_vectorized(t, y, yp), 
-                    t, y, f, self.atol, self.jac_factor_y, sparsity_y)
+                    t, y, f, threshold, self.jac_factor_y, sparsity_y)
                 Jyp, self.jac_factor_yp = num_jac(
                     lambda t, yp: self.fun_vectorized(t, y, yp), 
-                    t, yp, f, self.atol, self.jac_factor_yp, sparsity_y)
+                    t, yp, f, threshold, self.jac_factor_yp, sparsity_yp)
+                
+                # # test better Jacobian approximation
+                # method = "2-point"
+                # # method = "3-point"
+                # Jy = approx_derivative(
+                #     lambda y: self.fun_single(t, y, yp), 
+                #     y, f0=f, sparsity=sparsity_y, method=method)
+                # Jyp = approx_derivative(
+                #     lambda yp: self.fun_single(t, y, yp), 
+                #     yp, f0=f, sparsity=sparsity_yp, method=method)
                 
                 return Jy, Jyp
             

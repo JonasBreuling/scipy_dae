@@ -22,6 +22,7 @@ def F(t, vy, vyp):
     R = np.zeros(6, dtype=np.common_type(vy, vyp))
     R[0] = x_dot - (u + x * mup)
     R[1] = y_dot - (v + y * mup)
+    # R[2] = u_dot - (-2 * y + x * lap) # TODO: Compute analytical solution of this example!
     R[2] = u_dot - (2 * y + x * lap)
     R[3] = v_dot - (-2 * x + y * lap)
     R[4] = x * u + y * v
@@ -29,7 +30,7 @@ def F(t, vy, vyp):
 
     return R
 
-def jac(t, y, yp, f):
+def jac(t, y, yp, f=None):
     n = len(y)
     z = np.concatenate((y, yp))
 
@@ -69,7 +70,7 @@ def sol_true(t):
 if __name__ == "__main__":
     # time span
     t0 = 1
-    t1 = t0 + 5
+    t1 = t0 + 10
     t_span = (t0, t1)
 
     # method = "BDF"
@@ -87,13 +88,14 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-4
+    atol = rtol = 1e-5
 
     ##############
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    jac = None
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -115,7 +117,7 @@ if __name__ == "__main__":
     e = compute_error(y, y_true, rtol, atol)
     ep = compute_error(yp, yp_true, rtol, atol)
     # assert np.all(e < 5)
-    print(f"e: {e}")
+    # print(f"e: {e}")
     print(f"max(e): {max(e)}")
     # print(f"max(ep): {max(ep)}")
     # exit()

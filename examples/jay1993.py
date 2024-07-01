@@ -33,8 +33,8 @@ def jac(t, y, yp, f):
     def fun_composite(t, z):
         y, yp = z[:n], z[n:]
         return F(t, y, yp)
-    
-    J = approx_derivative(lambda z: fun_composite(t, z), 
+
+    J = approx_derivative(lambda z: fun_composite(t, z),
                             z, method="2-point", f0=f)
     J = J.reshape((n, 2 * n))
     Jy, Jyp = J[:, :n], J[:, n:]
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     t_span = (t0, t1)
 
     # tolerances
-    rtol = atol = 1e-8
+    rtol = atol = 1e-4
 
     # initial conditions
     y0 = np.array([1, 1, 0], dtype=float)
@@ -71,10 +71,9 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
-    method = "Radau"
-    # method = "BDF"
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method="Radau", stages=1)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method="BDF")
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -98,10 +97,10 @@ if __name__ == "__main__":
     dt = t[1] - t[0]
     error_y1 = np.linalg.norm((y[0] - np.exp(t)) * dt)
     error_y2 = np.linalg.norm((y[1] - np.exp(-2 * t)) * dt)
-    # Note: We have an expected order reduction of h here since we control the 
+    # Note: We have an expected order reduction of h here since we control the
     #       error of y[2] instead of yp[2].
-    # error_y3 = np.linalg.norm((yp[2] - np.exp(2 * tp))  * dt)
-    error_y3 = np.linalg.norm((yp[2] - np.exp(2 * tp))  * dt**2)
+    # error_y3 = np.linalg.norm((yp[2] - np.exp(2 * tp)) * dt)
+    error_y3 = np.linalg.norm((yp[2] - np.exp(2 * tp)) * dt**2)
     print(f"error: [{error_y1}, {error_y2}, {error_y3}]")
 
     # visualization
