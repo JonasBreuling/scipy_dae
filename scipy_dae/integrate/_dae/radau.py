@@ -2,8 +2,7 @@ import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-# from scipy.integrate._ivp.base import DenseOutput
-from .base import DAEDenseOutput as DenseOutput
+from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 
 
@@ -493,8 +492,7 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                # Z0 = self.sol(t + h * C).T - y
-                Z0 = self.sol(t + h * C)[0].T - y
+                Z0 = self.sol(t + h * C).T - y
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -641,25 +639,19 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
-        h = self.t - self.t_old
-        Yp = (self.A_inv / h) @ self.Z
-        Zp = Yp - self.yp_old
-        Qp = np.dot(Zp.T, self.P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
 
     def _dense_output_impl(self):
         return self.sol
 
 
 class RadauDenseOutput(DenseOutput):
-    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
+    def __init__(self, t_old, t, y_old, Q):
         super().__init__(t_old, t)
         self.h = t - t_old
         self.Q = Q
-        self.Qp = Qp
         self.order = Q.shape[1] - 1
         self.y_old = y_old
-        self.yp_old = yp_old
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
@@ -668,11 +660,8 @@ class RadauDenseOutput(DenseOutput):
         p = np.cumprod(p, axis=0)
         # Here we don't multiply by h, not a mistake.
         y = np.dot(self.Q, p)
-        yp = np.dot(self.Qp, p)
         y += self.y_old[:, None]
-        yp += self.yp_old[:, None]
         if t.ndim == 0:
             y = np.squeeze(y)
-            yp = np.squeeze(yp)
 
-        return y, yp
+        return y

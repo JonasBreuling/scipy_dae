@@ -52,8 +52,8 @@ if __name__ == "__main__":
     t1 = 3e3
     t_span = (t0, t1)
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     t_eval = np.linspace(t0, t1, num=int(1e2))
     # t_eval = t
-    y_eval, yp_eval = sol.sol(t_eval)
+    y_eval = sol.sol(t_eval)
 
     ax[0].plot(t, y[0], "ok", label=f"y ({method})", mfc="none")
     ax[0].plot(t_eval, y_eval[0], "-xk", label=f"y_dense ({method})", mfc="none")
