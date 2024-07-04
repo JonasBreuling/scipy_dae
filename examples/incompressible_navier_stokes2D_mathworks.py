@@ -210,6 +210,11 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
                         + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
                     ) / Re
                 )
+
+        # # add divergence part using operator
+        # Fu[1:-1, 1:-1] += (
+        #     ut.flatten() - (Du2x + Du2y) @ u.flatten() / Re
+        # ).reshape((Nx + 1, Ny + 2))[1:-1, 1:-1]
     
         # all interior points of the v-velocity
         for i in range(1, Nx + 1):
@@ -349,6 +354,8 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
             # with np.errstate(divide='ignore'):
             quiver = ax.quiver(x, y, u[:, :, num], v[:, :, num])
             return quiver, contour
+            # streamplot, = ax.streamplot(x, y, u[:, :, num], v[:, :, num])
+            # return streamplot,
 
         anim = animation.FuncAnimation(fig, update_quiver, frames=u.shape[-1], interval=interval, blit=True)
         plt.show()
@@ -361,8 +368,8 @@ if __name__ == "__main__":
     Lx = 1
     Ly = 1
     # Number of spatial points
-    Nx = 20
-    Ny = 20
+    Nx = 5
+    Ny = 5
     # Re = 100
     Re = 30
 
