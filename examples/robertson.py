@@ -55,6 +55,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1e7
     t_span = (t0, t1)
+    t_eval = np.logspace(-6, 7, num=1000)
 
     # method = "BDF"
     method = "Radau"
@@ -97,7 +98,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -115,6 +116,7 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots()
 
+    ax.set_xlabel("t")
     ax.plot(t, y[0], "-ok", label="y1 DAE" + f" ({method})", mfc="none")
     ax.plot(t, y[1] * 1e4, "-ob", label="y2 DAE" + f" ({method})", mfc="none")
     ax.plot(t, y[2], "-og", label="y3 DAE" + f" ({method})", mfc="none")
