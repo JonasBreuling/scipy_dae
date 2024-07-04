@@ -52,36 +52,38 @@ if __name__ == "__main__":
     t1 = 3e3
     t_span = (t0, t1)
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
     yp0 = rhs(t0, y0)
     z0 = np.concatenate((y0, yp0))
 
-    yp0 = np.zeros_like(y0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    print(f"fnorm: {fnorm}")
+    # yp0 = np.zeros_like(y0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # print(f"fnorm: {fnorm}")
 
     # solver options
     atol = rtol = 1e-4
+
+    t_eval = np.linspace(t0, t1, num=int(1e3))
+    t_eval = None
+    first_step = 1e-3
 
     ####################
     # reference solution
     ####################
     start = time.time()
-    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method)
+    sol = solve_ivp(rhs, t_span, y0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, first_step=first_step)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
     y_scipy = sol.y
-    t = sol.t
-    y = sol.y
     success = sol.success
     status = sol.status
     message = sol.message
@@ -96,11 +98,12 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, first_step=first_step, dense_output=True)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
+    yp = sol.yp
     success = sol.success
     status = sol.status
     message = sol.message
@@ -112,16 +115,34 @@ if __name__ == "__main__":
     print(f"nlu: {sol.nlu}")
 
     # visualization
-    fig, ax = plt.subplots(2, 1)
+    fig, ax = plt.subplots(4, 1)
 
-    ax[0].plot(t, y[0], "-ok", label=f"y ({method})", mfc="none")
+    t_eval = np.linspace(t0, t1, num=int(1e2))
+    # t_eval = t
+    y_eval = sol.sol(t_eval)
+
+    ax[0].plot(t, y[0], "ok", label=f"y ({method})", mfc="none")
+    ax[0].plot(t_eval, y_eval[0], "-xk", label=f"y_dense ({method})", mfc="none")
     ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y scipy")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[1], "-ok", label=f"y_dot ({method})", mfc="none")
+    ax[1].plot(t, y[1], "ok", label=f"y_dot ({method})", mfc="none")
+    ax[1].plot(t_eval, y_eval[1], "-k", label=f"y_dense ({method})", mfc="none")
     ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
     ax[1].legend()
     ax[1].grid()
+
+    yp_scipy = np.array([rhs(ti, yi) for ti, yi in zip(t_scipy, y_scipy.T)]).T
+
+    ax[2].plot(t, yp[0], "-ok", label=f"yp0 ({method})", mfc="none")
+    ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
+    ax[2].legend()
+    ax[2].grid()
+
+    ax[3].plot(t, yp[1], "-ok", label=f"yp1 ({method})", mfc="none")
+    ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
+    ax[3].legend()
+    ax[3].grid()
 
     plt.show()

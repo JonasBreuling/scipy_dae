@@ -63,10 +63,6 @@ def solve_bdf_system(fun, t_new, y_predict, c, psi, LU, solve_lu, scale, tol):
     return converged, k + 1, y, yp, d
 
 
-# TODO:
-# - adapt documentation
-# - add consistent initial conditions somehow
-# - add dense output for yp
 class BDFDAE(DaeSolver):
     """Implicit method based on backward-differentiation formulas.
 
@@ -104,6 +100,21 @@ class BDFDAE(DaeSolver):
     first_step : float or None, optional
         Initial step size. Default is ``None`` which means that the algorithm
         should choose.
+    max_order : int, optional
+        Highest order of the method with 1 <= max_order <= 6, although 
+        max_order = 6 should be used with care due to the limited stability 
+        propoerties of the corresponding BDF method.
+    NDF_strategy : string, optional
+        The strategy that is applied for obtaining numerical differentiation 
+        formulas (NDF):
+
+            * 'stability' (default): Increase A(alpha) stability without decreasing 
+              efficiency too much. This uses the coefficients of [5]_ but also 
+              enhances the first order coefficient as proposed in [2]_.
+            * 'efficiency': Increase efficiency without decreasing A(alpha) 
+              stability too much, see [2]_.
+            * otherwise: BDF case with improved efficiency for first and second 
+              order method as proposed in [2]_ and [5]_.
     max_step : float, optional
         Maximum allowed step size. Default is np.inf, i.e., the step size is not
         bounded and determined solely by the solver.
@@ -130,7 +141,6 @@ class BDFDAE(DaeSolver):
 
             * If (array_like, array_like) or (sparse_matrix, sparse_matrix) 
               the Jacobian matrices are assumed to be constant.
-            # TODO: Add constant J_y'!
             * If callable, the Jacobians are assumed to depend on t, y and y'; 
               it will be called as ``jac(t, y, y')``, as necessary. Additional 
               arguments have to be passed if ``args`` is used (see 
@@ -149,23 +159,24 @@ class BDFDAE(DaeSolver):
         elements in *each* row, providing the sparsity structure will greatly
         speed up the computations [4]_. A zero entry means that a corresponding
         element in the Jacobian is always zero. If None (default), the Jacobian
+    # t_eval = np.concatenate((t, t + t1)) / 2
+    t_eval = np.array([t0, *(t0 + 1e-3 + np.cumsum(np.diff(t)))])
+    # t_eval = np.concatenate((t, t + t1, t + 2 * t1)) / 3
         is assumed to be dense.
-    # TODO: Adapt and test this
     vectorized : bool, optional
         Whether `fun` can be called in a vectorized fashion. Default is False.
 
-        If ``vectorized`` is False, `fun` will always be called with ``y`` of
-        shape ``(n,)``, where ``n = len(y0)``.
+        If ``vectorized`` is False, `fun` will always be called with ``y`` 
+        and ``yp`` of shape ``(n,)``, where ``n = len(y0) = len(yp0)``.
 
-        If ``vectorized`` is True, `fun` may be called with ``y`` of shape
-        ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
-        such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
-        the returned array is the time derivative of the state corresponding
-        with a column of ``y``).
+        If ``vectorized`` is True, `fun` may be called with ``y`` and ``yp`` of 
+        shape ``(n, k)``, where ``k`` is an integer. In this case, `fun` must 
+        behave such that ``fun(t, y, yp)[:, i] == fun(t, y[:, i], yp[:, i])``.
 
         Setting ``vectorized=True`` allows for faster finite difference
         approximation of the Jacobian by this method, but may result in slower
         execution overall in some circumstances (e.g. small ``len(y0)``).
+        Default is False.
 
     Attributes
     ----------
@@ -181,6 +192,8 @@ class BDFDAE(DaeSolver):
         Current time.
     y : ndarray
         Current state.
+    yp : ndarray
+        Current derivative.
     t_old : float
         Previous time. None if no steps were made yet.
     step_size : float
@@ -226,24 +239,18 @@ class BDFDAE(DaeSolver):
         self.max_order = max_order
 
         if NDF_strategy == "stability":
-            # Increase A(alpha) stability without decreasing efficiency  
-            # too much. This uses the coefficients of [5] but also enhances 
-            # the first order coefficient as proposed in [2].
-            kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])[:max_order + 1]
+            kappa = np.array([0, -37 / 200, -1/9, 0.0834, 0.0665, 0.0551, 0.0464])
         elif NDF_strategy == "efficiency":
-            # Increase efficiency without decreasing A(alpha) stability 
-            # too much, see [2].
-            kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])[:max_order + 1]
+            kappa = np.array([0, -37 / 200, -1/9, -0.0823, -0.0415, 0, 0])
         else:
-            # BDF case with improved efficiency for first and second order 
-            # method as proposed in [2] and [5].
-            kappa = np.array([0, -37 / 200, -1/9, 0, 0, 0, 0])[:max_order + 1]
+            kappa = np.array([0, -37 / 200, -1/9, 0, 0, 0, 0])
 
+        kappa = kappa[:max_order + 1]
         self.gamma = np.hstack((0, np.cumsum(1 / np.arange(1, max_order + 1))))
         self.alpha = (1 - kappa) * self.gamma
         self.error_const = kappa * self.gamma + 1 / np.arange(1, max_order + 2)
 
-        D = np.empty((max_order + 3, self.n), dtype=self.y.dtype)
+        D = np.zeros((max_order + 3, self.n), dtype=self.y.dtype)
         D[0] = self.y
         D[1] = self.yp * self.h_abs * self.direction
         self.D = D
@@ -371,10 +378,12 @@ class BDFDAE(DaeSolver):
         # D^{j + 1} y_n = D^{j} y_n - D^{j} y_{n - 1}. Keep in mind that D
         # contained difference for previous interpolating polynomial and
         # d = D^{k + 1} y_n. Thus this elegant code follows.
+        # print(f"D before:\n{D}")
         D[order + 2] = d - D[order + 1]
         D[order + 1] = d
         for i in reversed(range(order + 1)):
             D[i] += D[i + 1]
+        # print(f"D after:\n{D}")
 
         if self.n_equal_steps < order + 1:
             return True, None

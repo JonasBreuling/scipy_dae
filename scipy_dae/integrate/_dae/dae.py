@@ -23,10 +23,11 @@ MESSAGES = {0: "The solver successfully reached the end of the integration inter
 
 
 # TODO:
-# - expect consistent initial conditions and add a helper function that computes them as done by matlab?
+# - expect consistent initial conditions and add a helper function that 
+#   computes them as done by matlab?
 # - add events depending on y'(t)?
-# - return y' and interpolate y' somehow?
-def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None, 
+# - dense output for y'
+def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
               dense_output=False, events=None, vectorized=False, 
               args=None, **options):
     """Solve an initial value problem for a system of differential algebraic 
@@ -317,13 +318,16 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     if t_eval is None:
         ts = [t0]
         ys = [y0]
+        yps = [y_dot0]
     elif t_eval is not None and dense_output:
         ts = []
         ti = [t0]
         ys = []
+        yps = []
     else:
         ts = []
         ys = []
+        yps = []
 
     interpolants = []
 
@@ -357,6 +361,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
         t_old = solver.t_old
         t = solver.t
         y = solver.y
+        yp = solver.yp
 
         if dense_output:
             sol = solver.dense_output()
@@ -365,6 +370,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
             sol = None
 
         if events is not None:
+            raise NotImplementedError("Events are not ready yet")
             g_new = [event(t, y) for event in events]
             active_events = find_active_events(g, g_new, event_dir)
             if active_events.size > 0:
@@ -390,6 +396,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
         if t_eval is None:
             ts.append(t)
             ys.append(y)
+            yps.append(yp)
         else:
             # The value in t_eval equal to t will be included.
             if solver.direction > 0:
@@ -415,15 +422,25 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     message = MESSAGES.get(status, message)
 
     if t_events is not None:
+        # raise NotImplementedError("Events are not ready yet")
         t_events = [np.asarray(te) for te in t_events]
         y_events = [np.asarray(ye) for ye in y_events]
 
     if t_eval is None:
         ts = np.array(ts)
         ys = np.vstack(ys).T
+        yps = np.vstack(yps).T
     elif ts:
         ts = np.hstack(ts)
         ys = np.hstack(ys)
+        # yps = np.hstack(yps)
+        
+        # estimate yps via finite differences
+        t_final1 = 2 * ts[-1] - ts[-2]
+        y_final1 = 2 * ys[:, -1] - ys[:, -2]
+        ts1 = np.array([*ts, t_final1])
+        ys1 = np.concatenate((ys, y_final1[:, None]), axis=1)
+        yps = np.diff(ys1) / np.diff(ts1)
 
     if dense_output:
         if t_eval is None:
@@ -439,6 +456,6 @@ def solve_dae(fun, t_span, y0, y_dot0, method="BDF", t_eval=None,
     else:
         sol = None
 
-    return OdeResult(t=ts, y=ys, sol=sol, t_events=t_events, y_events=y_events,
+    return OdeResult(t=ts, y=ys, yp=yps, sol=sol, t_events=t_events, y_events=y_events,
                      nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
-                     status=status, message=message, success=status >= 0)
+                     status=status, message=message, success=status>=0)
