@@ -13,8 +13,8 @@ Python implementation of solvers for differential algebraic equation's (DAEs) th
 
 Currently, two different methods are implemented.
 
-* Implicit backward differentiation formula (BDF) of order 1-6 with quasi constant step-size and stability/ accuracy enhancement using numericall differentiation formula (NDF).
-* Implicit Radau IIA methods with arbitrary number of odd stages.
+* Implicit backward differentiation formula (BDF) of variable order with quasi-constant step-size and stability/ accuracy enhancement using numerical differentiation formula (NDF).
+* Implicit Radau IIA methods of order 2s - 1 with arbitrary number of odd stages.
 
 More information about both methods are given in the specific class documentation.
 
@@ -36,7 +36,7 @@ def F(t, y, yp):
     F = np.zeros(3, dtype=y.dtype)
     F[0] = y1p - (-0.04 * y1 + 1e4 * y2 * y3)
     F[1] = y2p - (0.04 * y1 - 1e4 * y2 * y3 - 3e7 * y2**2)
-    F[2] = y1 + y2 + y3 - 1
+    F[2] = y1 + y2 + y3 - 1 # algebraic equation
 
     return F
 
@@ -74,6 +74,17 @@ plt.show()
 ```
 
 ![Robertson](data/img/Robertson.png "Robertson")
+
+## Advanced usage
+
+More examples are given in the [examples](examples/) directory, which includes
+
+* [Van der Pol oscillator](examples/van_der_pol.py)
+* [Robertson problem](examples/robertson.py)
+* [Cartesian pendulum](examples/pendulum.py)
+* [Cartesian pendulum (recursive)](examples/recursive_pendulum.py)
+* [Particle on circular track](examples/particle_on_circular_track.py)
+* [Jay's nonlinear index 2 DAE](examples/jay1993.py)
 
 ## Install
 
