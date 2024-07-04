@@ -13,8 +13,8 @@ Python implementation of solvers for differential algebraic equation's (DAEs) th
 
 Currently, two different methods are implemented.
 
-* Implicit backward differentiation formula (BDF) of variable order with quasi-constant step-size and stability/ accuracy enhancement using numerical differentiation formula (NDF).
-* Implicit Radau IIA methods of order 2s - 1 with arbitrary number of odd stages.
+* Implicit **backward differentiation formula (BDF)** of variable order with quasi-constant step-size and stability/ accuracy enhancement using numerical differentiation formula (NDF).
+* Implicit **Radau IIA** methods of order 2s - 1 with arbitrary number of odd stages.
 
 More information about both methods are given in the specific class documentation.
 
