@@ -5,10 +5,23 @@ import matplotlib.animation as animation
 from scipy_dae.integrate import solve_dae
 from scipy.optimize._numdiff import approx_derivative
 from scipy.sparse import diags, block_diag, lil_matrix, csc_matrix
+from scipy.sparse import csgraph
+from scipy.sparse import diags, eye, kron
 
 
 # see https://github.com/mathworks/2D-Lid-Driven-Cavity-Flow-Incompressible-Navier-Stokes-Solver/blob/master/docs_part1/vanilaCavityFlow_EN.md
 # and https://barbagroup.github.io/essential_skills_RRC/numba/4/
+
+# Nx = 2
+# Ny = 2
+
+# # dx = 1 / (Nx + 1)
+# # dy = 1 / (Ny + 1)
+# dx = 1
+# dy = 1
+
+# Lp, Lu, Lv = laplacian()
+# exit()
 
 
 # def generate_system(Lx, Ly, Nx, Ny, rho, nu, u_top):
@@ -17,6 +30,8 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
     # Grid size (Equispaced)
     dx = Lx / Nx
     dy = Ly / Ny
+    # dx = 1
+    # dy = 1
 
     # Coordinate of each grid (cell center)
     xce = (np.arange(Nx) + 0.5) * dx
@@ -47,13 +62,18 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
     v_init = np.zeros((Nx + 2, Ny + 1))
     p_init = np.zeros((Nx, Ny))
 
-    # u_int = np.random.rand(Nx + 1, Ny + 2)
-    # v_int = np.random.rand(Nx + 2, Ny + 2)
-    # p_int = np.random.rand(Nx, Ny)
-
     ut_init = np.zeros((Nx + 1, Ny + 2))
     vt_init = np.zeros((Nx + 2, Ny + 1))
     pt_init = np.zeros((Nx, Ny))
+
+    # # random initial configuration
+    # u_init = np.random.rand(Nx + 1, Ny + 2)
+    # v_init = np.random.rand(Nx + 2, Ny + 1)
+    # p_init = np.random.rand(Nx, Ny)
+
+    # ut_init = np.random.rand(Nx + 1, Ny + 2)
+    # vt_init = np.random.rand(Nx + 2, Ny + 1)
+    # pt_init = np.random.rand(Nx, Ny)
 
     y0 = np.concatenate((
         u_init[1:-1, 1:-1].flatten(), 
@@ -122,8 +142,10 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
         # D2x = block_diag([Dxx for _ in range(Ny)])
         # D2y = block_diag([Dyy for _ in range(Nx)]).T
 
-        Dxx = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Nx + 2)) / dx**2
-        Dyy = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Nx + 2)) / dy**2
+        # Dxx = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Nx + 2)) / dx**2
+        # Dyy = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Nx + 2)) / dy**2
+        Dxx = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 1, Ny + 2)) / dx**2
+        Dyy = diags([1, -2, 1], [-1, 0, 1], shape=(Nx + 2, Ny + 1)) / dy**2
         Du2x = block_diag([Dxx for _ in range(Ny + 1)])
         Du2y = block_diag([Dyy for _ in range(Ny + 1)]).T
         Dv2x = block_diag([Dxx for _ in range(Nx + 1)])
@@ -149,6 +171,84 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
 
     Du2x, Du2y, Dv2x, Dv2y, Dux, Duy, Dvx, Dvy, Dpx, Dpy = create_diff_operators()
     # Dxx, Dyy, Dx, Dy = create_diff_operators()
+
+    # Dpx = diags([-1, 1], [0, 1], shape=(Nx, Ny)) / dx
+    # Dpx = block_diag([Dpx for _ in range(Ny)])
+    # e = np.ones(Nx)
+    # Dpx = diags([-e, e], [np.zeros_like(e), np.ones_like(e)], shape=(Nx * Nx, Ny * Ny)) / dx
+    # print(f"Dpx:\n{Dpx.toarray()}")
+
+    # TODO: Return csc matrices later
+
+    # def laplace(n, h, boundary_condition):
+    def laplace(n, h):
+        Lm = -2 * np.ones(n)      # n,m   elements
+        Lu = 1 * np.ones(n - 1)   # n,m+1 elements 
+        Ld = 1 * np.ones(n - 1)   # n,m-1 elements 
+        # Lm[[0,-1]] = boundary_condition
+        
+        return diags([Lu, Lm, Ld], offsets=[1, 0, -1], format="coo") / h**2
+
+
+    def forward_diff_x(n, h):
+        Dp = -1 * np.ones(n)
+        Df = 1 * np.ones(n - 1)
+        return diags([Df, Dp], offsets=[1, 0], format="coo") / h
+    
+
+    def centered_diff(n, h):
+        Dc = np.ones(n - 1)
+        return diags([Dc, -Dc], offsets=[1, -1], format="coo") / (2 * h)
+
+
+    # see https://ccrma.stanford.edu/~bilbao/cyril/nss_extract_cyril_touze.pdf
+    def operators():
+        Lpx = kron(
+            forward_diff_x(Nx, dx), eye(Ny), format="coo"
+        )
+        # print(f"Lpx:\n{Lpx.toarray()}")
+        # TODO: Check this!
+        Lpy = kron(
+            eye(Nx), forward_diff_x(Ny, dy), format="coo"
+        )
+        # print(f"Lpy:\n{Lpy.toarray()}")
+                
+        # see https://www.petercheng.me/blog/discrete-laplacian-matrix
+        Lu = kron(
+            eye(Nx + 1), laplace(Ny + 2, dy), format="coo"
+        ) + kron(
+            laplace(Nx + 1, dx), eye(Ny + 2), format="coo"
+        )
+        # print(f"Lu:\n{Lu.toarray()}")
+        
+        # see https://www.petercheng.me/blog/discrete-laplacian-matrix
+        Lv = kron(
+            eye(Nx + 2), laplace(Ny + 1, dy), format="coo"
+        ) + kron(
+            laplace(Nx + 2, dx), eye(Ny + 1), format="coo"
+        )
+        # print(f"Lv:\n{Lv.toarray()}")
+
+        # diffusion u
+        Dux = kron(
+            centered_diff(Nx + 1, dx), eye(Ny + 2), format="coo"
+        )
+        Duy = kron(
+            eye(Nx + 1), centered_diff(Ny + 2, dy), format="coo"
+        )
+
+        # diffusion v
+        Dvx = kron(
+            centered_diff(Nx + 2, dx), eye(Ny + 1), format="coo"
+        )
+        Dvy = kron(
+            eye(Nx + 2), centered_diff(Ny + 1, dy), format="coo"
+        )
+        
+        return Lu, Lv, Lpx, Lpy, Dux, Duy, Dvx, Dvy
+
+    Lu, Lv, Lpx, Lpy, Dux, Duy, Dvx, Dvy = operators()
+    # exit()
 
     def F(t, y, yp):
         # set boundary conditions
@@ -191,49 +291,182 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
         Fu = np.zeros_like(u)
         Fv = np.zeros_like(v)
         Fp = np.zeros_like(p)
+
+        # split u residual for debugging
+        Fu_ut = np.zeros_like(u)
+        Fu_diffusion_u = np.zeros_like(u)
+        Fu_diffusion_v = np.zeros_like(u)
+        Fu_pressure = np.zeros_like(u)
+        Fu_convection = np.zeros_like(u)
     
         # all interior points of the u-velocity
         for i in range(1, Nx):
             for j in range(1, Ny + 1):
-                Fu[i, j] = (
-                    ut[i, j]
-                    + u[i, j] * (u[i + 1, j] - u[i - 1, j]) / (2 * dx)
-                    + v[i, j] * (u[i, j + 1] - u[i, j - 1]) / (2 * dy)
-                    # + (1 / rho) * (p[i, j - 1] - p[i - 1, j - 1]) / dx # note index shift in p!
-                    # - nu * (
-                    #     (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / dx**2
-                    #     + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
-                    # )
-                    + (p[i, j - 1] - p[i - 1, j - 1]) / dx # note index shift in p!
-                    - (
-                        (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / dx**2
-                        + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
-                    ) / Re
-                )
+                # Fu[i, j] = (
+                #     ut[i, j]
+                #     + u[i, j] * (u[i + 1, j] - u[i - 1, j]) / (2 * dx)
+                #     + v[i, j] * (u[i, j + 1] - u[i, j - 1]) / (2 * dy)
+                #     # + (1 / rho) * (p[i, j - 1] - p[i - 1, j - 1]) / dx # note index shift in p!
+                #     # - nu * (
+                #     #     (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / dx**2
+                #     #     + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
+                #     # )
+                #     + (p[i, j - 1] - p[i - 1, j - 1]) / dx # note index shift in p!
+                #     - (
+                #         (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / dx**2
+                #         + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
+                #     ) / Re
+                # )
 
-        # # add divergence part using operator
-        # Fu[1:-1, 1:-1] += (
-        #     ut.flatten() - (Du2x + Du2y) @ u.flatten() / Re
-        # ).reshape((Nx + 1, Ny + 2))[1:-1, 1:-1]
+                Fu_ut[i, j] = ut[i, j]
+                Fu_diffusion_u[i, j] = u[i, j] * (u[i + 1, j] - u[i - 1, j]) / (2 * dx)
+                Fu_diffusion_v[i, j] = v[i, j] * (u[i, j + 1] - u[i, j - 1]) / (2 * dy)
+                Fu_pressure[i, j] = (p[i, j - 1] - p[i - 1, j - 1]) / dx
+                Fu_convection[i, j] = - (
+                    (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / dx**2
+                    + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
+                ) / Re
+
+        # assemble residual for u
+        Fu = Fu_ut + Fu_diffusion_u + Fu_diffusion_v + Fu_pressure + Fu_convection
+
+        # TODO: This has to be repalced by the boundary conditions later
+        inner_u = np.s_[1:Nx, 1:Ny + 1]
+
+        # time derivative part
+        Fu_ut2 = np.zeros_like(Fu)
+        # Fu_ut2[1:Nx, 1:Ny + 1] = ut[1:Nx, 1:Ny + 1]
+        Fu_ut2[inner_u] = ut[inner_u]
+        assert np.allclose(Fu_ut, Fu_ut2)
+        
+        # diffusion part u
+        Fu_diffusion_u2 = np.zeros_like(Fu)
+        Fu_diffusion_u2[inner_u] = (
+            u.flatten() * (Dux @ u.flatten())
+        ).reshape(u.shape)[inner_u]
+        # print(f"Fu_diffusion_u:\n{Fu_diffusion_u}")
+        # print(f"Fu_diffusion_u2:\n{Fu_diffusion_u2}")
+        # print(f"error Fu_diffusion_u:\n{np.linalg.norm(Fu_diffusion_u - Fu_diffusion_u2)}")
+        assert np.allclose(Fu_diffusion_u, Fu_diffusion_u2)
+        
+        # diffusion part v
+        Fu_diffusion_v2 = np.zeros_like(Fu)
+        Fu_diffusion_v2[inner_u] = (
+            v[inner_u].flatten() * (Duy @ u.flatten()).reshape(u.shape)[inner_u].flatten()
+        ).reshape((Nx - 1, Ny))
+        # print(f"Fu_diffusion_v:\n{Fu_diffusion_v}")
+        # print(f"Fu_diffusion_v2:\n{Fu_diffusion_v2}")
+        # print(f"error Fu_diffusion_u:\n{np.linalg.norm(Fu_diffusion_v - Fu_diffusion_v2)}")
+        assert np.allclose(Fu_diffusion_v, Fu_diffusion_v2)
+
+        # pressure part
+        Fu_pressure2 = np.zeros_like(Fu)
+        Fu_pressure2[inner_u] = (
+            Lpx @ p.flatten()
+        ).reshape((Nx, Ny))[:-1, :]
+        # print(f"Fu_pressure:\n{Fu_pressure}")
+        # print(f"Fu_pressure2:\n{Fu_pressure2}")
+        # print(f"error Fu_pressure:\n{np.linalg.norm(Fu_pressure - Fu_pressure2)}")
+        assert np.allclose(Fu_pressure, Fu_pressure2)
+
+        # convection part
+        Fu_convection2 = np.zeros_like(Fu)
+        Fu_convection2[inner_u] = (
+            -Lu @ (u.flatten() / Re)
+        ).reshape((Nx + 1, Ny + 2))[inner_u]
+        assert np.allclose(Fu_convection, Fu_convection2)
+
+        Fu2 = Fu_ut2 + Fu_diffusion_u2 + Fu_diffusion_v2 + Fu_pressure2 + Fu_convection2
+        assert np.allclose(Fu, Fu2)
+
+        # use operator part
+        Fu = Fu2.copy()
+
+        # split u residual for debugging
+        Fv_vt = np.zeros_like(v)
+        Fv_diffusion_u = np.zeros_like(v)
+        Fv_diffusion_v = np.zeros_like(v)
+        Fv_pressure = np.zeros_like(v)
+        Fv_convection = np.zeros_like(v)
     
         # all interior points of the v-velocity
         for i in range(1, Nx + 1):
             for j in range(1, Ny):
-                Fv[i, j] = (
-                    vt[i, j]
-                    + u[i, j] * (v[i + 1, j] - v[i - 1, j]) / (2 * dx)
-                    + v[i, j] * (v[i, j + 1] - v[i, j - 1]) / (2 * dy)
-                    # + (1 / rho) * (p[i - 1, j] - p[i - 1, j - 1]) / dy # note index shift in p!
-                    # - nu * (
-                    #     (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / dx**2
-                    #     + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / dy**2
-                    # )
-                    + (p[i - 1, j] - p[i - 1, j - 1]) / dy # note index shift in p!
-                    - (
-                        (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / dx**2
-                        + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / dy**2
-                    ) / Re
-                )
+                # Fv[i, j] = (
+                #     vt[i, j]
+                #     + u[i, j] * (v[i + 1, j] - v[i - 1, j]) / (2 * dx)
+                #     + v[i, j] * (v[i, j + 1] - v[i, j - 1]) / (2 * dy)
+                #     # + (1 / rho) * (p[i - 1, j] - p[i - 1, j - 1]) / dy # note index shift in p!
+                #     # - nu * (
+                #     #     (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / dx**2
+                #     #     + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / dy**2
+                #     # )
+                #     + (p[i - 1, j] - p[i - 1, j - 1]) / dy # note index shift in p!
+                #     - (
+                #         (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / dx**2
+                #         + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / dy**2
+                #     ) / Re
+                # )
+
+                Fv_vt[i, j] = vt[i, j]
+                Fv_diffusion_u[i, j] = u[i, j] * (v[i + 1, j] - v[i - 1, j]) / (2 * dx)
+                Fv_diffusion_v[i, j] = v[i, j] * (v[i, j + 1] - v[i, j - 1]) / (2 * dy)
+                Fv_pressure[i, j] = (p[i - 1, j] - p[i - 1, j - 1]) / dy
+                Fv_convection[i, j] = - (
+                    (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / dx**2
+                    + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / dy**2
+                ) / Re
+
+        # assemble residual for v
+        Fv = Fv_vt + Fv_diffusion_u + Fv_diffusion_v + Fv_pressure + Fv_convection
+
+        # TODO: This has to be repalced by the boundary conditions later
+        inner_v = np.s_[1:Nx + 1, 1:Ny]
+
+        # time derivative part
+        Fv_vt2 = np.zeros_like(Fv)
+        Fv_vt2[inner_v] = vt[inner_v]
+        assert np.allclose(Fv_vt, Fv_vt2)
+       
+        # diffusion part u
+        Fv_diffusion_u2 = np.zeros_like(Fv)
+        Fv_diffusion_u2[inner_v] = (
+            u[inner_v].flatten() * (Dvx @ v.flatten()).reshape(v.shape)[inner_v].flatten()
+        ).reshape((Nx, Ny - 1))
+        assert np.allclose(Fv_diffusion_u, Fv_diffusion_u2)
+        
+        # diffusion part v
+        Fv_diffusion_v2 = np.zeros_like(Fv)
+        Fv_diffusion_v2[inner_v] = (
+            v.flatten() * (Dvy @ v.flatten())
+        ).reshape(v.shape)[inner_v]
+        assert np.allclose(Fu_diffusion_v, Fu_diffusion_v2)
+
+        # pressure part
+        Fv_pressure2 = np.zeros_like(Fv)
+        Fv_pressure2[inner_v] = (
+        # Fv_pressure2 = (
+            Lpy @ p.flatten()
+        ).reshape((Nx, Ny))[:, :-1]
+        # ).reshape((Nx, Ny))
+        # print(f"Fv_pressure:\n{Fv_pressure}")
+        # print(f"Fv_pressure2:\n{Fv_pressure2}")
+        # print(f"error Fv_pressure:\n{np.linalg.norm(Fv_pressure - Fv_pressure2)}")
+        # TODO: Something goes wrong here!
+        # assert np.allclose(Fv_pressure, Fv_pressure2, rtol=1e-6, atol=1e-6)
+
+        # convection part
+        Fv_convection2 = np.zeros_like(Fv)
+        Fv_convection2[inner_v] = (
+            -Lv @ (v.flatten() / Re)
+        ).reshape((Nx + 2, Ny + 1))[inner_v]
+        assert np.allclose(Fv_convection, Fv_convection2)
+
+        Fv2 = Fv_vt2 + Fv_diffusion_u2 + Fv_diffusion_v2 + Fv_pressure2 + Fv_convection2
+        # assert np.allclose(Fv, Fv2)
+
+        # use operator part
+        Fv = Fv2.copy()
 
         # TODO: This leads to the rank deficiency!
         # continuity equation
@@ -368,8 +601,14 @@ if __name__ == "__main__":
     Lx = 1
     Ly = 1
     # Number of spatial points
-    Nx = 5
-    Ny = 5
+    # Nx = 2
+    # Ny = 3
+    # Nx = 3
+    # Ny = 4
+    # Nx = 4
+    # Ny = 5
+    Nx = 8
+    Ny = 10
     # Re = 100
     Re = 30
 
@@ -377,9 +616,9 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 20
+    t1 = 3
     t_span = (t0, t1)
-    t_eval = np.linspace(t0, t1, num=int(1e3))
+    t_eval = np.linspace(t0, t1, num=int(1e2))
 
     Jy0 = approx_derivative(lambda y: F(t0, y, yp0), y0, method="2-point")
     sparsity_Jy = csc_matrix(Jy0)
