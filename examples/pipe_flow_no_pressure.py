@@ -51,7 +51,7 @@ class IncompressibleFluid:
     -----------
     mathworks: https://github.com/mathworks/2D-Lid-Driven-Cavity-Flow-Incompressible-Navier-Stokes-Solver/blob/master/docs_part1/vanilaCavityFlow_EN.md
     """
-    def __init__(self, Nx, Ny, Lx, Ly, rho=1, nu=1e-1):
+    def __init__(self, Nx, Ny, Lx, Ly, rho=1, nu=1e-4):
         self.Nx = Nx
         self.Ny = Ny
         self.Lx = Lx
@@ -69,6 +69,11 @@ class IncompressibleFluid:
         self.xco = (np.arange(Nx + 1)) * self.dx
         self.yco = (np.arange(Ny + 1)) * self.dy
         self.Xco, self.Yco = np.meshgrid(self.xco, self.yco)
+        # self.Xco, self.Yco = np.meshgrid(self.xco, self.yco, indexing="xy")
+        # self.Xco, self.Yco = np.meshgrid(self.xco, self.yco, indexing="ij")
+
+        # self.Xco, self.Yco = np.meshgrid(self.yco, self.xco, indexing="xy")
+        # # self.Xco, self.Yco = np.meshgrid(self.yco, self.xco, indexing="ij")
 
         # fig, ax = plt.subplots()
         # ax.set_xlim(-0.25 * self.Lx, 1.25 * self.Lx)
@@ -103,8 +108,11 @@ class IncompressibleFluid:
 
         # boundary DOF mappings
         # TODO: Extend this to arbitrary boundary conditions later
-        self.inner_DOFs_u = np.s_[1:Ny + 1, 1:Nx    ]
-        self.inner_DOFs_v = np.s_[1:Ny    , 1:Nx + 1]
+        # self.inner_DOFs_u = np.s_[1:Ny + 1, 1:Nx    ]
+        # self.inner_DOFs_v = np.s_[1:Ny    , 1:Nx + 1]
+        # self.inner_DOFs_p = np.s_[:, :]
+        self.inner_DOFs_u = np.s_[1:-1, 1:-1]
+        self.inner_DOFs_v = np.s_[1:-1, 1:-1]
         self.inner_DOFs_p = np.s_[:, :]
 
         self.u = np.zeros(self.shape_u)
@@ -120,25 +128,24 @@ class IncompressibleFluid:
         # operators
         # - first derivatives
         self._Du_x = kron(
-            D_central(Nx + 1, self.dx), eye(Ny + 2), format="csr"
+            eye(Ny + 2), D_central(Nx + 1, self.dx), format="csr"
         )
         self._Du_y = kron(
-            eye(Nx + 1), D_central(Ny + 2, self.dy), format="csr"
+            D_central(Ny + 2, self.dy), eye(Nx + 1), format="csr"
         )
 
         self._Dv_x = kron(
-            D_central(Nx + 2, self.dx), eye(Ny + 1), format="csr"
+            eye(Ny + 1), D_central(Nx + 2, self.dx), format="csr"
         )
         self._Dv_y = kron(
-            eye(Nx + 2), D_central(Ny + 1, self.dy), format="csr"
+            D_central(Ny + 1, self.dy), eye(Nx + 2), format="csr"
         )
 
-        # TODO: I think we have to change the ordering of these calls below
         self._Dp_x = kron(
-            D_forward(Nx, self.dx), eye(Ny), format="csr"
+            eye(Ny), D_forward(Nx, self.dx), format="csr"
         )
         self._Dp_y = kron(
-            eye(Nx), D_forward(Ny, self.dy), format="csr"
+            D_forward(Ny, self.dy), eye(Nx), format="csr"
         )
 
         # - second derivatives
@@ -205,11 +212,12 @@ class IncompressibleFluid:
         u_bottom = v_bottom = 0
         u_top = v_top = 0
         # u_top = 1
+        u_bottom = 1
 
-        u_left = u_right = +1
-        u_bottom = u_top = +1
-        v_left = v_right = -1
-        v_bottom = v_top = -1
+        # u_left = u_right = +1
+        # u_bottom = u_top = +1
+        # v_left = v_right = -1
+        # v_bottom = v_top = -1
 
         # Dirichlet boundary conditions for velocities
         u[ 0, :] = 2 * u_top - u[1, :]
@@ -244,14 +252,14 @@ class IncompressibleFluid:
         pt_x = (self._Dp_x @ Pt).reshape(self.shape_p)
         pt_y = (self._Dp_y @ Pt).reshape(self.shape_p)
 
-        ########################################
-        # u-velocity residual
-        # ∂u/∂t + (u ⋅ ∇) u + 1/ρ ∇p - ν ∇²u = 0
-        ########################################
-        Fu = np.zeros(self.shape_u)
+        # ########################################
+        # # u-velocity residual
+        # # ∂u/∂t + (u ⋅ ∇) u + 1/ρ ∇p - ν ∇²u = 0
+        # ########################################
+        # Fu = np.zeros(self.shape_u)
 
-        # ∂u/∂t
-        Fu[self.inner_DOFs_u] += ut[self.inner_DOFs_u]
+        # # ∂u/∂t
+        # Fu[self.inner_DOFs_u] += ut[self.inner_DOFs_u]
 
         # # (u ⋅ ∇) u
         # Fu[self.inner_DOFs_u] += u[self.inner_DOFs_u] * u_x[self.inner_DOFs_u]
@@ -261,17 +269,17 @@ class IncompressibleFluid:
         # # 1/ρ ∇p
         # Fu[self.inner_DOFs_u] += pt_x[:, :-1] / self.rho
 
-        # -ν ∇²u
-        Fu[self.inner_DOFs_u] -= self.mu * ((self._DDu_x + self._DDu_y) @ U).reshape(self.shape_u)[self.inner_DOFs_u]
+        # # -ν ∇²u
+        # Fu[self.inner_DOFs_u] -= self.mu * ((self._DDu_x + self._DDu_y) @ U).reshape(self.shape_u)[self.inner_DOFs_u]
 
-        ########################################
-        # v-velocity residual
-        # ∂u/∂t + (u ⋅ ∇) u + 1/ρ ∇p - ν ∇²u = 0
-        ########################################
-        Fv = np.zeros(self.shape_v)
+        # ########################################
+        # # v-velocity residual
+        # # ∂u/∂t + (u ⋅ ∇) u + 1/ρ ∇p - ν ∇²u = 0
+        # ########################################
+        # Fv = np.zeros(self.shape_v)
 
-        # ∂u/∂t
-        Fv[self.inner_DOFs_v] += vt[self.inner_DOFs_v]
+        # # ∂u/∂t
+        # Fv[self.inner_DOFs_v] += vt[self.inner_DOFs_v]
 
         # # (u ⋅ ∇) u
         # Fv[self.inner_DOFs_v] += u[self.inner_DOFs_v] * v_x[self.inner_DOFs_v]
@@ -281,19 +289,99 @@ class IncompressibleFluid:
         # # 1/ρ ∇p
         # Fv[self.inner_DOFs_v] += pt_y[:-1, :] / self.rho
 
-        # -ν ∇²u
-        Fv[self.inner_DOFs_v] -= self.mu * ((self._DDv_x + self._DDv_y) @ V).reshape(self.shape_v)[self.inner_DOFs_v]
+        # # -ν ∇²u
+        # Fv[self.inner_DOFs_v] -= self.mu * ((self._DDv_x + self._DDv_y) @ V).reshape(self.shape_v)[self.inner_DOFs_v]
 
         ###################
         # incompressibility
         # ∇ ⋅ u = 0
         ###################
-        Fp = np.zeros(self.shape_p)
-        Fp[self.inner_DOFs_p] = u_x[1:-1, :-1] + v_y[:-1, 1:-1]
+        # Fp = np.zeros(self.shape_p)
+        # Fp[self.inner_DOFs_p] = u_x[1:-1, :-1] + v_y[:-1, 1:-1]
         
-        # Fu = ut.copy()
-        # Fv = vt.copy()
-        Fp = pt.copy()
+        # # Fu = ut.copy()
+        # # Fv = vt.copy()
+        # Fp = pt.copy()
+
+        # Re = 1e-1
+        # Re = 1e2
+        Re = 1e3
+
+        # self.shape_u = (Ny + 2, Nx + 1)
+        # self.shape_v = (Ny + 1, Nx + 2)
+        # self.shape_p = (Ny, Nx)
+        # self.shape_u_interior = (Ny    , Nx - 1)
+        # self.shape_v_interior = (Ny - 1, Nx    )
+        # self.shape_p_interior = (Ny, Nx)
+
+        Fu = np.zeros(self.shape_u)
+        for i in range(1, Ny + 1):
+            for j in range(1, Nx):
+                # Fu[i, j] = (
+                #     ut[i, j]
+                #     + u[i, j] * (u[i + 1, j] - u[i - 1, j]) / (2 * self.dx)
+                #     + v[i, j] * (u[i, j + 1] - u[i, j - 1]) / (2 * self.dy)
+                #     # + (1 / rho) * (p[i, j - 1] - p[i - 1, j - 1]) / dx # note index shift in p!
+                #     # - nu * (
+                #     #     (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / dx**2
+                #     #     + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / dy**2
+                #     # )
+                #     + (pt[i, j - 1] - pt[i - 1, j - 1]) / self.dx # note index shift in p!
+                #     - (
+                #         (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / self.dx**2
+                #         + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / self.dy**2
+                #     ) / Re
+                # )
+                Fu[i, j] = (
+                    ut[i, j]
+                    + u[i, j] * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dx)
+                    + v[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dy)
+                    + (pt[i - 1, j] - pt[i - 1, j - 1]) / self.dx # note index shift in p!
+                    - (
+                        (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / self.dx**2
+                        + (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / self.dy**2
+                    ) / Re
+                )
+    
+        # all interior points of the v-velocity
+        Fv = np.zeros(self.shape_v)
+        for i in range(1, Ny):
+            for j in range(1, Nx + 1):
+                # Fv[i, j] = (
+                #     vt[i, j]
+                #     + u[i, j] * (v[i + 1, j] - v[i - 1, j]) / (2 * self.dx)
+                #     + v[i, j] * (v[i, j + 1] - v[i, j - 1]) / (2 * self.dy)
+                #     # + (1 / rho) * (p[i - 1, j] - p[i - 1, j - 1]) / dy # note index shift in p!
+                #     # - nu * (
+                #     #     (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / dx**2
+                #     #     + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / dy**2
+                #     # )
+                #     + (pt[i - 1, j] - pt[i - 1, j - 1]) / self.dy # note index shift in p!
+                #     - (
+                #         (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / self.dx**2
+                #         + (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / self.dy**2
+                #     ) / Re
+                # )
+                Fv[i, j] = (
+                    vt[i, j]
+                    + u[i, j] * (v[i    , j + 1] - v[i    , j - 1]) / (2 * self.dx)
+                    + v[i, j] * (v[i + 1, j    ] - v[i - 1, j    ]) / (2 * self.dy)
+                    + (pt[i, j - 1] - pt[i - 1, j - 1]) / self.dy # note index shift in p!
+                    - (
+                        (v[i, j + 1] - 2 * v[i, j] + v[i, j - 1]) / self.dx**2
+                        + (v[i + 1, j] - 2 * v[i, j] + v[i - 1, j]) / self.dy**2
+                    ) / Re
+                )
+
+        # TODO: This leads to the rank deficiency!
+        # continuity equation
+        Fp = np.zeros(self.shape_p)
+        for i in range(Ny):
+            for j in range(Nx):
+                u_x = (u[i + 1, j + 1] - u[i + 1, j]) / self.dx
+                v_y = (v[i + 1, j + 1] - v[i, j + 1]) / self.dy
+                Fp[i, j] = u_x + v_y
+                # Fp[i, j] = p[i, j]
         
         return np.concatenate((
             Fu[self.inner_DOFs_u].reshape(-1),
@@ -315,21 +403,21 @@ class IncompressibleFluid:
         return Jy, Jyp
 
     def animate(self, t, y, yp, interval=50):
-        # fig, ax = plt.subplots()
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
+        fig, ax = plt.subplots()
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection='3d')
         
         def update(num):
             ax.clear()
-            # ax.set_xlim(-0.25 * self.Lx, 1.25 * self.Lx)
-            # ax.set_ylim(-0.25 * self.Ly, 1.25 * self.Ly)
-            # ax.set_aspect("equal")
-            # ax.plot(self.Xce, self.Yce, "ok")
+            ax.set_xlim(-0.25 * self.Lx, 1.25 * self.Lx)
+            ax.set_ylim(-0.25 * self.Ly, 1.25 * self.Ly)
+            ax.set_aspect("equal")
+            ax.plot(self.Xce, self.Yce, "ok")
 
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
-            ax.set_zlabel("u(x, y)")
-            ax.set_zlim(-2, 2)
+            # ax.set_xlabel("x")
+            # ax.set_ylabel("y")
+            # ax.set_zlabel("u(x, y)")
+            # ax.set_zlim(-1, 1)
 
             # compute redundant coordinates together with boundary conditions
             u, v, p, ut, vt, pt, U, V, P, Ut, Vt, Pt = self.create_redundant_coordinates(y[:, num], yp[:, num])
@@ -349,27 +437,31 @@ class IncompressibleFluid:
             uco = (u[:-1, :] + u[1:, :]) / 2
             vco = (v[:, :-1] + v[:, 1:]) / 2
 
+            # uco = uco.T
+            # vco = vco.T
+
             # return None,
         
             # contour = ax.contourf(self.Xce, self.Yce, np.sqrt(uce**2 + vce**2), alpha=0.5)
-            # # contour = ax.contourf(X, Y, np.sqrt(u[1:, :]**2 + v[:, 1:]**2), alpha=0.5)
+            contour = ax.contourf(self.Xco, self.Yco, np.sqrt(uco**2 + vco**2), alpha=0.5)
 
             # return contour,
     
-            # surf = ax.plot_surface(self.Xce, self.Yce, uce)
-            surf = ax.plot_surface(self.Xco, self.Yco, uco)
-            surf = ax.plot_surface(self.Xco, self.Yco, vco, alpha=0.5)
+            # # surf = ax.plot_surface(self.Xce, self.Yce, uce)
+            # surf = ax.plot_surface(self.Xco, self.Yco, uco)
+            # surf = ax.plot_surface(self.Xco, self.Yco, vco, alpha=0.5)
 
-            return surf,
+            # return surf,
 
-            # # # with np.errstate(divide='ignore'):
-            # # quiver = ax.quiver(x, y, u[:, :, num], v[:, :, num])
+            # # # # with np.errstate(divide='ignore'):
+            # quiver = ax.quiver(self.Xco, self.Yco, uco, vco)
             # # return quiver, contour
 
             # # contour = ax.contourf(x, y, p[:, :, num], alpha=0.5)
 
-            # streamplot = ax.streamplot(x, y, u[:, :, num], v[:, :, num])
-            # return contour, streamplot
+            streamplot = ax.streamplot(self.Xco, self.Yco, uco, vco)
+            # return contour, streamplot, quiver
+            return contour, streamplot
 
         # anim = animation.FuncAnimation(fig, update, frames=u.shape[-1], interval=interval, blit=True)
         anim = animation.FuncAnimation(fig, update, frames=t.size, interval=interval, blit=False)
@@ -378,8 +470,12 @@ class IncompressibleFluid:
 if __name__ == "__main__":
     # Nx = 3
     # Ny = 3
-    Nx = 10
-    Ny = 10
+    # Nx = 5
+    # Ny = 5
+    # Nx = 10
+    # Ny = 10
+    Nx = 15
+    Ny = 15
     Lx = Ly = 1.0
     fluid = IncompressibleFluid(Nx, Ny, Lx, Ly)
 
@@ -398,17 +494,19 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 20
+    t1 = 2
     t_span = (t0, t1)
+    t_eval = np.linspace(t0, t1, num=int(1e2))
 
     # solver options
-    method = "BDF"
-    # method = "Radau"
-    atol = rtol = 1e-4
-    first_step = None
+    # method = "BDF"
+    method = "Radau"
+    atol = rtol = 1e-3
+    first_step = 1e-5
+    # first_step = None
 
     start = time.time()
-    sol = solve_dae(fluid.fun, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, first_step=first_step, dense_output=True)
+    sol = solve_dae(fluid.fun, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, first_step=first_step, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
