@@ -20,7 +20,7 @@ More information about both methods are given in the specific class documentatio
 
 ## Basic usage
 
-The Robertson problem of semi-stable chemical reaction is a simple system of differential algebraic equations of index 1. It demosntrates the basic usage of the package.
+The Robertson problem of semi-stable chemical reaction is a simple system of differential algebraic equations of index 1. It demonstrates the basic usage of the package.
 
 ```python
 import numpy as np
@@ -73,7 +73,7 @@ ax.grid()
 plt.show()
 ```
 
-![Robertson](data/img/Robertson.png "Robertson")
+[![Robertson](/data/img/Robertson.png "Robertson")](https://github.com/JonasBreuling/scipy_dae/)
 
 ## Advanced usage
 
