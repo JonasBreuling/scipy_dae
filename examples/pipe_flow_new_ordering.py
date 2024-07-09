@@ -240,13 +240,13 @@ Notes on stability:
    could introduce local compressibility.
 """
 
+import time
 import numpy as np
 import matplotlib.pyplot as plt
-import cmasher as cmr
-from tqdm import tqdm
-
-from scipy.sparse import diags, block_diag, lil_matrix, csc_matrix
-from scipy.sparse import diags, spdiags, eye, kron
+import matplotlib.animation as animation
+from scipy.sparse import spdiags, eye, kron
+from scipy.optimize._numdiff import approx_derivative
+from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
 def D_forward(N, h):
@@ -369,17 +369,21 @@ class IncompressibleFluid:
         # operators
         # - first derivatives
         self._Du_x = kron(
-            D_central(Nx, self.dx), eye(Ny + 1), format="csr"
+            # D_central(Nx, self.dx), eye(Ny + 1), format="csr"
+            D_forward(Nx, self.dx), eye(Ny + 1), format="csr"
         )
         self._Du_y = kron(
-            eye(Nx), D_central(Ny + 1, self.dy), format="csr"
+            # eye(Nx), D_central(Ny + 1, self.dy), format="csr"
+            eye(Nx), D_forward(Ny + 1, self.dy), format="csr"
         )
 
         self._Dv_x = kron(
-            D_central(Nx + 1, self.dx), eye(Ny), format="csr"
+            # D_central(Nx + 1, self.dx), eye(Ny), format="csr"
+            D_forward(Nx + 1, self.dx), eye(Ny), format="csr"
         )
         self._Dv_y = kron(
-            eye(Nx + 1), D_central(Ny, self.dy), format="csr"
+            # eye(Nx + 1), D_central(Ny, self.dy), format="csr"
+            eye(Nx + 1), D_forward(Ny, self.dy), format="csr"
         )
 
         self._Dp_x = kron(
@@ -582,7 +586,21 @@ class IncompressibleFluid:
         # ∇ ⋅ u = 0
         ###################
         Fp = np.zeros(self.shape_p)
-        Fp[self.inner_DOFs_p] += u_x[self.inner_DOFs_p] + v_y[self.inner_DOFs_p]
+        # Fp[self.inner_DOFs_p] += u_x[self.inner_DOFs_p] + v_y[self.inner_DOFs_p]
+
+        # self.inner_DOFs_p = np.s_[   1:Ny,    1:Nx]
+        # Fp[self.inner_DOFs_p] += u_x[1:-1, :-1] + v_y[:-1, 1:-1]
+        # Fp[self.inner_DOFs_p] += u_x[1:-1, :-1] + v_y[1:, 1:-1]
+        # Fp[1:-1, 1:-1] = u_x[1:-1, :-1] + v_y[:-1, 1:-1]
+        Fp[:, :-1] += u_x
+        Fp[:-1, :] += v_y
+        # Fp[:, 1:] += u_x
+        # Fp[1:, :] += v_y
+
+        # # Fu = u.copy()
+        # Fv = v.copy()
+        # # Fp = pt.copy()
+        # Fp = p.copy()
         
         return np.concatenate((
             Fu[self.inner_DOFs_u].reshape(-1),
@@ -590,470 +608,120 @@ class IncompressibleFluid:
             Fp[self.inner_DOFs_p].reshape(-1),
         ))
 
-    def jac(self, t, y, yp):
-        pass
+    def jac(self, t, y, yp, f):
+        n = len(y)
+        z = np.concatenate((y, yp))
 
-Nx = 3
-Ny = 2
-Lx = Ly = 1.0
-fluid = IncompressibleFluid(Nx, Ny, Lx, Ly)
-
-t0 = 0
-y0 = np.zeros(fluid.N_interior)
-yp0 = np.zeros(fluid.N_interior)
-# fluid.create_redundant_coordinates(y0, yp0)
-f = fluid.fun(t0, y0, yp0)
-print(f"f: {f}")
-exit()
-
-
-KINEMATIC_VISCOSITY = 0.01
-TIME_STEP_LENGTH = 0.001
-N_TIME_STEPS = 5000
-PLOT_EVERY = 50
-
-H = 1.0
-N_POINTS_Y = 3
-ASPECT_RATIO = 3
-
-CELL_LENGTH = H / (N_POINTS_Y - 1)
-N_POINTS_X = (N_POINTS_Y - 1) * ASPECT_RATIO + 1
-B = H * ASPECT_RATIO
-
-x_range = np.linspace(0.0, B, N_POINTS_X)
-y_range = np.linspace(0.0, H, N_POINTS_Y)
-coordinates_x, coordinates_y = np.meshgrid(x_range, y_range)
-
-
-# def laplace(n, h, boundary_condition):
-def laplace(n, h):
-    Lm = -2 * np.ones(n)
-    Lu = 1 * np.ones(n - 1) 
-    Ld = 1 * np.ones(n - 1) 
-    # Lm[[0,-1]] = boundary_condition
-    
-    return diags([Lu, Lm, Ld], offsets=[1, 0, -1], format="coo") / h**2
-
-def nabla(Laplacian, field):
-    return (Laplacian @ field.reshape(-1)).reshape(field.shape)
-
-# def main():
-if __name__ == "__main__":
-    # unknown fields
-    u = np.zeros((N_POINTS_X, N_POINTS_Y + 1))
-    v = np.zeros((N_POINTS_X + 1, N_POINTS_Y))
-    p = np.zeros((N_POINTS_X + 1, N_POINTS_Y + 1))
-
-    # discrete laplacian operators,
-    # see https://www.petercheng.me/blog/discrete-laplacian-matrix
-    Lu = kron(
-        eye(N_POINTS_X), laplace(N_POINTS_Y + 1, CELL_LENGTH), format="csr"
-    ) + kron(
-        laplace(N_POINTS_X, CELL_LENGTH), eye(N_POINTS_Y + 1), format="csr"
-    )
-    Lv = kron(
-        eye(N_POINTS_X + 1), laplace(N_POINTS_Y, CELL_LENGTH), format="csr"
-    ) + kron(
-        laplace(N_POINTS_X + 1, CELL_LENGTH), eye(N_POINTS_Y), format="csr"
-    )
-
-    nabla_u = nabla(Lu, u)
-    nabla_v = nabla(Lv, v)
-
-    exit()
-    
-    # def laplacian_x():
-    #     D = diags([1, -2, 1], [-1, 0, 1], shape=(n_points_x, N_POINTS_Y + 1)) / cell_length**2
-    #     Lx = block_diag([D for _ in range(N_POINTS_Y + 1)])
-    #     # D = diags([1, -2, 1], [-1, 0, 1], shape=(N_POINTS_Y + 1, n_points_x)) / cell_length**2
-    #     # Lx = block_diag([D for _ in range(N_POINTS_Y + 1)])
-    #     # D = diags([1, -2, 1], [-1, 0, 1], shape=(N_POINTS_Y + 1, n_points_x)) / cell_length**2
-    #     # Lx = block_diag([D for _ in range(N_POINTS_Y + 1)])
-    #     return Lx
-
-    # # no expensive copies are made using reshape(-1) instead of flatten()
-    # a = np.array([[1,2,3,4], [5,6,7,8]])
-    # b = a.reshape(-1)
-    # c = a.ravel()
-    # d = a.flatten()
-    # print(f"np.shares_memory(a, b): {np.shares_memory(a, b)}")
-    # print(f"np.shares_memory(a, c): {np.shares_memory(a, c)}")
-    # print(f"np.shares_memory(a, d): {np.shares_memory(a, d)}")
-    # exit()
-
-    # Initial condition
-    velocity_x_prev = np.ones((N_POINTS_Y + 1, n_points_x))
-    velocity_x_prev[0, :] = - velocity_x_prev[1, :]
-    velocity_x_prev[-1, :] = - velocity_x_prev[-2, :]
-
-    velocity_y_prev = np.zeros((N_POINTS_Y, n_points_x + 1))
-
-    pressure_prev = np.zeros((N_POINTS_Y + 1, n_points_x + 1))
-
-    # Pre-Allocate some arrays
-    velocity_x_tent = np.zeros_like(velocity_x_prev)
-    velocity_x_next = np.zeros_like(velocity_x_prev)
-
-    velocity_y_tent = np.zeros_like(velocity_y_prev)
-    velocity_y_next = np.zeros_like(velocity_y_prev)
-
-    plt.style.use("dark_background")
-    plt.figure(figsize=(1.5*ASPECT_RATIO, 6))
-
-    for iter in tqdm(range(N_TIME_STEPS)):
-        # Update interior of u velocity
-        diffusion_x = KINEMATIC_VISCOSITY * (
-            (
-                +
-                velocity_x_prev[1:-1, 2:  ]
-                +
-                velocity_x_prev[2:  , 1:-1]
-                +
-                velocity_x_prev[1:-1,  :-2]
-                +
-                velocity_x_prev[ :-2, 1:-1]
-                - 4 *
-                velocity_x_prev[1:-1, 1:-1]
-            ) / (
-                cell_length**2
-            )
-        )
-
-        # def laplace(n, h, boundary_condition):
-        def laplace(n, h):
-            Lm = -2 * np.ones(n)      # n,m   elements
-            Lu = 1 * np.ones(n - 1)   # n,m+1 elements 
-            Ld = 1 * np.ones(n - 1)   # n,m-1 elements 
-            # Lm[[0,-1]] = boundary_condition
-            
-            return diags([Lu, Lm, Ld], offsets=[1, 0, -1], format="coo") / h**2
-
-        # see https://www.petercheng.me/blog/discrete-laplacian-matrix
-        Lu = kron(
-            eye(N_POINTS_Y + 1), laplace(n_points_x, cell_length), format="coo"
-        ) + kron(
-            laplace(N_POINTS_Y + 1, cell_length), eye(n_points_x), format="coo"
-        )
-        Lv = kron(
-            eye(n_points_x + 1), laplace(N_POINTS_Y, cell_length), format="coo"
-        ) + kron(
-            laplace(n_points_x + 1, cell_length), eye(N_POINTS_Y), format="coo"
-        )
-
-        diffusion_x2 = -(KINEMATIC_VISCOSITY * Lu @ velocity_x_prev.flatten(order="F")).reshape((N_POINTS_Y + 1, n_points_x))
-        diffusion_x2 = diffusion_x2[1:-1, 1:-1]
-
-        convection_x = (
-            (
-                velocity_x_prev[1:-1, 2:  ]**2
-                -
-                velocity_x_prev[1:-1,  :-2]**2
-            ) / (
-                2 * cell_length
-            )
-            +
-            (
-                velocity_y_prev[1:  , 1:-2]
-                +
-                velocity_y_prev[1:  , 2:-1]
-                +
-                velocity_y_prev[ :-1, 1:-2]
-                +
-                velocity_y_prev[ :-1, 2:-1]
-            ) / 4
-            *
-            (
-                velocity_x_prev[2:  , 1:-1]
-                -
-                velocity_x_prev[ :-2, 1:-1]
-            ) / (
-                2 * cell_length
-            )
-        )
-        pressure_gradient_x = (
-            (
-                pressure_prev[1:-1, 2:-1]
-                -
-                pressure_prev[1:-1, 1:-2]
-            ) / (
-                cell_length
-            )
-        )
-
-        velocity_x_tent[1:-1, 1:-1] = (
-            velocity_x_prev[1:-1, 1:-1]
-            +
-            TIME_STEP_LENGTH
-            *
-            (
-                -
-                pressure_gradient_x
-                +
-                diffusion_x
-                -
-                convection_x
-            )
-        )
-
-        # Apply BC
-        velocity_x_tent[1:-1, 0] = 1.0
-        velocity_x_tent[1:-1, -1] = velocity_x_tent[1:-1, -2]
-        velocity_x_tent[0, :] = - velocity_x_tent[1, :]
-        velocity_x_tent[-1, :] = - velocity_x_tent[-2, :]
-
-        # Update interior of v velocity
-        diffusion_y = KINEMATIC_VISCOSITY * (
-            (
-                +
-                velocity_y_prev[1:-1, 2:  ]
-                +
-                velocity_y_prev[2:  , 1:-1]
-                +
-                velocity_y_prev[1:-1,  :-2]
-                +
-                velocity_y_prev[ :-2, 1:-1]
-                -
-                4 * velocity_y_prev[1:-1, 1:-1]
-            ) / (
-                cell_length**2
-            )
-        )
-
-        diffusion_y2 = -(KINEMATIC_VISCOSITY * Lv @ velocity_y_prev.flatten(order="F")).reshape((N_POINTS_Y, n_points_x + 1))
-        diffusion_y2 = diffusion_y2[1:-1, 1:-1]
-
-        convection_y = (
-            (
-                velocity_x_prev[2:-1, 1:  ]
-                +
-                velocity_x_prev[2:-1,  :-1]
-                +
-                velocity_x_prev[1:-2, 1:  ]
-                +
-                velocity_x_prev[1:-2,  :-1]
-            ) / 4
-            *
-            (
-                velocity_y_prev[1:-1, 2:  ]
-                -
-                velocity_y_prev[1:-1,  :-2]
-            ) / (
-                2 * cell_length
-            )
-            +
-            (
-                velocity_y_prev[2:  , 1:-1]**2
-                -
-                velocity_y_prev[ :-2, 1:-1]**2
-            ) / (
-                2 * cell_length
-            )
-        )
-        pressure_gradient_y = (
-            (
-                pressure_prev[2:-1, 1:-1]
-                -
-                pressure_prev[1:-2, 1:-1]
-            ) / (
-                cell_length
-            )
-        )
-
-        velocity_y_tent[1:-1, 1:-1] = (
-            velocity_y_prev[1:-1, 1:-1]
-            +
-            TIME_STEP_LENGTH
-            *
-            (
-                -
-                pressure_gradient_y
-                +
-                diffusion_y
-                -
-                convection_y
-            )
-        )
-
-        # Apply BC
-        velocity_y_tent[1:-1, 0] = - velocity_y_tent[1:-1, 1]
-        velocity_y_tent[1:-1, -1] = velocity_y_tent[1:-1, -2]
-        velocity_y_tent[0, :] = 0.0
-        velocity_y_tent[-1, :] = 0.0
-
-        # Compute the divergence as it will be the rhs of the pressure poisson
-        # problem
-        divergence = (
-            (
-                velocity_x_tent[1:-1, 1:  ]
-                -
-                velocity_x_tent[1:-1,  :-1]
-            ) / (
-                cell_length
-            )
-            +
-            (
-                velocity_y_tent[1:  , 1:-1]
-                -
-                velocity_y_tent[ :-1, 1:-1]
-            ) / (
-                cell_length
-            )
-        )
-        pressure_poisson_rhs = divergence / TIME_STEP_LENGTH
-
-        # Solve the pressure correction poisson problem
-        pressure_correction_prev = np.zeros_like(pressure_prev)
-        for _ in range(N_PRESSURE_POISSON_ITERATIONS):
-            pressure_correction_next = np.zeros_like(pressure_correction_prev)
-            pressure_correction_next[1:-1, 1:-1] = 1/4 * (
-                +
-                pressure_correction_prev[1:-1, 2:  ]
-                +
-                pressure_correction_prev[2:  , 1:-1]
-                +
-                pressure_correction_prev[1:-1,  :-2]
-                +
-                pressure_correction_prev[ :-2, 1:-1]
-                -
-                cell_length**2
-                *
-                pressure_poisson_rhs
-            )
-
-            # Apply pressure BC: Homogeneous Neumann everywhere except for the
-            # right where is a homogeneous Dirichlet
-            pressure_correction_next[1:-1, 0] = pressure_correction_next[1:-1, 1]
-            pressure_correction_next[1:-1, -1] = - pressure_correction_next[1:-1, -2]
-            pressure_correction_next[0, :] = pressure_correction_next[1, :]
-            pressure_correction_next[-1, :] = pressure_correction_next[-2, :]
-
-            # Advance in smoothing
-            pressure_correction_prev = pressure_correction_next
+        def fun_composite(z):
+            y, yp = z[:n], z[n:]
+            return self.fun(t, y, yp)
         
-        # Update the pressure
-        pressure_next = pressure_prev + pressure_correction_next
+        J = approx_derivative(fun_composite, z, method="2-point", f0=f)
+        J = J.reshape((n, 2 * n))
+        Jy, Jyp = J[:, :n], J[:, n:]
+        return Jy, Jyp
 
-        # Correct the velocities to be incompressible
-        pressure_correction_gradient_x = (
-            (
-                pressure_correction_next[1:-1, 2:-1]
-                -
-                pressure_correction_next[1:-1, 1:-2]
-            ) / (
-                cell_length
-            )
+    def animate(self, t, y, yp, interval=50):
+        X, Y = np.meshgrid(
+            np.linspace(0, self.Lx, self.Nx),
+            np.linspace(0, self.Ly, self.Ny),
         )
+        fig, ax = plt.subplots()
+        
+        def update(num):
+            ax.clear()
+            ax.set_xlim(-0.25 * self.Lx, 1.25 * self.Lx)
+            ax.set_ylim(-0.25 * self.Ly, 1.25 * self.Ly)
+            ax.set_aspect("equal")
+            ax.plot(X, Y, "ok")
 
-        velocity_x_next[1:-1, 1:-1] = (
-            velocity_x_tent[1:-1, 1:-1]
-            -
-            TIME_STEP_LENGTH
-            *
-            pressure_correction_gradient_x
-        )
+            # compute redundant coordinates together with boundary conditions
+            u, v, p, ut, vt, pt, U, V, P, Ut, Vt, Pt = self.create_redundant_coordinates(y[:, num], yp[:, num])
 
-        pressure_correction_gradient_y = (
-            (
-                pressure_correction_next[2:-1, 1:-1]
-                -
-                pressure_correction_next[1:-2, 1:-1]
-            ) / (
-                cell_length
-            )
-        )
+            # 1. interpolate velocity at cell center/cell corner
+            # uce = (u(1:end-1,2:end-1)+u(2:end,2:end-1))/2;
+            uce = (
+                # u(1:end-1,2:end-1)+u(2:end,2:end-1)
+                u[:-1, 1:-1] + u[1:, 1:-1]
+            ) / 2
+            uco = (
+                # u(:,1:end-1) + u(:,2:end)
+                u[:, :-1] + u[:, 1:]
+            ) / 2
+            vco = (
+                # v(1:end-1,:)+v(2:end,:)
+                v[:-1, :] + v[1:, :]
+            ) / 2
+            vce = (
+                # v(2:end-1,1:end-1)+v(2:end-1,2:end)
+                v[1:-1, :-1] + v[1:-1, 1:]
+            ) / 2
 
-        velocity_y_next[1:-1, 1:-1] = (
-            velocity_y_tent[1:-1, 1:-1]
-            -
-            TIME_STEP_LENGTH
-            *
-            pressure_correction_gradient_y
-        )
+            # return None,
+        
+            # contour = ax.contourf(X, Y, np.sqrt(uce**2 + vce**2), alpha=0.5)
+            contour = ax.contourf(X, Y, np.sqrt(u[1:, :]**2 + v[:, 1:]**2), alpha=0.5)
 
-        # Again enforce BC
-        velocity_x_next[1:-1, 0] = 1.0
-        inflow_mass_rate_next = np.sum(velocity_x_next[1:-1, 0])
-        outflow_mass_rate_next = np.sum(velocity_x_next[1:-1, -2])
-        velocity_x_next[1:-1, -1] = velocity_x_next[1:-1, -2] * inflow_mass_rate_next / outflow_mass_rate_next
-        velocity_x_next[0, :] = - velocity_x_next[1, :]
-        velocity_x_next[-1, :] = - velocity_x_next[-2, :]
+            return contour,
 
-        velocity_y_next[1:-1, 0] = - velocity_y_next[1:-1, 1]
-        velocity_y_next[1:-1, -1] = velocity_y_next[1:-1, -2]
-        velocity_y_next[0, :] = 0.0
-        velocity_y_next[-1, :] = 0.0
+            # # # with np.errstate(divide='ignore'):
+            # # quiver = ax.quiver(x, y, u[:, :, num], v[:, :, num])
+            # # return quiver, contour
 
-        # Advance in time
-        velocity_x_prev = velocity_x_next
-        velocity_y_prev = velocity_y_next
-        pressure_prev = pressure_next
+            # # contour = ax.contourf(x, y, p[:, :, num], alpha=0.5)
 
-        # inflow_mass_rate_next = np.sum(velocity_x_next[1:-1, 0])
-        # outflow_mass_rate_next = np.sum(velocity_x_next[1:-1, -1])
-        # print(f"Inflow: {inflow_mass_rate_next}")
-        # print(f"Outflow: {outflow_mass_rate_next}")
-        # print()
+            # streamplot = ax.streamplot(x, y, u[:, :, num], v[:, :, num])
+            # return contour, streamplot
 
-        # Visualization
-        if iter % PLOT_EVERY == 0:
-            velocity_x_vertex_centered = (
-                (
-                    velocity_x_next[1:  , :]
-                    +
-                    velocity_x_next[ :-1, :]
-                ) / 2
-            )
-            velocity_y_vertex_centered = (
-                (
-                    velocity_y_next[:, 1:  ]
-                    +
-                    velocity_y_next[:,  :-1]
-                ) / 2
-            )
+        # anim = animation.FuncAnimation(fig, update, frames=u.shape[-1], interval=interval, blit=True)
+        anim = animation.FuncAnimation(fig, update, frames=t.size, interval=interval, blit=False)
+        plt.show()
 
-            plt.contourf(
-                coordinates_x,
-                coordinates_y,
-                velocity_x_vertex_centered,
-                levels=10,
-                cmap=cmr.amber,
-                vmin=0.0,
-                vmax=1.6,
-            )
-            plt.colorbar()
+if __name__ == "__main__":
+    Nx = 7
+    Ny = 4
+    Lx = Ly = 1.0
+    fluid = IncompressibleFluid(Nx, Ny, Lx, Ly)
 
-            plt.quiver(
-                coordinates_x[:, ::6],
-                coordinates_y[:, ::6],
-                velocity_x_vertex_centered[:, ::6],
-                velocity_y_vertex_centered[:, ::6],
-                alpha=0.4,
-            )
+    # dummy initial conditions
+    t0 = 0
+    y0 = np.zeros(fluid.N_interior)
+    yp0 = np.zeros(fluid.N_interior)
+    # f = fluid.fun(t0, y0, yp0)
+    # print(f"f: {f}")
 
-            plt.plot(
-                5 * cell_length + velocity_x_vertex_centered[:, 5],
-                coordinates_y[:, 5], 
-                color="black",
-                linewidth=3,
-            )
-            plt.plot(
-                20 * cell_length + velocity_x_vertex_centered[:, 20],
-                coordinates_y[:, 20], 
-                color="black",
-                linewidth=3,
-            )
-            plt.plot(
-                80 * cell_length + velocity_x_vertex_centered[:, 80],
-                coordinates_y[:, 80], 
-                color="black",
-                linewidth=3,
-            )
+    # # solve for consistent initial conditions
+    # y0, yp0, fnorm = consistent_initial_conditions(fluid.fun, fluid.jac, t0, y0, yp0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # print(f"fnorm: {fnorm}")
 
-            plt.draw()
-            plt.pause(0.05)
-            plt.clf()
-    
-    plt.show()
+    # time span
+    t0 = 0
+    t1 = 3
+    t_span = (t0, t1)
 
-# if __name__ == "__main__":
-#     main()
+    # solver options
+    # method = "BDF"
+    method = "Radau"
+    atol = rtol = 1e-4
+    first_step = None
+
+    start = time.time()
+    sol = solve_dae(fluid.fun, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, first_step=first_step, dense_output=True)
+    end = time.time()
+    print(f"elapsed time: {end - start}")
+    t = sol.t
+    y = sol.y
+    yp = sol.yp
+    success = sol.success
+    status = sol.status
+    message = sol.message
+    print(f"success: {success}")
+    print(f"status: {status}")
+    print(f"message: {message}")
+    print(f"nfev: {sol.nfev}")
+    print(f"njev: {sol.njev}")
+    print(f"nlu: {sol.nlu}")
+
+    fluid.animate(t, y, yp)
