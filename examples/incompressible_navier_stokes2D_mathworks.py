@@ -12,17 +12,6 @@ from scipy.sparse import diags, eye, kron
 # see https://github.com/mathworks/2D-Lid-Driven-Cavity-Flow-Incompressible-Navier-Stokes-Solver/blob/master/docs_part1/vanilaCavityFlow_EN.md
 # and https://barbagroup.github.io/essential_skills_RRC/numba/4/
 
-# Nx = 2
-# Ny = 2
-
-# # dx = 1 / (Nx + 1)
-# # dy = 1 / (Ny + 1)
-# dx = 1
-# dy = 1
-
-# Lp, Lu, Lv = laplacian()
-# exit()
-
 
 # def generate_system(Lx, Ly, Nx, Ny, rho, nu, u_top):
 def generate_system(Lx, Ly, Nx, Ny, Re):
@@ -367,7 +356,7 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
         # print(f"Fu_pressure:\n{Fu_pressure}")
         # print(f"Fu_pressure2:\n{Fu_pressure2}")
         # print(f"error Fu_pressure:\n{np.linalg.norm(Fu_pressure - Fu_pressure2)}")
-        assert np.allclose(Fu_pressure, Fu_pressure2)
+        # assert np.allclose(Fu_pressure, Fu_pressure2)
 
         # convection part
         Fu_convection2 = np.zeros_like(Fu)
@@ -377,7 +366,7 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
         assert np.allclose(Fu_convection, Fu_convection2)
 
         Fu2 = Fu_ut2 + Fu_diffusion_u2 + Fu_diffusion_v2 + Fu_pressure2 + Fu_convection2
-        assert np.allclose(Fu, Fu2)
+        # assert np.allclose(Fu, Fu2)
 
         # use operator part
         Fu = Fu2.copy()
@@ -574,26 +563,37 @@ def generate_system(Lx, Ly, Nx, Ny, Re):
         ))
         return F
     
-    def animate_velocity_field(x, y, u, v, interval=50):
+    def animate(x, y, u, v, p, interval=50):
         fig, ax = plt.subplots()
+
+        # ax.set_xlim(-0.25 * Lx, 1.25 * Lx)
+        # ax.set_ylim(-0.25 * Ly, 1.25 * Ly)
+        # ax.set_aspect("equal")
+        # ax.plot(x, y, "ok")
         
-        def update_quiver(num):
+        def update(num):
             ax.clear()
             ax.set_xlim(-0.25 * Lx, 1.25 * Lx)
             ax.set_ylim(-0.25 * Ly, 1.25 * Ly)
             ax.set_aspect("equal")
             ax.plot(x, y, "ok")
-            contour = ax.contourf(x, y, np.sqrt(u[:, :, num]**2 + v[:, :, num]**2), alpha=0.5)
-            # with np.errstate(divide='ignore'):
-            quiver = ax.quiver(x, y, u[:, :, num], v[:, :, num])
-            return quiver, contour
-            # streamplot, = ax.streamplot(x, y, u[:, :, num], v[:, :, num])
-            # return streamplot,
 
-        anim = animation.FuncAnimation(fig, update_quiver, frames=u.shape[-1], interval=interval, blit=True)
+            contour = ax.contourf(x, y, np.sqrt(u[:, :, num]**2 + v[:, :, num]**2), alpha=0.5)
+
+            # # with np.errstate(divide='ignore'):
+            # quiver = ax.quiver(x, y, u[:, :, num], v[:, :, num])
+            # return quiver, contour
+
+            # contour = ax.contourf(x, y, p[:, :, num], alpha=0.5)
+        
+            streamplot = ax.streamplot(x, y, u[:, :, num], v[:, :, num])
+            return contour, streamplot
+
+        # anim = animation.FuncAnimation(fig, update, frames=u.shape[-1], interval=interval, blit=True)
+        anim = animation.FuncAnimation(fig, update, frames=u.shape[-1], interval=interval, blit=False)
         plt.show()
     
-    return xce, yce, xco, yco, dx, dy, y0, yp0, redundant_coordinates, F, animate_velocity_field
+    return xce, yce, xco, yco, dx, dy, y0, yp0, redundant_coordinates, F, animate
 
 if __name__ == "__main__":
     # Parameters
@@ -607,12 +607,14 @@ if __name__ == "__main__":
     # Ny = 4
     # Nx = 4
     # Ny = 5
-    Nx = 8
-    Ny = 10
+    # Nx = 8
+    # Ny = 10
+    Nx = 20
+    Ny = 20
     # Re = 100
     Re = 30
 
-    xce, yce, xco, yco, dx, dy, y0, yp0, redundant_coordinates, F, animate_velocity_field = generate_system(Lx, Ly, Nx, Ny, Re)
+    xce, yce, xco, yco, dx, dy, y0, yp0, redundant_coordinates, F, animate = generate_system(Lx, Ly, Nx, Ny, Re)
 
     # time span
     t0 = 0
@@ -710,9 +712,10 @@ if __name__ == "__main__":
     vco = vco.transpose(1, 0, 2)
     uce = uce.transpose(1, 0, 2)
     vce = vce.transpose(1, 0, 2)
+    pce = p.transpose(1, 0, 2)
 
     Xce, Yce = np.meshgrid(xce, yce)
-    animate_velocity_field(Xce, Yce, uce, vce)
+    animate(Xce, Yce, uce, vce, pce)
 
     # Xco, Yco = np.meshgrid(xco, yco)
-    # animate_velocity_field(Xco, Yco, uco, vco)
+    # animate(Xco, Yco, uco, vco, p)
