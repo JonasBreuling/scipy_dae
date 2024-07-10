@@ -14,11 +14,11 @@ RESOLUTION = 1
 # Reynolds number
 match SCENARIO:
     case "channel":
-        # RE = 300
-        # RE = 1000
-        RE = 3000
+        t1 = 5
+        RE = 100
     case "lid cavity":
-        RE = 1e3
+        t1 = 20
+        RE = 500
     case _:
         raise NotImplementedError
 
@@ -472,8 +472,8 @@ class IncompressibleFluid:
             vco = (v[:-1, :] + v[1:, :]) / 2
         
             cmap = "jet"
-            contour = ax.contourf(self.X_range, self.Y_range, np.sqrt(uco**2 + vco**2), cmap=cmap, levels=100)
-            # contour = None
+            contourf = ax.contourf(self.X_range, self.Y_range, np.sqrt(uco**2 + vco**2), cmap=cmap, levels=50)
+            # contourf = None
 
             streamplot = ax.streamplot(self.x_range, self.y_range, uco.T, vco.T)
             # streamplot = None
@@ -481,10 +481,10 @@ class IncompressibleFluid:
             quiver = ax.quiver(self.X_range, self.Y_range, uco, vco, alpha=0.75)
             # quiver = None
 
-            return contour, quiver, streamplot
+            return contourf, quiver, streamplot
         
-        contour, quiver, streamplot = update(0)
-        cbar = fig.colorbar(contour)
+        contourf, quiver, streamplot = update(0)
+        cbar = fig.colorbar(contourf)
 
         anim = animation.FuncAnimation(fig, update, frames=t.size, interval=interval, blit=False)
         plt.show()
@@ -492,13 +492,13 @@ class IncompressibleFluid:
 if __name__ == "__main__":
     match SCENARIO:
         case "channel":
-            RESOLUTION = 1
+            RESOLUTION = 2
             Nx = int(16 * RESOLUTION)
             Ny = int(4 * RESOLUTION)
             Lx = 4
             Ly = 1
         case "lid cavity":
-            RESOLUTION = 3
+            RESOLUTION = 2
             Nx = Ny = int(8 * RESOLUTION)
             # Nx = Ny = int(3 * RESOLUTION)
             Lx = 1
@@ -544,7 +544,7 @@ if __name__ == "__main__":
     # time span
     t0 = 0
     # t1 = 1
-    t1 = 30
+    # t1 = 30
     t_span = (t0, t1)
     # num = int(1e2)
     num = 50
