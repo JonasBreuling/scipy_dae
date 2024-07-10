@@ -6,15 +6,21 @@ from scipy.sparse import spdiags, eye, kron
 from scipy.optimize._numdiff import approx_derivative
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
-SCENARIO = "channel"
-# SCENARIO = "lid cavity"
+# SCENARIO = "channel"
+SCENARIO = "lid cavity"
 
 RESOLUTION = 1
 
 # Reynolds number
-RE = 300
-# RE = 1e2
-# RE = 1e-1
+match SCENARIO:
+    case "channel":
+        # RE = 300
+        # RE = 1000
+        RE = 3000
+    case "lid cavity":
+        RE = 1e3
+    case _:
+        raise NotImplementedError
 
 
 def D_forward(N, h):
@@ -200,20 +206,21 @@ class IncompressibleFluid:
                 u_top = u_bottom = 0
                 v_top = v_bottom = v_left = 0
 
+                u[0, :] = u_left
                 u[:, -1] = 2 * u_top - u[:, -2]
                 u[:,  0] = 2 * u_bottom - u[:, 1]
-                u[0, 1:-1] = u_left
+                # u[0, 1:-1] = u_left
 
-                v[1:-1, -1] = v_top
-                v[1:-1, 0] = v_bottom
+                v[:, -1] = v_top
+                v[:, 0] = v_bottom
                 v[0, :] = 2 * v_left - v[1, :]
+                # v[1:-1, -1] = v_top
+                # v[1:-1, 0] = v_bottom
 
                 # Neumann boundary conditions (du/dx = du_right, dv/dx = dv_right)
                 du_right = dv_right = 0
                 u[-1, 1:-1] = 2 * self.dx * du_right + u[-3, 1:-1]
-                # v[-1, :] = self.dx * dv_right + v[-2, :]
-                # TODO: Check this derivative!
-                v[-1, :] = 2 * self.dx * dv_right + v[-3, :]
+                v[-1, :] = self.dx * dv_right + v[-2, :]
             case "lid cavity":
                 # Dirichlet boundary conditions
                 u_top = 1
@@ -331,13 +338,13 @@ class IncompressibleFluid:
                 # )
 
                 Fu[i, j] += ut[i, j]
-                # central differences
-                Fu[i, j] += u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
-                Fu[i, j] += v[i, j] * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
-                # # central differences with interpolated v-velocity
-                # vi2j2 = (v[i, j - 1] + v[i + 1, j - 1] + v[i + 1, j] + v[i, j]) / 4
+                # # central differences
                 # Fu[i, j] += u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
-                # Fu[i, j] += vi2j2 * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
+                # Fu[i, j] += v[i, j] * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
+                # central differences with interpolated v-velocity
+                vi2j2 = (v[i, j - 1] + v[i + 1, j - 1] + v[i + 1, j] + v[i, j]) / 4
+                Fu[i, j] += u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
+                Fu[i, j] += vi2j2 * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
                 # # first-order upwind
                 # if u[i + 1, j] > 0:
                 #     Fu[i, j] += u[i, j] * (u[i + 1, j] - u[i    , j]) / self.dx
@@ -381,13 +388,13 @@ class IncompressibleFluid:
                 #     ) / RE
                 # )
                 Fv[i, j] += vt[i, j]
-                # central differences
-                Fv[i, j] += u[i, j] * (v[i + 1, j    ] - v[i - 1, j    ]) / (2 * self.dx)
-                Fv[i, j] += v[i, j] * (v[i    , j + 1] - v[i    , j - 1]) / (2 * self.dy)
-                # # central differences with interpolated u-velocity
-                # ui2j2 = (u[i - 1, j] + u[i, j] + u[i, j + 1] + u[i - 1, j + 1]) / 4
-                # Fv[i, j] += ui2j2 * (v[i + 1, j    ] - v[i - 1, j    ]) / (2 * self.dx)
+                # # central differences
+                # Fv[i, j] += u[i, j] * (v[i + 1, j    ] - v[i - 1, j    ]) / (2 * self.dx)
                 # Fv[i, j] += v[i, j] * (v[i    , j + 1] - v[i    , j - 1]) / (2 * self.dy)
+                # central differences with interpolated u-velocity
+                ui2j2 = (u[i - 1, j] + u[i, j] + u[i, j + 1] + u[i - 1, j + 1]) / 4
+                Fv[i, j] += ui2j2 * (v[i + 1, j    ] - v[i - 1, j    ]) / (2 * self.dx)
+                Fv[i, j] += v[i, j] * (v[i    , j + 1] - v[i    , j - 1]) / (2 * self.dy)
                 # # first-order upwind
                 # if v[i + 1, j] > 0:
                 #     Fv[i, j] += u[i, j] * (v[i + 1, j] - v[i    , j]) / self.dx
@@ -485,16 +492,13 @@ class IncompressibleFluid:
 if __name__ == "__main__":
     match SCENARIO:
         case "channel":
-            RESOLUTION = 3
+            RESOLUTION = 1
             Nx = int(16 * RESOLUTION)
             Ny = int(4 * RESOLUTION)
-            # Nx = int(12 * RESOLUTION)
-            # Ny = int(3 * RESOLUTION)
-            # Nx = int(8 * RESOLUTION)
-            # Ny = int(2 * RESOLUTION)
             Lx = 4
             Ly = 1
         case "lid cavity":
+            RESOLUTION = 3
             Nx = Ny = int(8 * RESOLUTION)
             # Nx = Ny = int(3 * RESOLUTION)
             Lx = 1
@@ -540,7 +544,7 @@ if __name__ == "__main__":
     # time span
     t0 = 0
     # t1 = 1
-    t1 = 5
+    t1 = 30
     t_span = (t0, t1)
     # num = int(1e2)
     num = 50
@@ -550,7 +554,7 @@ if __name__ == "__main__":
     # method = "BDF"
     # atol = rtol = 1e-3
     method = "Radau"
-    atol = rtol = 1e-4
+    atol = rtol = 1e-3
     first_step = 1e-5
     # first_step = None
 
