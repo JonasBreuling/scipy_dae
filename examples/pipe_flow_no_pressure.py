@@ -6,6 +6,11 @@ from scipy.sparse import spdiags, eye, kron
 from scipy.optimize._numdiff import approx_derivative
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
+# SCENARIO = "channel"
+SCENARIO = "lid cavity"
+
+RESOLUTION = 1
+
 
 def D_forward(N, h):
     D = np.ones(N) / h
@@ -60,28 +65,17 @@ class IncompressibleFluid:
         self.dx = Lx / Nx
         self.dy = Ly / Ny
 
-        # Coordinate of each grid (cell center)
-        self.xce = (np.arange(Nx) + 0.5) * self.dx
-        self.yce = (np.arange(Ny) + 0.5) * self.dy
-        self.Xce, self.Yce = np.meshgrid(self.xce, self.yce)
+        # # Coordinate of each grid (cell center)
+        # self.xce = (np.arange(Nx) + 0.5) * self.dx
+        # self.yce = (np.arange(Ny) + 0.5) * self.dy
+        # self.Xce, self.Yce = np.meshgrid(self.xce, self.yce)
 
         # Coordinate of each grid (cell corner)
-        self.xco = (np.arange(Nx + 1)) * self.dx
-        self.yco = (np.arange(Ny + 1)) * self.dy
-        self.Xco, self.Yco = np.meshgrid(self.xco, self.yco)
-        # self.Xco, self.Yco = np.meshgrid(self.xco, self.yco, indexing="xy")
+        self.row_range = (np.arange(Ny + 1)) * self.dy
+        self.column_range = (np.arange(Nx + 1)) * self.dx
         # self.Xco, self.Yco = np.meshgrid(self.xco, self.yco, indexing="ij")
-
-        # self.Xco, self.Yco = np.meshgrid(self.yco, self.xco, indexing="xy")
-        # # self.Xco, self.Yco = np.meshgrid(self.yco, self.xco, indexing="ij")
-
-        # fig, ax = plt.subplots()
-        # ax.set_xlim(-0.25 * self.Lx, 1.25 * self.Lx)
-        # ax.set_ylim(-0.25 * self.Ly, 1.25 * self.Ly)
-        # ax.set_aspect("equal")
-        # ax.plot(self.Xce, self.Yce, "ok")
-        # plt.show()
-        # exit()
+        self.Row_range, self.Column_range = np.meshgrid(self.row_range, self.column_range, indexing="ij")
+        # self.Row_range, self.Column_range = np.meshgrid(self.row_range, self.column_range, indexing="xy")
 
         self.rho = rho
         self.nu = nu
@@ -206,29 +200,78 @@ class IncompressibleFluid:
         assert np.shares_memory(vt[self.inner_DOFs_v], vt)
         assert np.shares_memory(pt[self.inner_DOFs_p], pt)
 
-        # TODO: Add these functions as arguments to fluid
-        u_left = v_left = 0
-        u_right = v_right = 0
-        u_bottom = v_bottom = 0
-        u_top = v_top = 0
-        # u_top = 1
-        u_bottom = 1
+        # # TODO: Add these functions as arguments to fluid
+        # u_left = v_left = 0
+        # u_right = v_right = 0
+        # u_bottom = v_bottom = 0
+        # u_top = v_top = 0
+        # # u_top = 1
+        # # u_bottom = 1
+        # u_left = 1
+        # # u_right = 1
+        # du_right = 0
+        # dv_right = 0
 
-        # u_left = u_right = +1
-        # u_bottom = u_top = +1
-        # v_left = v_right = -1
-        # v_bottom = v_top = -1
+        # # u_left = u_right = +1
+        # # u_bottom = u_top = +1
+        # # v_left = v_right = -1
+        # # v_bottom = v_top = -1
 
-        # Dirichlet boundary conditions for velocities
-        u[ 0, :] = 2 * u_top - u[1, :]
-        u[-1, :] = 2 * u_bottom - u[-2, :]
-        u[1:-1,  0] = u_left
-        u[1:-1, -1] = u_right
+        match SCENARIO:
+            case "channel":
+                # Dirichlet boundary conditions
+                u_left = 1
+                u_top = u_bottom = 0
+                v_top = v_bottom = v_left = 0
 
-        v[ 0, 1:-1] = v_top
-        v[-1, 1:-1] = v_bottom
-        v[:,  0] = 2 * v_left - v[:, 1]
-        v[:, -1] = 2 * v_right - v[:, -2]
+                u[ 0, :] = 2 * u_top - u[1, :]
+                u[-1, :] = 2 * u_bottom - u[-2, :]
+                u[1:-1,  0] = u_left
+
+                v[ 0, 1:-1] = v_top
+                v[-1, 1:-1] = v_bottom
+                v[:,  0] = 2 * v_left - v[:, 1]
+
+                # Neumann boundary conditions (du/dx = du_right, dv/dx = dv_right)
+                du_right = dv_right = 0
+                u[1:-1, -1] = 2 * self.dx * du_right + u[1:-1, -3]
+                v[:, -1] = self.dx * dv_right + v[:, -2]
+            case "lid cavity":
+                # Dirichlet boundary conditions
+                u_top = 1
+                u_bottom = u_left = u_right = 0
+                v_top = v_bottom = v_left = v_right = 0
+
+                u[ 0, :] = 2 * u_top - u[1, :]
+                u[-1, :] = 2 * u_bottom - u[-2, :]
+                u[1:-1,  0] = u_left
+                u[1:-1, -1] = u_right
+
+                v[ 0, 1:-1] = v_top
+                v[-1, 1:-1] = v_bottom
+                v[:,  0] = 2 * v_left - v[:, 1]
+                v[:, -1] = 2 * v_right - v[:, -2]
+            case _:
+                raise NotImplementedError
+
+        # # Dirichlet boundary conditions for velocities
+        # u[ 0, :] = 2 * u_top - u[1, :]
+        # u[-1, :] = 2 * u_bottom - u[-2, :]
+        # u[1:-1,  0] = u_left
+        # # Dirichlet BC
+        # # u[1:-1, -1] = u_right
+        # # Neumann BC (du/dx = du_right)
+        # # (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dx) = du_right
+        # u[1:-1, -1] = 2 * self.dx * du_right + u[1:-1, -3]
+
+        # v[ 0, 1:-1] = v_top
+        # v[-1, 1:-1] = v_bottom
+        # v[:,  0] = 2 * v_left - v[:, 1]
+        # # # Dirichlet BC
+        # # v[:, -1] = 2 * v_right - v[:, -2]
+
+        # # Neumann BC (dv/dx = dv_right)
+        # v[:, -1] = self.dx * dv_right + v[:, -2]
 
         assert np.shares_memory(u, self.U)
         assert np.shares_memory(v, self.V)
@@ -303,9 +346,8 @@ class IncompressibleFluid:
         # # Fv = vt.copy()
         # Fp = pt.copy()
 
-        # Re = 1e-1
-        # Re = 1e2
-        Re = 1e3
+        # Re = 1e-2
+        Re = 1e1
 
         # self.shape_u = (Ny + 2, Nx + 1)
         # self.shape_v = (Ny + 1, Nx + 2)
@@ -404,86 +446,67 @@ class IncompressibleFluid:
 
     def animate(self, t, y, yp, interval=50):
         fig, ax = plt.subplots()
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
         
         def update(num):
             ax.clear()
             ax.set_xlim(-0.25 * self.Lx, 1.25 * self.Lx)
             ax.set_ylim(-0.25 * self.Ly, 1.25 * self.Ly)
             ax.set_aspect("equal")
-            ax.plot(self.Xce, self.Yce, "ok")
-
-            # ax.set_xlabel("x")
-            # ax.set_ylabel("y")
-            # ax.set_zlabel("u(x, y)")
-            # ax.set_zlim(-1, 1)
 
             # compute redundant coordinates together with boundary conditions
             u, v, p, ut, vt, pt, U, V, P, Ut, Vt, Pt = self.create_redundant_coordinates(y[:, num], yp[:, num])
 
             # 1. interpolate velocity at cell center/cell corner
-            # uce = (u(1:end-1,2:end-1)+u(2:end,2:end-1))/2;
-            uce = (
-                # # u(1:end-1,2:end-1)+u(2:end,2:end-1)
-                # u[:-1, 1:-1] + u[1:, 1:-1]
-                u[1:-1, :-1,] + u[1:-1, 1:]
-            ) / 2
-            vce = (
-                # # v(2:end-1,1:end-1)+v(2:end-1,2:end)
-                # v[1:-1, :-1] + v[1:-1, 1:]
-                v[:-1, 1:-1] + v[1:, 1:-1]
-            ) / 2
+            # uce = (u[1:-1, :-1,] + u[1:-1, 1:]) / 2
+            # vce = (v[:-1, 1:-1] + v[1:, 1:-1]) / 2
             uco = (u[:-1, :] + u[1:, :]) / 2
             vco = (v[:, :-1] + v[:, 1:]) / 2
 
             # uco = uco.T
             # vco = vco.T
-
-            # return None,
         
-            # contour = ax.contourf(self.Xce, self.Yce, np.sqrt(uce**2 + vce**2), alpha=0.5)
-            contour = ax.contourf(self.Xco, self.Yco, np.sqrt(uco**2 + vco**2), alpha=0.5)
+            # cmap = "viridis"
+            cmap = "Blues"
+            cmap = "jet"
+            contour = ax.contourf(self.Column_range, self.Row_range, np.sqrt(uco**2 + vco**2), cmap=cmap, levels=100)
+            contour = None
 
-            # return contour,
-    
-            # # surf = ax.plot_surface(self.Xce, self.Yce, uce)
-            # surf = ax.plot_surface(self.Xco, self.Yco, uco)
-            # surf = ax.plot_surface(self.Xco, self.Yco, vco, alpha=0.5)
+            # streamplot = ax.streamplot(self.Xco.T, self.Yco.T, uco.T, vco.T)
+            streamplot = None
 
-            # return surf,
+            # quiver = ax.quiver(self.Xco, self.Yco, uco, vco, angles="uv", alpha=0.4, scale=5, scale_units="xy")
+            quiver = ax.quiver(self.Column_range, self.Row_range, uco, vco, alpha=0.75)
+            # quiver = None
 
-            # # # # with np.errstate(divide='ignore'):
-            # quiver = ax.quiver(self.Xco, self.Yco, uco, vco)
-            # # return quiver, contour
+            return contour, quiver, streamplot
+        
+        # contour, quiver, streamplot = update(0)
+        # cbar = fig.colorbar(contour)
 
-            # # contour = ax.contourf(x, y, p[:, :, num], alpha=0.5)
-
-            streamplot = ax.streamplot(self.Xco, self.Yco, uco, vco)
-            # return contour, streamplot, quiver
-            return contour, streamplot
-
-        # anim = animation.FuncAnimation(fig, update, frames=u.shape[-1], interval=interval, blit=True)
         anim = animation.FuncAnimation(fig, update, frames=t.size, interval=interval, blit=False)
         plt.show()
 
 if __name__ == "__main__":
-    # Nx = 3
-    # Ny = 3
-    # Nx = 5
-    # Ny = 5
-    # Nx = 10
-    # Ny = 10
-    Nx = 15
-    Ny = 15
-    Lx = Ly = 1.0
+    match SCENARIO:
+        case "channel":
+            Nx = 16 * RESOLUTION
+            Ny = 4 * RESOLUTION
+            Lx = 4
+            Ly = 1
+        case "lid cavity":
+            Nx = Ny = 4 * RESOLUTION
+            Lx = 2
+            Ly = 1
+        case _:
+            raise NotImplementedError
+
     fluid = IncompressibleFluid(Nx, Ny, Lx, Ly)
 
     # dummy initial conditions
     t0 = 0
     y0 = np.zeros(fluid.N_interior)
     yp0 = np.zeros(fluid.N_interior)
-    # f = fluid.fun(t0, y0, yp0)
+    f = fluid.fun(t0, y0, yp0)
     # print(f"f: {f}")
 
     # # solve for consistent initial conditions
@@ -494,7 +517,7 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 2
+    t1 = 3
     t_span = (t0, t1)
     t_eval = np.linspace(t0, t1, num=int(1e2))
 
