@@ -81,6 +81,7 @@ More examples are given in the [examples](examples/) directory, which includes
 
 * [Van der Pol oscillator](examples/van_der_pol.py)
 * [Robertson problem](examples/robertson.py)
+* [Stiff transistor amplifier](examples/stiff_transistor_amplifier.py)
 * [Cartesian pendulum](examples/pendulum.py)
 * [Cartesian pendulum (recursive)](examples/recursive_pendulum.py)
 * [Particle on circular track](examples/particle_on_circular_track.py)
