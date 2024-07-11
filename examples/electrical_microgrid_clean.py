@@ -8,20 +8,18 @@ from scipy.optimize._numdiff import approx_derivative
 def F(t, y, yp, u, A, system_data):
     """Define implicit system of differential algebraic equations."""
     R, L, C, splits = system_data
-    AC, AR, AL, AI, AV = A
+    # AC, AR, AL, AI, AV = A # <= this was the error!
+    AC, AR, AL, AV, AI = A
 
     y = np.nan_to_num(y)
     yp = np.nan_to_num(yp)
     qc, phi, e, jv = np.split(y, splits)
-    qp, phip, ep, jvp = np.split(yp, splits)
+    q_t, phi_t, e_t, jv_t = np.split(yp, splits)
     i, v = u(t)
 
-    dH1 = phi / L
-    dH0 = qc / C
-
-    F0 = AC @ qp + AL @ dH1 + AV @ jv + AR @ (AR.T @ e) / R + AI @ i
-    F1 = phip - AL.T @ e
-    F2 = AC.T @ e - dH0                   # algebraic equation
+    F0 = AC @ q_t + AL @ (phi / L) + AV @ jv + AR @ (AR.T @ e) / R + AI @ i
+    F1 = phi_t - AL.T @ e
+    F2 = AC.T @ e - qc / C                # algebraic equation
     F3 = AV.T @ e - v                     # algebraic equation
     return np.concatenate((F0, F1, F2, F3))
 
@@ -63,8 +61,9 @@ def get_microgrid_policy(t):
 
 # time span
 t0 = 0
-t1 = 1e4
+t1 = 2e1
 t_span = (t0, t1)
+t_eval = np.linspace(t0, t1, num=int(1e3))
 
 # solver options
 method = "Radau"
@@ -93,25 +92,37 @@ print(f"rank(Jy0):  {np.linalg.matrix_rank(Jy0)}")
 print(f"rank(Jyp0): {np.linalg.matrix_rank(Jyp0)}")
 print(f"rank(J0):   {np.linalg.matrix_rank(J0)}")
 print(f"J0.shape: {J0.shape}")
-# exit()
 # y0, yp0, fnorm = consistent_initial_conditions(func, lambda t, y, yp, f: jac(t, y, yp), t0, y0, yp0)
-# exit()
 
 # solve DAE
 start = time.time()
-sol = solve_dae(func, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac, stages=3, first_step=1e-2)
+sol = solve_dae(func, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac, t_eval=t_eval)
 end = time.time()
 print(f'elapsed time: {end - start}')
 t = sol.t
 y = sol.y
 
 # visualization
-fig, ax = plt.subplots()
-ax.set_xlabel("t")
-ax.plot(t, y[0], label="q")
-ax.plot(t, y[1], label="phi")
-ax.plot(t, y[2], label="e")
-ax.plot(t, y[3], label="jv")
-ax.legend()
-ax.grid()
+fig, ax = plt.subplots(2, 2)
+
+ax[0, 0].set_xlabel("t")
+ax[0, 0].plot(t, y[0], label="q")
+ax[0, 0].legend()
+ax[0, 0].grid()
+
+ax[0, 1].set_xlabel("t")
+ax[0, 1].plot(t, y[1], label="phi")
+ax[0, 1].legend()
+ax[0, 1].grid()
+
+ax[1, 0].set_xlabel("t")
+ax[1, 0].plot(t, y[2], label="e")
+ax[1, 0].legend()
+ax[1, 0].grid()
+
+ax[1, 1].set_xlabel("t")
+ax[1, 1].plot(t, y[3], label="jv")
+ax[1, 1].legend()
+ax[1, 1].grid()
+
 plt.show()
