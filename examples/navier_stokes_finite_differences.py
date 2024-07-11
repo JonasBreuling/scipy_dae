@@ -6,10 +6,8 @@ from scipy.sparse import spdiags, eye, kron
 from scipy.optimize._numdiff import approx_derivative
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
-# SCENARIO = "channel"
-SCENARIO = "lid cavity"
-
-RESOLUTION = 1
+SCENARIO = "channel"
+# SCENARIO = "lid cavity"
 
 # Reynolds number
 match SCENARIO:
@@ -430,11 +428,12 @@ class IncompressibleFluid:
                 u_x = (u[i + 1, j + 1] - u[i, j + 1]) / self.dx
                 v_y = (v[i + 1, j + 1] - v[i + 1, j]) / self.dy
                 Fp[i, j] = u_x + v_y
+                # Fp[i, j] *= pt[i, j]
 
         # fix pressure value at a single point since only its derivative is defined
         # Fp[0, 0] = pt[0, 0]
         # Fp[1, 1] = pt[1, 1]
-        Fp[-1, -1] = pt[-1, -1]
+        # Fp[-1, -1] = pt[-1, -1]
         
         return np.concatenate((
             Fu[self.inner_DOFs_u].reshape(-1),
@@ -473,13 +472,10 @@ class IncompressibleFluid:
         
             cmap = "jet"
             contourf = ax.contourf(self.X_range, self.Y_range, np.sqrt(uco**2 + vco**2), cmap=cmap, levels=50)
-            # contourf = None
 
             streamplot = ax.streamplot(self.x_range, self.y_range, uco.T, vco.T)
-            # streamplot = None
 
             quiver = ax.quiver(self.X_range, self.Y_range, uco, vco, alpha=0.75)
-            # quiver = None
 
             return contourf, quiver, streamplot
         
@@ -492,15 +488,14 @@ class IncompressibleFluid:
 if __name__ == "__main__":
     match SCENARIO:
         case "channel":
-            RESOLUTION = 2
+            RESOLUTION = 1
             Nx = int(16 * RESOLUTION)
             Ny = int(4 * RESOLUTION)
             Lx = 4
             Ly = 1
         case "lid cavity":
-            RESOLUTION = 2
+            RESOLUTION = 1
             Nx = Ny = int(8 * RESOLUTION)
-            # Nx = Ny = int(3 * RESOLUTION)
             Lx = 1
             Ly = 1
         case _:
@@ -514,24 +509,31 @@ if __name__ == "__main__":
     yp0 = np.zeros(fluid.N_interior)
     jac_sparsity = None
 
-    # y0 = np.random.rand(fluid.N_interior)
-    # yp0 = np.random.rand(fluid.N_interior)
-    f0 = fluid.fun(t0, y0, yp0)
-    # np.set_printoptions(3, suppress=True)
-    # print(f"f0:\n{f0}")
-    Jy0, Jyp0 = fluid.jac(t0, y0, yp0, f0)
-    jac_sparsity = (Jy0, Jyp0)
-    J0 = Jy0 + np.pi * Jyp0
+    # # y0 = np.random.rand(fluid.N_interior)
+    # # yp0 = np.random.rand(fluid.N_interior)
+    # f0 = fluid.fun(t0, y0, yp0)
+    # # np.set_printoptions(3, suppress=True)
+    # # print(f"f0:\n{f0}")
+    # Jy0, Jyp0 = fluid.jac(t0, y0, yp0, f0)
+    # jac_sparsity = (Jy0, Jyp0)
+    # J0 = Jy0 + np.pi * Jyp0
     # print(f"Jy0:\n{Jy0}")
     # print(f"Jyp0:\n{Jyp0}")
-    # print(f"J0:\n{J0}")
-    rank_Jy0 = np.linalg.matrix_rank(Jy0)
-    rank_Jyp0 = np.linalg.matrix_rank(Jyp0)
-    rank_J0 = np.linalg.matrix_rank(J0)
-    print(f"Jy0.shape: {Jy0.shape}")
-    print(f"rank_Jy0: {rank_Jy0}")
-    print(f"rank_Jyp0: {rank_Jyp0}")
-    print(f"rank_J0: {rank_J0}")
+    # # print(f"J0:\n{J0}")
+    # rank_Jy0 = np.linalg.matrix_rank(Jy0)
+    # rank_Jyp0 = np.linalg.matrix_rank(Jyp0)
+    # rank_J0 = np.linalg.matrix_rank(J0)
+    # print(f"Jy0.shape: {Jy0.shape}")
+    # print(f"rank_Jy0: {rank_Jy0}")
+    # print(f"rank_Jyp0: {rank_Jyp0}")
+    # print(f"rank_J0: {rank_J0}")
+    # # exit()
+
+    # from scipy.linalg import null_space
+    # CT = Jy0[-fluid.Np:, :-fluid.Np]
+    # P_H = null_space(CT.T)
+    # print(f"P_H:\n{P_H}")
+    # assert np.allclose(CT.T @ P_H, np.zeros(fluid.Np))
     # exit()
 
     # # solve for consistent initial conditions
@@ -543,10 +545,7 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    # t1 = 1
-    # t1 = 30
     t_span = (t0, t1)
-    # num = int(1e2)
     num = 50
     t_eval = np.linspace(t0, t1, num=num)
 
