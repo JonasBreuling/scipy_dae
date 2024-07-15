@@ -72,20 +72,21 @@ if __name__ == "__main__":
     t0 = 1
     t1 = t0 + 10
     t_span = (t0, t1)
+    t_eval = np.linspace(t0, t1, num=int(5e2))
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0, yp0 = sol_true(t0)
 
-    yp0 = np.zeros_like(y0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    print(f"fnorm: {fnorm}")
+    # yp0 = np.zeros_like(y0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # print(f"fnorm: {fnorm}")
 
     # solver options
     atol = rtol = 1e-5
@@ -95,13 +96,15 @@ if __name__ == "__main__":
     ##############
     start = time.time()
     jac = None
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
-    tp = t[1:]
-    yp = np.diff(y) / np.diff(t)
+    # tp = t[1:]
+    # yp = np.diff(y) / np.diff(t)
+    tp = t
+    yp = sol.yp
     success = sol.success
     status = sol.status
     message = sol.message

@@ -3,6 +3,7 @@ from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
 from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
+from .base import DAEDenseOutput as DenseOutput
 
 
 NEWTON_MAXITER = 4
@@ -449,5 +450,8 @@ class BdfDenseOutput(DenseOutput):
             y += self.D[0]
         else:
             y += self.D[0, :, None]
+        
+        # TODO: Compute derivative of dense output
+        yp = np.zeros_like(y)
 
-        return y
+        return y, yp
