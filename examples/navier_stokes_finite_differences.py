@@ -6,8 +6,8 @@ from scipy.sparse import spdiags, eye, kron
 from scipy.optimize._numdiff import approx_derivative
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
-SCENARIO = "channel"
-# SCENARIO = "lid cavity"
+# SCENARIO = "channel"
+SCENARIO = "lid cavity"
 
 # Reynolds number
 match SCENARIO:
@@ -132,20 +132,22 @@ class IncompressibleFluid:
         #     D_central(Ny + 1, self.dy), eye(Nx + 2), format="csr"
         # )
 
-        # self._Dp_x = kron(
-        #     eye(Ny), D_forward(Nx, self.dx), format="csr"
-        # )
-        # self._Dp_y = kron(
-        #     D_forward(Ny, self.dy), eye(Nx), format="csr"
-        # )
+        self._Dp_x = kron(
+            D_forward(Nx, self.dx), eye(Ny), format="csr"
+        )
+        self._Dp_y = kron(
+            eye(Nx), D_forward(Ny, self.dy), format="csr"
+        )
 
-        # # - second derivatives
-        # self._DDu_x = kron(
-        #     eye(Ny + 2), DD_central(Nx + 1, self.dx), format="csr"
-        # )
-        # self._DDu_y = kron(
-        #     DD_central(Ny + 2, self.dy), eye(Nx + 1), format="csr"
-        # )
+        # - second derivatives
+        self._DDu_x = kron(
+            # eye(Ny + 2), DD_central(Nx + 1, self.dx), format="csr"
+            DD_central(Nx + 1, self.dx), eye(Ny + 2), format="csr"
+        )
+        self._DDu_y = kron(
+            # DD_central(Ny + 2, self.dy), eye(Nx + 1), format="csr"
+            eye(Nx + 1), DD_central(Ny + 2, self.dy), format="csr"
+        )
 
         # self._DDv_x = kron(
         #     eye(Ny + 1), DD_central(Nx + 2, self.dx), format="csr"
@@ -321,7 +323,11 @@ class IncompressibleFluid:
         # self.shape_v_interior = (Ny - 1, Nx    )
         # self.shape_p_interior = (Ny, Nx)
 
-        Fu = np.zeros(self.shape_u)
+        Fu1 = np.zeros(self.shape_u)
+        Fu2 = np.zeros(self.shape_u)
+        Fu3 = np.zeros(self.shape_u)
+        Fu4 = np.zeros(self.shape_u)
+        Fu5 = np.zeros(self.shape_u)
         for i in range(1, Nx):
             for j in range(1, Ny + 1):
                 # Fu[i, j] = (
@@ -335,14 +341,14 @@ class IncompressibleFluid:
                 #     ) / RE
                 # )
 
-                Fu[i, j] += ut[i, j]
+                Fu1[i, j] = ut[i, j]
                 # # central differences
-                # Fu[i, j] += u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
-                # Fu[i, j] += v[i, j] * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
+                # Fu2[i, j] = u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
+                # Fu3[i, j] = v[i, j] * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
                 # central differences with interpolated v-velocity
                 vi2j2 = (v[i, j - 1] + v[i + 1, j - 1] + v[i + 1, j] + v[i, j]) / 4
-                Fu[i, j] += u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
-                Fu[i, j] += vi2j2 * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
+                Fu2[i, j] = u[i, j] * (u[i + 1, j    ] - u[i - 1, j    ]) / (2 * self.dx)
+                Fu3[i, j] = vi2j2 * (u[i    , j + 1] - u[i    , j - 1]) / (2 * self.dy)
                 # # first-order upwind
                 # if u[i + 1, j] > 0:
                 #     Fu[i, j] += u[i, j] * (u[i + 1, j] - u[i    , j]) / self.dx
@@ -365,11 +371,44 @@ class IncompressibleFluid:
                 #     + (unode_top * vnode_top - unode_bot * vnode_bot) / self.dy
                 # )
 
-                Fu[i, j] += (pt[i, j - 1] - pt[i - 1, j - 1]) / self.dx # note index shift in p!
-                Fu[i, j] += -(
+                Fu4[i, j] = (pt[i, j - 1] - pt[i - 1, j - 1]) / self.dx # note index shift in p!
+                Fu5[i, j] = -(
                     (u[i + 1, j] - 2 * u[i, j] + u[i - 1, j]) / self.dx**2
                     + (u[i, j + 1] - 2 * u[i, j] + u[i, j - 1]) / self.dy**2
                 ) / RE
+
+        Fu = Fu1 + Fu2 + Fu3 + Fu4 + Fu5
+
+        # test operator formulation
+
+        # Fu1_ = np.zeros(self.shape_u)
+        # Fu1_[self.inner_DOFs_u] = ut[self.inner_DOFs_u]
+        # print(f"||Fu1 - Fu1_||: {np.linalg.norm(Fu1 - Fu1_)}")
+        # assert np.allclose(Fu1, Fu1_)
+
+        Fu2_ = np.zeros(self.shape_u)
+        Fu2_[self.inner_DOFs_u] = (self._Dp_x @ Pt).reshape(self.shape_p)[:-1, :]
+        print(f"Fu2:\n{Fu2}")
+        print(f"Fu2_:\n{Fu2_}")
+        print(f"Fu2 - Fu2_:\n{Fu2 - Fu2_}")
+        print(f"||Fu2 - Fu2_||: {np.linalg.norm(Fu2 - Fu2_)}")
+        assert np.allclose(Fu4, Fu2_)
+
+        # Fu4_ = np.zeros(self.shape_u)
+        # Fu4_[self.inner_DOFs_u] = (self._Dp_x @ Pt).reshape(self.shape_p)[:-1, :]
+        # print(f"Fu4:\n{Fu4}")
+        # print(f"Fu4_:\n{Fu4_}")
+        # print(f"Fu4 - Fu4_:\n{Fu4 - Fu4_}")
+        # print(f"||Fu4 - Fu4_||: {np.linalg.norm(Fu4 - Fu4_)}")
+        # assert np.allclose(Fu4, Fu4_)
+
+        # Fu5_ = np.zeros(self.shape_u)
+        # Fu5_[self.inner_DOFs_u] = -((self._DDu_x + self._DDu_y) @ U / RE).reshape(self.shape_u)[self.inner_DOFs_u]
+        # print(f"Fu5:\n{Fu5}")
+        # print(f"Fu5_:\n{Fu5_}")
+        # print(f"Fu5 - Fu5_:\n{Fu5 - Fu5_}")
+        # print(f"||Fu5 - Fu5_||:\n{np.linalg.norm(Fu5 - Fu5_)}")
+        # assert np.allclose(Fu5, Fu5_)
     
         # all interior points of the v-velocity
         Fv = np.zeros(self.shape_v)
@@ -509,8 +548,8 @@ if __name__ == "__main__":
     yp0 = np.zeros(fluid.N_interior)
     jac_sparsity = None
 
-    # # y0 = np.random.rand(fluid.N_interior)
-    # # yp0 = np.random.rand(fluid.N_interior)
+    y0 = np.random.rand(fluid.N_interior)
+    yp0 = np.random.rand(fluid.N_interior)
     # f0 = fluid.fun(t0, y0, yp0)
     # # np.set_printoptions(3, suppress=True)
     # # print(f"f0:\n{f0}")
