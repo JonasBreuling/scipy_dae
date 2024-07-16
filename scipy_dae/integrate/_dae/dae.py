@@ -370,7 +370,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
             sol = None
 
         if events is not None:
-            raise NotImplementedError("Events are not ready yet")
+            # raise NotImplementedError("Events are not ready yet")
             g_new = [event(t, y) for event in events]
             active_events = find_active_events(g, g_new, event_dir)
             if active_events.size > 0:
