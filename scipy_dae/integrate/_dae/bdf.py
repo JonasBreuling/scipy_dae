@@ -446,10 +446,18 @@ class BdfDenseOutput(DenseOutput):
             p = np.cumprod(x, axis=0)
 
         y = np.dot(self.D[1:].T, p)
+        yp = np.zeros_like(y)
         if y.ndim == 1:
             y += self.D[0]
         else:
             y += self.D[0, :, None]
+
+        mu = 1
+        for k in range(1, self.order):
+            k_fac = np.prod(np.arange(1, k + 1))
+            k_mu_fac = np.prod(np.arange(1, k + 1 - mu)) # note: this correctly yields 1 for empty array
+            yp += (t - self.t_shift[k])**(k - mu) * self.D[k, :]
+            print(f"order >= 1")
         
         # TODO: Compute derivative of dense output
         yp = np.zeros_like(y)
