@@ -436,6 +436,7 @@ class BdfDenseOutput(DenseOutput):
         self.t_shift = self.t - h * np.arange(self.order)
         self.denom = h * (1 + np.arange(self.order))
         self.D = D
+        self.h = h
 
     def _call_impl(self, t):
         if t.ndim == 0:
@@ -452,14 +453,79 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        mu = 1
-        for k in range(1, self.order):
-            k_fac = np.prod(np.arange(1, k + 1))
-            k_mu_fac = np.prod(np.arange(1, k + 1 - mu)) # note: this correctly yields 1 for empty array
-            yp += (t - self.t_shift[k])**(k - mu) * self.D[k, :]
-            print(f"order >= 1")
-        
-        # TODO: Compute derivative of dense output
+        # # compute y recursively which enables the computation of yp as well
+        # # see https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf for a recursive definition of P'
+        # # use Horner's rule,
+        # # see https://en.wikipedia.org/wiki/Horner's_method#Python_implementation
+        # # see https://orionquest.github.io/Numacom/lectures/interpolation.pdf
+        # # y = np.zeros_like(y)
+        # # y = self.D[-1, :, None]
+        # # for j in range(self.order - 1, -1, -1):
+        # #     y = y * (t - j * self.h)
+        # #     y = y + self.D[j, :, None]
+        # # y2 = np.zeros_like(y)
+        # # for j in range(0, self.order + 1):
+
+        # # y2 = self.D[0, :, None]
+        # # for j in range(1, self.order + 1):
+        # #     # y2 = y2 + (t - j * self.h) * self.D[j, :, None]
+        # #     y2 = self.D[j, :, None] + (t - j * self.h) * y2
+
+        # # import math
+        # # y2 = self.D[-1, :, None]
+        # # # y2 = np.zeros_like(y)
+        # # yp2 = np.zeros_like(y)
+        # # for j in range(self.order, -1, -1):
+        # # # for j in range(self.order - 1, -1, -1):
+        # #     # y2 = y2 + (t - j * self.h) * self.D[j, :, None]
+        # #     # y2 = self.D[j, :, None] + (t - (self.t - j * self.h)) * y2 / (math.factorial(j) * self.h)
+
+        # #     x = (t - (self.t - j * self.h)) / (self.h)
+        # #     yp2 = y2 + x * yp2
+        # #     y2 = self.D[j, :, None] + x * y2
+
+        # # new version
+        # # - correct for y
+        # # - TODO: yp
+        # # y2 = self.D[-1, :, None]
+        # # yp2 = self.D[-1, :, None]
+        # y2 = np.zeros_like(y)
+        # yp2 = np.zeros_like(y)
+        # for j in range(self.order + 1, 0, -1):
+        #     x = (t - (self.t - (j - 1) * self.h))
+        #     factor = 1 / (j * self.h)
+        #     p = x * factor
+        #     yp2 = y2 * factor + p * yp2
+        #     # yp2 = y2 / (j * self.h) + p * yp2
+        #     y2 = self.D[j - 1, :, None] + p * y2
+
+        # TODO: Optimize this!
+        # see https://na.uni-tuebingen.de/ex/numinf_ss12/Vorlesung8_SS2012.pdf
+        # see https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf for a recursive definition of P'
+        import math
+        y = np.zeros_like(y)
+        y += self.D[0, :, None]
         yp = np.zeros_like(y)
+        for j in range(1, self.order + 1):
+            # interpoalte y
+            factor_y = np.ones_like(t)
+            for m in range(j):
+                factor_y *= t - (self.t - m * self.h)
+            y += self.D[j, :, None] * factor_y / (math.factorial(j) * self.h**j)
+
+            # interpoalte yp
+            factor_yp = np.zeros_like(t)
+            for m in range(j):
+                product = np.ones_like(t)
+                for i in range(j):
+                    if i != m:
+                        product *= t - (self.t - m * self.h)
+                factor_yp += product
+            yp += self.D[j, :, None] * factor_yp / (math.factorial(j) * self.h**j)
+
+        # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
+        # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}") # TODO: I think this is due to rounding errors
+        # y = y2
+        # yp = yp2
 
         return y, yp

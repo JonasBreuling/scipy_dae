@@ -73,6 +73,7 @@ if __name__ == "__main__":
     t1 = t0 + 10
     t_span = (t0, t1)
     t_eval = np.linspace(t0, t1, num=int(5e2))
+    # t_eval = None
 
     method = "BDF"
     # method = "Radau"

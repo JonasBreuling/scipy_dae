@@ -1,10 +1,11 @@
 import inspect
 import numpy as np
 from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, find_active_events
-from scipy.integrate._ivp.common import OdeSolution
+# from scipy.integrate._ivp.common import OdeSolution
 from .base import DaeSolver
 from .bdf import BDFDAE
 from .radau import RadauDAE
+from .common import DaeSolution as OdeSolution
 
 
 METHODS = {

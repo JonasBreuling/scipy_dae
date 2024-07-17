@@ -119,29 +119,31 @@ if __name__ == "__main__":
 
     t_eval = np.linspace(t0, t1, num=int(1e2))
     # t_eval = t
-    y_eval = sol.sol(t_eval)
+    y_eval, yp_eval = sol.sol(t_eval)
 
-    ax[0].plot(t, y[0], "ok", label=f"y ({method})", mfc="none")
-    ax[0].plot(t_eval, y_eval[0], "-xk", label=f"y_dense ({method})", mfc="none")
-    ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y scipy")
+    ax[0].plot(t, y[0], "ok", label=f"y0 ({method})", mfc="none")
+    ax[0].plot(t_eval, y_eval[0], "-xk", label=f"y0_dense ({method})", mfc="none")
+    ax[0].plot(t_scipy, y_scipy[0], "-xr", label="y0 scipy")
     ax[0].legend()
     ax[0].grid()
 
-    ax[1].plot(t, y[1], "ok", label=f"y_dot ({method})", mfc="none")
-    ax[1].plot(t_eval, y_eval[1], "-k", label=f"y_dense ({method})", mfc="none")
-    ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y_dot scipy")
+    ax[1].plot(t, y[1], "ok", label=f"y1 ({method})", mfc="none")
+    ax[1].plot(t_eval, y_eval[1], "-k", label=f"y1_dense ({method})", mfc="none")
+    ax[1].plot(t_scipy, y_scipy[1], "-xr", label="y1 scipy")
     ax[1].legend()
     ax[1].grid()
 
     yp_scipy = np.array([rhs(ti, yi) for ti, yi in zip(t_scipy, y_scipy.T)]).T
 
-    ax[2].plot(t, yp[0], "-ok", label=f"yp0 ({method})", mfc="none")
-    ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
+    ax[2].plot(t, yp[0], "ok", label=f"yp0 ({method})", mfc="none")
+    ax[2].plot(t_eval, yp_eval[0], "-xk", label=f"yp0_dense ({method})", mfc="none")
+    # ax[2].plot(t_scipy, yp_scipy[0], "-xr", label="yp0 scipy")
     ax[2].legend()
     ax[2].grid()
 
-    ax[3].plot(t, yp[1], "-ok", label=f"yp1 ({method})", mfc="none")
-    ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
+    ax[3].plot(t, yp[1], "ok", label=f"yp1 ({method})", mfc="none")
+    ax[3].plot(t_eval, yp_eval[1], "-xk", label=f"yp1_dense ({method})", mfc="none")
+    # ax[3].plot(t_scipy, yp_scipy[1], "-xr", label="yp1 scipy")
     ax[3].legend()
     ax[3].grid()
 
