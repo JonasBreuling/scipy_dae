@@ -91,7 +91,6 @@ def consistent_initial_conditions(fun, jac, t0, y0, yp0, fixed_y0=None,
     y0 = np.asarray(y0, dtype=float).reshape(-1)
     yp0 = np.asarray(yp0, dtype=float).reshape(-1)
     f = fun(t0, y0, yp0, *args)
-    # Jy, Jyp = jac(t0, y0, yp0, f)
     Jy, Jyp = jac(t0, y0, yp0)
     
     normf0 = np.linalg.norm(f)
@@ -143,7 +142,7 @@ def solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp):
                 raise ValueError("Index greater than one.")
         d = -Q.T @ f
         # Delta_yp[free_yp] = np.linalg.solve(R, d)
-        Delta_y[free_yp][p] = solve_triangular(R, d)
+        Delta_yp[free_yp] = solve_triangular(R, d)[p]
         return Delta_y, Delta_yp
     
     if len(free_yp) == 0:
