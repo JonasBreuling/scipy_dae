@@ -71,6 +71,7 @@ if __name__ == "__main__":
     # time span
     t0 = 1
     t1 = t0 + 10
+    t1 = t0 + 3
     t_span = (t0, t1)
     t_eval = np.linspace(t0, t1, num=int(5e2))
     # t_eval = None
@@ -148,7 +149,7 @@ if __name__ == "__main__":
     ax[2].grid()
 
     ax[3].plot(tp, yp[5], "-ok", label="lap")
-    ax[3].plot(tp, yp_true[5], "--xr", label="lap")
+    ax[3].plot(tp, yp_true[5], "--xr", label="lap_true")
     ax[3].legend()
     ax[3].grid()
 

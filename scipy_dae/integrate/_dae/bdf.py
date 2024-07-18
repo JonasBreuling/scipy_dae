@@ -221,6 +221,9 @@ class BDFDAE(DaeSolver):
     .. [5] R. W. Klopfenstein, "Numerical differentiation formulas for stiff 
            systems of ordinary differential equations", RCA Review, 32, 
            pp. 447-462, September 1971.
+    .. [6] K. Radhakrishnan  and A C. Hindmarsh, "Description and Use of LSODE, 
+           the Livermore Solver for Ordinary Differential Equations", NASA 
+           Reference Publication, December, 1993.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
@@ -453,79 +456,73 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        # # compute y recursively which enables the computation of yp as well
+        # compute y recursively which enables the computation of yp as well using Horner's rule, see
+        # https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf
+        # https://en.wikipedia.org/wiki/Horner's_method#Python_implementation
+        # https://orionquest.github.io/Numacom/lectures/interpolation.pdf
+        y3 = np.zeros_like(y)
+        yp3 = np.zeros_like(y)
+        for j in range(self.order + 1, 0, -1):
+            x = (t - (self.t - (j - 1) * self.h))
+            factor = 1 / (j * self.h)
+            p = x * factor
+            yp3 = y3 * factor + p * yp3 # TODO: Understand factor * y3 here
+            y3 = self.D[j - 1, :, None] + p * y3
+
+        # # TODO: Optimize this!
+        # # see https://na.uni-tuebingen.de/ex/numinf_ss12/Vorlesung8_SS2012.pdf
         # # see https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf for a recursive definition of P'
-        # # use Horner's rule,
-        # # see https://en.wikipedia.org/wiki/Horner's_method#Python_implementation
-        # # see https://orionquest.github.io/Numacom/lectures/interpolation.pdf
-        # # y = np.zeros_like(y)
-        # # y = self.D[-1, :, None]
-        # # for j in range(self.order - 1, -1, -1):
-        # #     y = y * (t - j * self.h)
-        # #     y = y + self.D[j, :, None]
-        # # y2 = np.zeros_like(y)
-        # # for j in range(0, self.order + 1):
+        # import math
+        # y = np.zeros_like(y)
+        # y += self.D[0, :, None]
+        # y2 = y.copy()
+        # yp = np.zeros_like(y)
+        # yp2 = yp.copy()
+        # for j in range(1, self.order + 1):
+        #     # interpolate y
+        #     factor_y = np.ones_like(t)
+        #     factor_y2 = np.ones_like(t)
+        #     factor_yp = np.zeros_like(t)
+        #     factor_yp2 = np.zeros_like(t)
+        #     for m in range(j):
+        #         factor_y *= t - (self.t - m * self.h)
+        #         factor_y2 *= (t - (self.t - m * self.h)) / ((m + 1) * self.h)
+        #         product = np.ones_like(t)
+        #         # product2 = np.ones_like(t) / ((m + 1) * self.h)
+        #         product2 = np.ones_like(t)
+        #         for i in range(j):
+        #             # product2 *= 1 / ((m + 1) * self.h)
+        #             if i != m:
+        #                 product *= t - (self.t - m * self.h)
+        #                 product2 *= t - (self.t - m * self.h)
+        #         factor_yp += product
+        #         # factor_yp2 += product2
+        #         factor_yp2 += product2 / ((m + 1) * self.h)
 
-        # # y2 = self.D[0, :, None]
-        # # for j in range(1, self.order + 1):
-        # #     # y2 = y2 + (t - j * self.h) * self.D[j, :, None]
-        # #     y2 = self.D[j, :, None] + (t - j * self.h) * y2
+        #     y += self.D[j, :, None] * factor_y / (math.factorial(j) * self.h**j)
+        #     y2 += self.D[j, :, None] * factor_y2
+        #     yp += self.D[j, :, None] * factor_yp / (math.factorial(j) * self.h**j)
+        #     yp2 += self.D[j, :, None] * factor_yp2
 
-        # # import math
-        # # y2 = self.D[-1, :, None]
-        # # # y2 = np.zeros_like(y)
-        # # yp2 = np.zeros_like(y)
-        # # for j in range(self.order, -1, -1):
-        # # # for j in range(self.order - 1, -1, -1):
-        # #     # y2 = y2 + (t - j * self.h) * self.D[j, :, None]
-        # #     # y2 = self.D[j, :, None] + (t - (self.t - j * self.h)) * y2 / (math.factorial(j) * self.h)
+        #     # # interpolate yp
+        #     # factor_yp2 = np.zeros_like(t)
+        #     # for m in range(j):
+        #     #     product2 = np.ones_like(t)
+        #     #     for i in range(j):
+        #     #         if i != m:
+        #     #             product2 *= t - (self.t - m * self.h)
+        #     #     factor_yp2 += product2
+        #     #     # factor_yp2 += product2
+        #     # yp2 += self.D[j, :, None] * factor_yp2 / (math.factorial(j) * self.h**j)
 
-        # #     x = (t - (self.t - j * self.h)) / (self.h)
-        # #     yp2 = y2 + x * yp2
-        # #     y2 = self.D[j, :, None] + x * y2
+        # # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
+        # # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}")
+        # # y = y2
+        # # yp = yp2
 
-        # # new version
-        # # - correct for y
-        # # - TODO: yp
-        # # y2 = self.D[-1, :, None]
-        # # yp2 = self.D[-1, :, None]
-        # y2 = np.zeros_like(y)
-        # yp2 = np.zeros_like(y)
-        # for j in range(self.order + 1, 0, -1):
-        #     x = (t - (self.t - (j - 1) * self.h))
-        #     factor = 1 / (j * self.h)
-        #     p = x * factor
-        #     yp2 = y2 * factor + p * yp2
-        #     # yp2 = y2 / (j * self.h) + p * yp2
-        #     y2 = self.D[j - 1, :, None] + p * y2
-
-        # TODO: Optimize this!
-        # see https://na.uni-tuebingen.de/ex/numinf_ss12/Vorlesung8_SS2012.pdf
-        # see https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf for a recursive definition of P'
-        import math
-        y = np.zeros_like(y)
-        y += self.D[0, :, None]
-        yp = np.zeros_like(y)
-        for j in range(1, self.order + 1):
-            # interpoalte y
-            factor_y = np.ones_like(t)
-            for m in range(j):
-                factor_y *= t - (self.t - m * self.h)
-            y += self.D[j, :, None] * factor_y / (math.factorial(j) * self.h**j)
-
-            # interpoalte yp
-            factor_yp = np.zeros_like(t)
-            for m in range(j):
-                product = np.ones_like(t)
-                for i in range(j):
-                    if i != m:
-                        product *= t - (self.t - m * self.h)
-                factor_yp += product
-            yp += self.D[j, :, None] * factor_yp / (math.factorial(j) * self.h**j)
-
-        # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
-        # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}") # TODO: I think this is due to rounding errors
-        # y = y2
-        # yp = yp2
+        # print(f"|y - y3|: {np.linalg.norm(y - y3)}")
+        # print(f"|yp - yp3|: {np.linalg.norm(yp - yp3)}")
+        y = y3
+        yp = yp3
 
         return y, yp
