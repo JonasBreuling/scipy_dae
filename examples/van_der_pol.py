@@ -31,7 +31,7 @@ def f(t, z):
     y, yp = z[:2], z[2:]
     return np.concatenate((yp, F(t, y, yp)))
 
-def jac(t, y, yp, f):
+def jac(t, y, yp):
     n = len(y)
     z = np.concatenate((y, yp))
 
@@ -40,7 +40,7 @@ def jac(t, y, yp, f):
         return F(t, y, yp)
     
     J = approx_derivative(lambda z: fun_composite(t, z), 
-                            z, method="2-point", f0=f)
+                            z, method="2-point")
     J = J.reshape((n, 2 * n))
     Jy, Jyp = J[:, :n], J[:, n:]
     return Jy, Jyp
@@ -60,13 +60,13 @@ if __name__ == "__main__":
     yp0 = rhs(t0, y0)
     z0 = np.concatenate((y0, yp0))
 
-    # yp0 = np.zeros_like(y0)
-    # print(f"y0: {y0}")
-    # print(f"yp0: {yp0}")
-    # y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
-    # print(f"y0: {y0}")
-    # print(f"yp0: {yp0}")
-    # print(f"fnorm: {fnorm}")
+    yp0 = np.zeros_like(y0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    print(f"fnorm: {fnorm}")
 
     # solver options
     atol = rtol = 1e-4
