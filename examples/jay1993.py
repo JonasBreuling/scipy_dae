@@ -26,7 +26,7 @@ def F(t, y, yp):
     return F
 
 
-def jac(t, y, yp, f):
+def jac(t, y, yp):
     n = len(y)
     z = np.concatenate((y, yp))
 
@@ -35,12 +35,12 @@ def jac(t, y, yp, f):
         return F(t, y, yp)
 
     J = approx_derivative(lambda z: fun_composite(t, z),
-                            z, method="2-point", f0=f)
+                            z, method="2-point")
     J = J.reshape((n, 2 * n))
     Jy, Jyp = J[:, :n], J[:, n:]
     return Jy, Jyp
 
-jac = None
+# jac = None
 
 
 if __name__ == "__main__":
@@ -60,19 +60,19 @@ if __name__ == "__main__":
     # exit()
 
     # # TODO: This seems to be wrong here!
-    # print(f"y0: {y0}")
-    # print(f"yp0: {yp0}")
-    # y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0, fixed_y0=None, fixed_yp0=None)
-    # print(f"y0: {y0}")
-    # print(f"yp0: {yp0}")
-    # print(f"fnorm: {fnorm}")
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    print(f"y0: {y0}")
+    print(f"yp0: {yp0}")
+    print(f"fnorm: {fnorm}")
     # exit()
 
     ##############
     # dae solution
     ##############
     start = time.time()
-    # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method="Radau", stages=1)
+    # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method="Radau", stages=3, first_step=1e-3)
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method="BDF")
     end = time.time()
     print(f"elapsed time: {end - start}")

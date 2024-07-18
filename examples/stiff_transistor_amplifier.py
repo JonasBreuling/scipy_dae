@@ -61,7 +61,7 @@ def F(t, u, up):
     return M @ up - dudt
 
 
-def jac(t, y, yp, f):
+def jac(t, y, yp):
     n = len(y)
     z = np.concatenate((y, yp))
 
@@ -70,7 +70,7 @@ def jac(t, y, yp, f):
         return F(t, y, yp)
     
     J = approx_derivative(lambda z: fun_composite(t, z), 
-                          z, method="2-point", f0=f)
+                          z, method="2-point")
     J = J.reshape((n, 2 * n))
     Jy, Jyp = J[:, :n], J[:, n:]
     return Jy, Jyp
