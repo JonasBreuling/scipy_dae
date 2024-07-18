@@ -640,8 +640,6 @@ class RadauDAE(DaeSolver):
         return step_accepted, message
 
     def _compute_dense_output(self):
-        # Q = np.dot(self.Z.T, self.P)
-        # return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
         Q = np.dot(self.Z.T, self.P)
         h = self.t - self.t_old
         Yp = (self.A_inv / h) @ self.Z
@@ -653,26 +651,6 @@ class RadauDAE(DaeSolver):
         return self.sol
 
 
-# class RadauDenseOutput(DenseOutput):
-#     def __init__(self, t_old, t, y_old, Q):
-#         super().__init__(t_old, t)
-#         self.h = t - t_old
-#         self.Q = Q
-#         self.order = Q.shape[1] - 1
-#         self.y_old = y_old
-
-#     def _call_impl(self, t):
-#         x = (t - self.t_old) / self.h
-#         x = np.atleast_1d(x)
-#         p = np.tile(x, (self.order + 1, 1))
-#         p = np.cumprod(p, axis=0)
-#         # Here we don't multiply by h, not a mistake.
-#         y = np.dot(self.Q, p)
-#         y += self.y_old[:, None]
-#         if t.ndim == 0:
-#             y = np.squeeze(y)
-
-#         return y
 class RadauDenseOutput(DenseOutput):
     def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)

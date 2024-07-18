@@ -174,19 +174,19 @@ def test_integration_rational(vectorized, method, t_span, jac):
 
     tc = np.linspace(*t_span)
     yc_true = sol_rational(tc)
-    yc = res.sol(tc)
+    yc = res.sol(tc)[0]
 
     e = compute_error(yc, yc_true, rtol, atol)
     assert_(np.all(e < 6))
 
     tc = (t_span[0] + t_span[-1]) / 2
     yc_true = sol_rational(tc)
-    yc = res.sol(tc)
+    yc = res.sol(tc)[0]
 
     e = compute_error(yc, yc_true, rtol, atol)
     assert_(np.all(e < 5))
 
-    assert_allclose(res.sol(res.t), res.y, rtol=1e-15, atol=1e-15)
+    assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-15, atol=1e-15)
 
 
 parameters_stiff = ["BDF", "Radau"]
