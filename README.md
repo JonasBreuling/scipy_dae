@@ -80,12 +80,13 @@ plt.show()
 More examples are given in the [examples](examples/) directory, which includes
 
 * [Van der Pol oscillator](examples/van_der_pol.py)
+* [Sparse brusselator](examples/sparse_brusselator.py)
 * [Robertson problem](examples/robertson.py)
 * [Stiff transistor amplifier](examples/stiff_transistor_amplifier.py)
 * [Cartesian pendulum](examples/pendulum.py)
 * [Cartesian pendulum (recursive)](examples/recursive_pendulum.py)
 * [Particle on circular track](examples/particle_on_circular_track.py)
-* [Jay's nonlinear index 2 DAE](examples/jay1993.py)
+<!-- * [Jay's nonlinear index 2 DAE](examples/jay1993.py) -->
 
 ## Install
 
