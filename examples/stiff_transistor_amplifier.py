@@ -1,7 +1,6 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize._numdiff import approx_derivative
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
@@ -61,21 +60,6 @@ def F(t, u, up):
     return M @ up - dudt
 
 
-def jac(t, y, yp):
-    n = len(y)
-    z = np.concatenate((y, yp))
-
-    def fun_composite(t, z):
-        y, yp = z[:n], z[n:]
-        return F(t, y, yp)
-    
-    J = approx_derivative(lambda z: fun_composite(t, z), 
-                          z, method="2-point")
-    J = J.reshape((n, 2 * n))
-    Jy, Jyp = J[:, :n], J[:, n:]
-    return Jy, Jyp
-
-
 # time span
 t0 = 0
 t1 = 0.05
@@ -88,7 +72,7 @@ method = "Radau"
 up0 = np.zeros_like(u0)
 print(f"u0: {u0}")
 print(f"up0: {up0}")
-u0, up0, fnorm = consistent_initial_conditions(F, jac, t0, u0, up0)
+u0, up0, fnorm = consistent_initial_conditions(F, t0, u0, up0)
 print(f"u0: {u0}")
 print(f"up0: {up0}")
 print(f"fnorm: {fnorm}")

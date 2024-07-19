@@ -2,7 +2,6 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
-from scipy.optimize._numdiff import approx_derivative
 
 
 """Cartesian pendulum, see Hairer1996 Section VII Example 2."""
@@ -25,24 +24,6 @@ def F(t, vy, vyp):
 
     return R
 
-def jac(t, y, yp, f=None):
-    n = len(y)
-    z = np.concatenate((y, yp))
-
-    def fun_composite(t, z):
-        y, yp = z[:n], z[n:]
-        return F(t, y, yp)
-    
-    J = approx_derivative(lambda z: fun_composite(t, z), 
-                            z, method="2-point", f0=f)
-    J = J.reshape((n, 2 * n))
-    Jy, Jyp = J[:, :n], J[:, n:]
-    return Jy, Jyp
-
-def f(t, z):
-    y, yp = z[:6], z[6:]
-    return np.concatenate((yp, F(t, y, yp)))
-
 
 if __name__ == "__main__":
     # time span
@@ -58,15 +39,15 @@ if __name__ == "__main__":
     # initial conditions
     y0 = np.array([l, 0, 0, 0, 0, 0], dtype=float)
     yp0 = np.array([0, 0, 0, -g, 0, 0], dtype=float)
-    z0 = np.concatenate((y0, yp0))
 
-    yp0 = np.zeros_like(y0)
+    yp0 = np.zeros_like(yp0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
-    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    y0, yp0, f0 = consistent_initial_conditions(F, t0, y0, yp0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
-    print(f"fnorm: {fnorm}")
+    print(f"f: {f0}")
+    assert np.allclose(f0, np.zeros_like(f0))
 
     # solver options
     atol = rtol = 1e-4
@@ -75,7 +56,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac, t_eval=t_eval)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t

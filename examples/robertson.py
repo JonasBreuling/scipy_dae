@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
-from scipy.optimize._numdiff import approx_derivative
 
 
 """Robertson problem of semi-stable chemical reaction, see mathworks and Shampine2005.
@@ -36,20 +35,6 @@ def F(t, y, yp):
 
     return F
 
-def jac(t, y, yp):
-    n = len(y)
-    z = np.concatenate((y, yp))
-
-    def fun_composite(t, z):
-        y, yp = z[:n], z[n:]
-        return F(t, y, yp)
-    
-    J = approx_derivative(lambda z: fun_composite(t, z), 
-                            z, method="2-point")
-    J = J.reshape((n, 2 * n))
-    Jy, Jyp = J[:, :n], J[:, n:]
-    return Jy, Jyp
-
 
 if __name__ == "__main__":
     # time span
@@ -68,8 +53,8 @@ if __name__ == "__main__":
     yp0 = np.zeros_like(y0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
-    # y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
-    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0, fixed_y0=[0, 1])
+    # y0, yp0, fnorm = consistent_initial_conditions(F, t0, y0, yp0)
+    y0, yp0, fnorm = consistent_initial_conditions(F, t0, y0, yp0, fixed_y0=[0, 1])
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
     print(f"fnorm: {fnorm}")

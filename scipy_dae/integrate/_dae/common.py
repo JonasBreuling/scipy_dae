@@ -1,6 +1,8 @@
 import numpy as np
 # TODO: use sparse QR when available in scipy
 from scipy.linalg import qr, solve_triangular
+from scipy.integrate._ivp.common import norm
+from scipy.optimize._numdiff import approx_derivative
 
 
 # TODO: Compare this with
@@ -54,11 +56,12 @@ def select_initial_step(t0, y0, yp0, t_bound, rtol, atol, max_step):
 
 
 # TODO:
-# - make jac argument optional and use finite differences otherwise
 # - make Newton loop parameters arguments of this function
-def consistent_initial_conditions(fun, jac, t0, y0, yp0, fixed_y0=None, 
-                                  fixed_yp0=None, rtol=1e-3, atol=1e-6, 
-                                  *args):
+# - add rate of convergence here as done in Radau
+def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None, 
+                                  fixed_yp0=None, rtol=1e-8, atol=1e-8, 
+                                  newton_maxiter=10, chord_iter=3,
+                                  safety=0.5, *args):
     """Compute consistent initial conditions as discussed in [1]_.
     
         References
@@ -67,6 +70,21 @@ def consistent_initial_conditions(fun, jac, t0, y0, yp0, fixed_y0=None,
            of Numerical Mathematics, vol. 10, no. 4, 2002, pp. 291-310.
     """
     n = len(y0)
+
+    if jac is None:
+        def jac(t, y, yp):
+            n = len(y)
+            z = np.concatenate((y, yp))
+
+            def fun_composite(t, z):
+                y, yp = z[:n], z[n:]
+                return fun(t, y, yp)
+            
+            J = approx_derivative(lambda z: fun_composite(t, z), 
+                                  z, method="2-point")
+            J = J.reshape((n, 2 * n))
+            Jy, Jyp = J[:, :n], J[:, n:]
+            return Jy, Jyp
     
     if fixed_y0 is None:
         free_y = np.arange(n)
@@ -91,31 +109,44 @@ def consistent_initial_conditions(fun, jac, t0, y0, yp0, fixed_y0=None,
     if np.any(np.array(atol) <= 0):
         raise ValueError("Absolute tolerance must be positive.")
     
+    assert 0 < safety <= 1, "safety factor has to be in (0, 1]"
+    
     y0 = np.asarray(y0, dtype=float).reshape(-1)
     yp0 = np.asarray(yp0, dtype=float).reshape(-1)
     f = fun(t0, y0, yp0, *args)
     Jy, Jyp = jac(t0, y0, yp0)
     
-    normf0 = np.linalg.norm(f)
-    for _ in range(10):
-        for _ in range(3):
+    scale = atol + np.abs(f) * rtol
+    # normf0 = np.linalg.norm(f)
+    for _ in range(newton_maxiter):
+        for _ in range(chord_iter):
             dy, dyp = solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp)
+
+            # nrmv = max(np.linalg.norm(np.concatenate([y0, yp0])), np.linalg.norm(atol))
+            # nrmdv = np.linalg.norm(np.concatenate([dy, dyp]))
             
-            nrmv = max(np.linalg.norm(np.concatenate([y0, yp0])), np.linalg.norm(atol))
-            nrmdv = np.linalg.norm(np.concatenate([dy, dyp]))
-            
-            if nrmdv > 2 * nrmv:
-                factor = 2 * nrmv / nrmdv
-                dy *= factor
-                dyp *= factor
-                nrmdv *= factor
+            # if nrmdv > 2 * nrmv:
+            #     factor = 2 * nrmv / nrmdv
+            #     dy *= factor
+            #     dyp *= factor
+            #     nrmdv *= factor
             
             y0 += dy
             yp0 += dyp
-            f = fun(t0, y0, yp0, *args)
-            fnorm = np.linalg.norm(f)
+            # f = fun(t0, y0, yp0, *args)
+            # fnorm = np.linalg.norm(f)
+            # print(f"fnorm: {fnorm}")
             
-            if (fnorm <= normf0) and (nrmdv <= 1e-3 * rtol * nrmv):
+            # if (fnorm <= normf0) and (nrmdv <= 1e-3 * rtol * nrmv):
+            #     return y0, yp0, f
+            
+            # scale_y = atol + np.abs(y0) * rtol
+            # scale_yp = atol + np.abs(yp0) * rtol
+            # scale = np.minimum(scale_y, scale_yp)
+            f = fun(t0, y0, yp0, *args)
+            error = norm(f / scale)
+            print(f"error: {error}")
+            if error < safety:
                 return y0, yp0, f
         
         Jy, Jyp = jac(t0, y0, yp0)
@@ -152,7 +183,9 @@ def solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp):
             else:
                 raise ValueError("Index greater than one.")
         d = -Q.T @ f
-        Delta_yp[free_yp] = solve_triangular(R, d)[p]
+        Delta_yp_ = np.zeros_like(Delta_yp)
+        Delta_yp_[p] = solve_triangular(R, d)
+        Delta_yp[free_yp] = Delta_yp_
         return Delta_y, Delta_yp
     
     if len(free_yp) == 0:
@@ -165,7 +198,9 @@ def solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp):
             else:
                 raise ValueError("Index greater than one.")
         d = -Q.T @ f
-        Delta_y[free_y] = solve_triangular(R, d)[p]
+        Delta_y_ = np.zeros_like(Delta_y)
+        Delta_y_[p] = solve_triangular(R, d)
+        Delta_y[free_y] = Delta_y_
         return Delta_y, Delta_yp
     
     # eliminate variables that are not free
@@ -182,7 +217,9 @@ def solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp):
         # Full rank (ODE) case: 
         # Set all free dy to zero and solve triangular system below
         Delta_y[free_y] = 0
-        Delta_yp[free_yp] = solve_triangular(R, d)[p]
+        Delta_yp_ = np.zeros_like(Delta_yp)
+        Delta_yp_[p] = solve_triangular(R, d)
+        Delta_yp[free_yp] = Delta_yp_
     else:
         # Rank deficient (DAE) case:
         S = Q.T @ Jy
@@ -202,17 +239,19 @@ def solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp):
         # [S21, S22] [w1] = d2
         #            [w2]
         # using column pivoting QR-decomposition
-        w = np.zeros(RS.shape[1])
-        w[:rankS] = solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
-        w = w[pS]
+        w_ = np.zeros(RS.shape[1])
+        w_[:rankS] = solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
+        w = np.zeros_like(w_)
+        w[pS] = w_
 
         # set w2' = 0 and solve the remaining system
         # [R11] w1' = d1 - [S11, S12] [w1]
         #                             [w2]
         wp = np.zeros(R.shape[1])
         if rank > 0:
-            wp[:rank] = solve_triangular(R[:rank, :rank], d1 - S[:rank] @ w)
-            wp = wp[p]
+            wp_ = np.zeros(R.shape[1])
+            wp_[:rank] = solve_triangular(R[:rank, :rank], d1 - S[:rank] @ w)
+            wp[p] = wp_
 
         # store w and wp
         Delta_y[free_y] = w

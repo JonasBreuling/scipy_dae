@@ -100,7 +100,7 @@ t0 = 0
 t1 = 2 * T_th
 vy0 = np.vstack((x0, y0, vx0, vy0, mu0, la0)).reshape((-1,), order='F')
 vyp0 = np.zeros_like(vy0)
-vy0, vyp0, fnorm = consistent_initial_conditions(F, jac, 0, vy0, vyp0)
+vy0, vyp0, fnorm = consistent_initial_conditions(F, 0, vy0, vyp0)
 print(f"fnorm: {fnorm}")
 
 # F0 = F(t0, vy0, vyp0)

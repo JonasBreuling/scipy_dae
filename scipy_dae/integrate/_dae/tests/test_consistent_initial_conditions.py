@@ -5,7 +5,8 @@ import numpy as np
 from numpy.testing import assert_, assert_allclose, assert_equal
 from scipy_dae.integrate import consistent_initial_conditions
 
-# TODO: Add possiblity to use finite differences in consistent initial conditions
+rtol = 1e-5
+atol = 1e-5
 
 
 def fun_implicit(t, y, yp):
@@ -27,8 +28,7 @@ def jac_implicit(t, y, yp):
 
 parameters_implicit = product(
     [([], []), ([0], []), ([], [0])], # fixed_y0, fixed_yp0
-    # [None, jac_implicit] # jac
-    [jac_implicit] # jac
+    [None, jac_implicit], # jac
 )
 @pytest.mark.parametrize("fixed_y0_and_fixed_yp0, jac", parameters_implicit)
 def test_implicit(fixed_y0_and_fixed_yp0, jac):
@@ -38,12 +38,13 @@ def test_implicit(fixed_y0_and_fixed_yp0, jac):
     yp0 = [0, 0]
 
     f0 = fun_implicit(t0, y0, yp0)
-    assert not np.allclose(f0, np.zeros_like(f0))
+    assert not np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
     y0, yp0, f0 = consistent_initial_conditions(
-        fun_implicit, jac, t0, y0, yp0, 
-        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0)
-    assert np.allclose(f0, np.zeros_like(f0))
+        fun_implicit, t0, y0, yp0, jac, 
+        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0,
+        rtol=rtol, atol=atol)
+    assert np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
 
 def fun_algebraic(t, y, yp):
@@ -62,8 +63,7 @@ def jac_algebraic(t, y, yp):
 
 parameters_algebraic = product(
     [([], []), ([], [0]), ([], [1]), ([], [0, 1])], # fixed_y0, fixed_yp0
-    # [None, jac_implicit] # jac
-    [jac_algebraic] # jac
+    [None, jac_algebraic], # jac
 )
 @pytest.mark.parametrize("fixed_y0_and_fixed_yp0, jac", parameters_algebraic)
 def test_algebraic(fixed_y0_and_fixed_yp0, jac):
@@ -73,12 +73,13 @@ def test_algebraic(fixed_y0_and_fixed_yp0, jac):
     yp0 = np.random.rand(2)
 
     f0 = fun_algebraic(t0, y0, yp0)
-    assert not np.allclose(f0, np.zeros_like(f0))
+    assert not np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
     y0, yp0, f0 = consistent_initial_conditions(
-        fun_algebraic, jac, t0, y0, yp0, 
-        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0)
-    assert np.allclose(f0, np.zeros_like(f0))
+        fun_algebraic, t0, y0, yp0, jac, 
+        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0,
+        rtol=rtol, atol=atol)
+    assert np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
 
 def fun_differential(t, y, yp):
@@ -97,23 +98,23 @@ def jac_differential(t, y, yp):
 
 parameters_differential = product(
     [([], []), ([0], []), ([1], []), ([0, 1], [])], # fixed_y0, fixed_yp0
-    # [None, jac_implicit] # jac
-    [jac_differential] # jac
+    [None, jac_differential], # jac
 )
 @pytest.mark.parametrize("fixed_y0_and_fixed_yp0, jac", parameters_differential)
 def test_differential(fixed_y0_and_fixed_yp0, jac):
     fixed_y0, fixed_yp0 = fixed_y0_and_fixed_yp0
     t0 = 0
     y0 = np.random.rand(2)
-    yp0 = [-2, 0.5]
+    yp0 = [-2, 0.75]
 
     f0 = fun_differential(t0, y0, yp0)
-    assert not np.allclose(f0, np.zeros_like(f0))
+    assert not np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
     y0, yp0, f0 = consistent_initial_conditions(
-        fun_differential, jac, t0, y0, yp0, 
-        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0)
-    assert np.allclose(f0, np.zeros_like(f0))
+        fun_differential, t0, y0, yp0, jac,
+        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0,
+        rtol=rtol, atol=atol)
+    assert np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
 
 def fun_weissinger(t, y, yp):
@@ -143,8 +144,7 @@ parameters_weissinger = product(
         (np.sqrt(3 / 2), 0.5, [0], []), 
         (1.2, np.sqrt(6) / 3, [], [0]),
     ], # y0, yp0, fixed_y0, fixed_yp0
-    # [None, jac_weissinger], # jac
-    [jac_weissinger], # jac
+    [None, jac_weissinger], # jac
 )
 
 @pytest.mark.parametrize("y0_and_yp0_and_fixed_y0_and_fixed_yp0, jac", parameters_weissinger)
@@ -155,16 +155,15 @@ def test_weissinger(y0_and_yp0_and_fixed_y0_and_fixed_yp0, jac):
     yp0 = np.array([yp0])
 
     f0 = fun_weissinger(t0, y0, yp0)
-    assert not np.allclose(f0, np.zeros_like(f0))
+    assert not np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
     y0, yp0, f0 = consistent_initial_conditions(
-        fun_weissinger, jac, t0, y0, yp0, 
-        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    assert np.allclose(y0, np.array([np.sqrt(3 / 2)]))
-    assert np.allclose(yp0, np.array([np.sqrt(6) / 3]))
-    assert np.allclose(f0, np.zeros_like(f0), rtol=1e-6, atol=1e-6)
+        fun_weissinger, t0, y0, yp0, jac,
+        fixed_y0=fixed_y0, fixed_yp0=fixed_yp0,
+        rtol=rtol, atol=atol)
+    assert np.allclose(y0, np.array([np.sqrt(3 / 2)]), rtol=rtol, atol=atol)
+    assert np.allclose(yp0, np.array([np.sqrt(6) / 3]), rtol=rtol, atol=atol)
+    assert np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
 
 if __name__ == "__main__":
     # python -m pytest scipy_dae/integrate/_dae/tests/test_consistent_initial_conditions.py 

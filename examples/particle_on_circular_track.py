@@ -2,7 +2,6 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
-from scipy.optimize._numdiff import approx_derivative
 from scipy.integrate._ivp.tests.test_ivp import compute_error
 
 
@@ -29,20 +28,6 @@ def F(t, vy, vyp):
     R[5] = x * x + y * y - 1
 
     return R
-
-def jac(t, y, yp, f=None):
-    n = len(y)
-    z = np.concatenate((y, yp))
-
-    def fun_composite(t, z):
-        y, yp = z[:n], z[n:]
-        return F(t, y, yp)
-    
-    J = approx_derivative(lambda z: fun_composite(t, z), 
-                            z, method="2-point", f0=f)
-    J = J.reshape((n, 2 * n))
-    Jy, Jyp = J[:, :n], J[:, n:]
-    return Jy, Jyp
 
 
 def sol_true(t):
@@ -82,7 +67,7 @@ if __name__ == "__main__":
     yp0 = np.zeros_like(y0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
-    y0, yp0, fnorm = consistent_initial_conditions(F, jac, t0, y0, yp0)
+    y0, yp0, fnorm = consistent_initial_conditions(F, t0, y0, yp0)
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
     print(f"fnorm: {fnorm}")
@@ -94,8 +79,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    jac = None
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, jac=jac)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
