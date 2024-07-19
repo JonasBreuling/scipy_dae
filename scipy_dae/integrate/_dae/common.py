@@ -1,7 +1,7 @@
 import numpy as np
 # TODO: use sparse QR when available in scipy
 from scipy.linalg import qr, solve_triangular
-from scipy.integrate._ivp.common import norm
+from scipy.integrate._ivp.common import norm, EPS
 from scipy.optimize._numdiff import approx_derivative
 
 
@@ -55,9 +55,6 @@ def select_initial_step(t0, y0, yp0, t_bound, rtol, atol, max_step):
     return h_abs
 
 
-# TODO:
-# - make Newton loop parameters arguments of this function
-# - add rate of convergence here as done in Radau
 def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None, 
                                   fixed_yp0=None, rtol=1e-8, atol=1e-8, 
                                   newton_maxiter=10, chord_iter=3,
@@ -116,36 +113,32 @@ def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None,
     f = fun(t0, y0, yp0, *args)
     Jy, Jyp = jac(t0, y0, yp0)
     
-    scale = atol + np.abs(f) * rtol
-    # normf0 = np.linalg.norm(f)
+    scale_f = atol + np.abs(f) * rtol
+    # z0 = np.concatenate([y0, yp0])
+    # scale_z = atol + np.abs(z0) * rtol
+    # dz_norm_old = None
+    # rate_z = None
+    # tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
+
     for _ in range(newton_maxiter):
         for _ in range(chord_iter):
-            dy, dyp = solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp)
-
-            # nrmv = max(np.linalg.norm(np.concatenate([y0, yp0])), np.linalg.norm(atol))
-            # nrmdv = np.linalg.norm(np.concatenate([dy, dyp]))
-            
-            # if nrmdv > 2 * nrmv:
-            #     factor = 2 * nrmv / nrmdv
-            #     dy *= factor
-            #     dyp *= factor
-            #     nrmdv *= factor
-            
+            dy, dyp = solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp)            
             y0 += dy
             yp0 += dyp
-            # f = fun(t0, y0, yp0, *args)
-            # fnorm = np.linalg.norm(f)
-            # print(f"fnorm: {fnorm}")
-            
-            # if (fnorm <= normf0) and (nrmdv <= 1e-3 * rtol * nrmv):
+
+            # dz = np.concatenate([dy, dyp])
+            # with np.errstate(divide='ignore'):
+            #     dz_norm = norm(dz / scale_z)
+            # if dz_norm_old is not None:
+            #     rate_z = dz_norm / dz_norm_old
+
+            # if (dz_norm == 0 or (rate_z is not None and rate_z / (1 - rate_z) * dz_norm < safety * tol)):
             #     return y0, yp0, f
             
-            # scale_y = atol + np.abs(y0) * rtol
-            # scale_yp = atol + np.abs(yp0) * rtol
-            # scale = np.minimum(scale_y, scale_yp)
+            # dz_norm_old = dz_norm
+
             f = fun(t0, y0, yp0, *args)
-            error = norm(f / scale)
-            print(f"error: {error}")
+            error = norm(f / scale_f)
             if error < safety:
                 return y0, yp0, f
         

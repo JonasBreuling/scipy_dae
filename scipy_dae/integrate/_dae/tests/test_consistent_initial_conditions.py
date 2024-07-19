@@ -2,7 +2,6 @@
 import pytest
 from itertools import product
 import numpy as np
-from numpy.testing import assert_, assert_allclose, assert_equal
 from scipy_dae.integrate import consistent_initial_conditions
 
 rtol = 1e-5
