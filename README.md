@@ -82,6 +82,7 @@ More examples are given in the [examples](examples/) directory, which includes
 * [Van der Pol oscillator](examples/van_der_pol.py)
 * [Sparse brusselator](examples/sparse_brusselator.py)
 * [Robertson problem](examples/robertson.py)
+* [Weissinger's implicit equation](examples/weissinger.py)
 * [Stiff transistor amplifier](examples/stiff_transistor_amplifier.py)
 * [Cartesian pendulum](examples/pendulum.py)
 * [Cartesian pendulum (recursive)](examples/recursive_pendulum.py)
