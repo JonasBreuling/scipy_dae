@@ -47,7 +47,7 @@ def select_initial_step(t0, y0, yp0, t_bound, rtol, atol, max_step):
 
     # compute an initial step size h using yp = y'(t0)
     wt = np.maximum(np.abs(y0), threshold)
-    rh = 1.25 * np.linalg.norm(yp0 / wt, np.inf) / np.sqrt(rtol)
+    rh = 1.25 * np.linalg.norm(yp0 / wt / rtol, np.inf)
     h_abs = min(max_step, hspan)
     if h_abs * rh > 1:
         h_abs = 1 / rh

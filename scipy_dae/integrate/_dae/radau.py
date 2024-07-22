@@ -6,7 +6,9 @@ from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 
 
-NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
+# NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
+NEWTON_MAXITER = 20  # Maximum number of Newton iterations.
+# NEWTON_MAXITER = 15  # Maximum number of Newton iterations.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
@@ -186,6 +188,9 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
 
+        # TODO:
+        tol = 0.01
+
         if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
             break
 
@@ -193,7 +198,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         Z = T.dot(W)
         Yp = (A_inv / h) @ Z
         Y = y + Z
-
         if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
             break

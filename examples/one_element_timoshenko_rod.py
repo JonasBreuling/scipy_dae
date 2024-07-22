@@ -208,6 +208,7 @@ if __name__ == "__main__":
     # atol = rtol = np.array([1e-3, 1e-3, 1e-3, 1e3, 1e3, 1e3])
     # atol = rtol = np.array([1e-1, 1e-1, 1e-1, 1e3, 1e3, 1e3])
     atol = rtol = 1e-3
+    # atol = rtol = 1e-4
     # rtol = 1e-3
     # # atol = np.array([1e-3, 1e-3, 1e-3, 1e3, 1e3, 1e3])
     # atol = np.array([1e-3, 1e-3, 1e-3, 1e2, 1e2, 1e2])
@@ -216,8 +217,8 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    # sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
-    sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval, atol=atol, rtol=rtol)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=5)
+    # sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval, atol=atol, rtol=rtol)
     end = time.time()
     t = sol.t
     y = sol.y
