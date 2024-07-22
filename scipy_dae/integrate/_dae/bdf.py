@@ -457,85 +457,57 @@ class BdfDenseOutput(DenseOutput):
         else:
             y += self.D[0, :, None]
 
-        # # compute y recursively which enables the computation of yp as well using Horner's rule, see
-        # # https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf
-        # # https://en.wikipedia.org/wiki/Horner's_method#Python_implementation
-        # # https://orionquest.github.io/Numacom/lectures/interpolation.pdf
-        # y3 = np.zeros_like(y)
-        # yp3 = np.zeros_like(y)
-        # for j in range(self.order + 1, 0, -1):
-        #     x = (t - (self.t - (j - 1) * self.h))
-        #     factor = 1 / (j * self.h)
-        #     p = x * factor
-        #     yp3 = y3 * factor + p * yp3 # TODO: Understand factor * y3 here
-        #     y3 = self.D[j - 1, :, None] + p * y3
-
         # TODO: Optimize this!
         # see https://na.uni-tuebingen.de/ex/numinf_ss12/Vorlesung8_SS2012.pdf
         # see https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf for a recursive definition of P'
-        import math
-        y = np.zeros_like(y)
+        y2 = np.zeros_like(y)
         if y.ndim == 1:
-            y += self.D[0]
+            y2 += self.D[0]
         else:
-            y += self.D[0, :, None]
-        y2 = y.copy()
-        yp = np.zeros_like(y)
-        yp2 = yp.copy()
+            y2 += self.D[0, :, None]
+        yp2 = np.zeros_like(y)
         for j in range(1, self.order + 1):
             # interpolate y
-            factor_y = np.ones_like(t)
             factor_y2 = np.ones_like(t)
-            factor_yp = np.zeros_like(t)
             factor_yp2 = np.zeros_like(t)
             for m in range(j):
-                factor_y *= t - (self.t - m * self.h)
-                factor_y2 *= (t - (self.t - m * self.h)) / ((m + 1) * self.h)
-                product = np.ones_like(t)
-                # product2 = np.ones_like(t) / ((m + 1) * self.h)
+                factor_y2 *= t - (self.t - m * self.h)
                 product2 = np.ones_like(t)
                 for i in range(j):
-                    # product2 *= 1 / ((m + 1) * self.h)
                     if i != m:
-                        product *= t - (self.t - m * self.h)
                         product2 *= t - (self.t - m * self.h)
-                factor_yp += product
-                # factor_yp2 += product2
-                factor_yp2 += product2 / ((m + 1) * self.h)
+                factor_yp2 += product2
 
             if y.ndim == 1:
-                y += self.D[j] * factor_y / (factorial(j) * self.h**j)
-                y2 += self.D[j] * factor_y2
-                yp += self.D[j] * factor_yp / (factorial(j) * self.h**j)
-                yp2 += self.D[j] * factor_yp2
+                y2 += self.D[j] * factor_y2 / (factorial(j) * self.h**j)
+                yp2 += self.D[j] * factor_yp2 / (factorial(j) * self.h**j)
             else:
-                y += self.D[j, :, None] * factor_y / (factorial(j) * self.h**j)
-                y2 += self.D[j, :, None] * factor_y2
-                yp += self.D[j, :, None] * factor_yp / (factorial(j) * self.h**j)
-                yp2 += self.D[j, :, None] * factor_yp2
+                y2 += self.D[j, :, None] * factor_y2 / (factorial(j) * self.h**j)
+                yp2 += self.D[j, :, None] * factor_yp2 / (factorial(j) * self.h**j)
 
-            # # interpolate yp
-            # factor_yp2 = np.zeros_like(t)
-            # for m in range(j):
-            #     product2 = np.ones_like(t)
-            #     for i in range(j):
-            #         if i != m:
-            #             product2 *= t - (self.t - m * self.h)
-            #     factor_yp2 += product2
-            #     # factor_yp2 += product2
-            # if y.ndim == 1:
-            #     yp2 += self.D[j] * factor_yp2 / (factorial(j) * self.h**j)
-            # else:
-            #     yp2 += self.D[j, :, None] * factor_yp2 / (factorial(j) * self.h**j)
+        # compute y recursively which enables the computation of yp as well using Horner's rule, see
+        # https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf
+        # https://en.wikipedia.org/wiki/Horner's_method#Python_implementation
+        # https://orionquest.github.io/Numacom/lectures/interpolation.pdf
+        y3 = np.zeros_like(y)
+        yp3 = np.zeros_like(y)
+        for j in range(self.order + 1, 0, -1):
+            x = (t - (self.t - (j - 1) * self.h))
+            factor = 1 / (j * self.h)
+            p = x * factor
+            yp3 = y3 * factor + p * yp3 # TODO: Understand factor * y3 here
+            y3 = self.D[j - 1, :, None] + p * y3
 
         # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
-        # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}")
-        # y = y2
-        # yp = yp2
+        # # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}")
 
-        # # print(f"|y - y3|: {np.linalg.norm(y - y3)}")
-        # # print(f"|yp - yp3|: {np.linalg.norm(yp - yp3)}")
-        # y = y3
-        # yp = yp3
+        assert np.allclose(y, y2)
+
+        # print(f"|y - y3|: {np.linalg.norm(y - y3)}")
+        print(f"|yp2 - yp3|: {np.linalg.norm(yp2 - yp3)}")
+        assert np.allclose(y, y3)
+        # assert np.allclose(yp2, yp3)
+        y = y2
+        yp = yp2
 
         return y, yp

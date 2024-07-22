@@ -493,7 +493,6 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                # Z0 = self.sol(t + h * C).T - y
                 Z0 = self.sol(t + h * C)[0].T - y
             scale = atol + np.abs(y) * rtol
 
