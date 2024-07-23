@@ -1,4 +1,4 @@
-# scipy_dae - solving differential algebraic equations in Python
+# scipy_dae - solving differential algebraic equations (DAE's) and implicit differential equations (IDE's) in Python
 
 <p align="center">
 <a href="https://github.com/JonasBreuling/scipy_dae/actions/workflows/main.yml/badge.svg"><img alt="Actions Status" src="https://github.com/JonasBreuling/scipy_dae/actions/workflows/main.yml/badge.svg"></a>
@@ -9,7 +9,7 @@
 <a href="https://pypi.org/project/scipy_dae/"><img alt="PyPI" src="https://img.shields.io/pypi/v/scipy_dae"></a>
 </p>
 
-Python implementation of solvers for differential algebraic equation's (DAEs) that should be added to scipy one day. See the [GitHub repository](https://github.com/JonasBreuling/scipy_dae).
+Python implementation of solvers for differential algebraic equations (DAE's) and implicit differential equations (IDE's) that should be added to scipy one day. See the [GitHub repository](https://github.com/JonasBreuling/scipy_dae).
 
 Currently, two different methods are implemented.
 
@@ -79,15 +79,18 @@ plt.show()
 
 More examples are given in the [examples](examples/) directory, which includes
 
-* [Van der Pol oscillator](examples/van_der_pol.py)
-* [Sparse brusselator](examples/sparse_brusselator.py)
-* [Robertson problem](examples/robertson.py)
-* [Weissinger's implicit equation](examples/weissinger.py)
-* [Stiff transistor amplifier](examples/stiff_transistor_amplifier.py)
-* [Cartesian pendulum](examples/pendulum.py)
-* [Cartesian pendulum (recursive)](examples/recursive_pendulum.py)
-* [Particle on circular track](examples/particle_on_circular_track.py)
-<!-- * [Jay's nonlinear index 2 DAE](examples/jay1993.py) -->
+* ordinary differential equations (ODE's)
+    * [Van der Pol oscillator](examples/van_der_pol.py)
+    * [Sparse brusselator](examples/sparse_brusselator.py)
+* differential algebraic equations (DAE's)
+    * [Robertson problem (index 1)](examples/robertson.py)
+    * [Stiff transistor amplifier (index 1)](examples/stiff_transistor_amplifier.py)
+    * [Brenan's problem (index 1)](examples/brenan1996.py)
+    * [Jay's probem (index 2)](examples/jay1993.py)
+    * [Cartesian pendulum (index 3)](examples/pendulum.py)
+    * [Particle on circular track (index 3)](examples/particle_on_circular_track.py)
+* implicit differential equations (IDE's)
+    * [Weissinger's implicit equation](examples/weissinger.py)
 
 ## Install
 

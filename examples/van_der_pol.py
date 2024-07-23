@@ -103,7 +103,6 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(4, 1)
 
     t_eval = np.linspace(t0, t1, num=int(1e2))
-    # t_eval = t
     y_eval = sol.sol(t_eval)
 
     ax[0].plot(t, y[0], "ok", label=f"y ({method})", mfc="none")
