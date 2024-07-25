@@ -7,7 +7,7 @@ find = {}  # Scanning implicit namespaces is active by default
 
 [project]
 name = "scipy_dae"
-version = "0.0.3"
+version = "0.0.4"
 authors = [
   { name="Jonas Breuling", email="jonas.breuling@inm.uni-stuttgart.de" },
 ]
