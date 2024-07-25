@@ -92,6 +92,12 @@ More examples are given in the [examples](examples/) directory, which includes
 * implicit differential equations (IDE's)
     * [Weissinger's implicit equation](examples/weissinger.py)
 
+## Comming soon
+
+The [Kármán vortex street](https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_vortex_street) solved by a finite element discretization of the [weak for of the incompressible Navier-Stokes equations](https://en.wikipedia.org/wiki/Navier%E2%80%93Stokes_equations#Weak_form) using [FEniCS](https://fenicsproject.org/).
+
+[![Karman](/data/img/von_Karman.gif "Karman")](https://github.com/JonasBreuling/scipy_dae/)
+
 ## Install
 
 An editable developer mode can be installed via
