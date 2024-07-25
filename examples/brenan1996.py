@@ -24,11 +24,11 @@ def F(t, y, yp):
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 5
+    t1 = 1e1
     t_span = (t0, t1)
 
     # tolerances
-    rtol = atol = 1e-6
+    rtol = atol = 1e-8
 
     # initial conditions
     y0 = np.array([1, 0], dtype=float)

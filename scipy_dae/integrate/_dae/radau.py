@@ -98,7 +98,7 @@ def radau_constants(s):
     return A_inv, c, T, TI, P, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
 
 
-def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
+def solve_collocation_system(self, fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu,
                              C, T, TI, A_inv):
     """Solve the collocation system.
@@ -172,6 +172,12 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         for i in range(ncs):
             f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
 
+        # # recompute Jacobian and LU decompositions for exact Newton
+        # f_new = self.fun(t, Y[-1], Yp[-1])
+        # Jy, Jyp = self.jac(t, Y[-1], Yp[-1], f_new)
+        # LU_real = self.lu(self.MU_REAL / h * Jyp + Jy)
+        # LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in self.MU_COMPLEX]
+
         dW_real = solve_lu(LU_real, f_real)
         dW_complex = np.empty_like(f_complex)
         for i in range(ncs):
@@ -188,6 +194,35 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
             break
+
+        # def f(W):
+        #     Z = T.dot(W)
+        #     Yp = (A_inv / h) @ Z
+        #     Y = y + Z
+        #     F = np.zeros_like(Z)
+        #     for i in range(s):
+        #         F[i] = fun(tau[i], Y[i], Yp[i])
+
+        #     return 0.5 * F.reshape(-1) @ F.reshape(-1)
+
+        # def g(alpha):
+        #     return f(W + alpha * dW)
+        
+        # line_search_max_iter = 20
+        # g0 = 0.5 * F.reshape(-1) @ F.reshape(-1)
+        # alpha = 1.0
+        # for j in range(line_search_max_iter):
+        #     alpha *= 0.9
+        #     if alpha <= 0.1:
+        #         break
+        #     g1 = g(alpha)
+        #     if g1 <= g0:
+        #         break
+
+        # print(f"alpha: {alpha}")
+
+        # # alpha = 1
+        # W += alpha * dW
 
         W += dW
         Z = T.dot(W)
@@ -420,6 +455,7 @@ class RadauDAE(DaeSolver):
         self.h_abs_old = None
         self.error_norm_old = None
 
+        # TODO: Make this 0.03 an optional argument!
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
         assert 0 <= continuous_error_weight <= 1
         self.continuous_error_weight = continuous_error_weight
@@ -503,7 +539,7 @@ class RadauDAE(DaeSolver):
                     LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
-                    self.fun, t, y, h, Z0, scale, self.newton_tol,
+                    self, self.fun, t, y, h, Z0, scale, self.newton_tol,
                     LU_real, LU_complex, self.solve_lu,
                     C, T, TI, A_inv)
 

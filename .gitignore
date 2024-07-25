@@ -9,3 +9,5 @@ coverage.*
 .coverage
 
 .vscode
+
+export.py
