@@ -22,7 +22,6 @@ More information about both methods are given in the specific class documentatio
 
 The [Kármán vortex street](https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_vortex_street) solved by a finite element discretization of the [weak form of the incompressible Navier-Stokes equations](https://en.wikipedia.org/wiki/Navier%E2%80%93Stokes_equations#Weak_form) using [FEniCS](https://fenicsproject.org/) and the three stage Radau IIA method.
 
-<!-- [![Karman](/data/img/von_Karman.gif "Karman")](https://github.com/JonasBreuling/scipy_dae/) -->
 ![Karman](https://github.com/JonasBreuling/scipy_dae/blob/main/data/img/von_Karman.gif)
 
 ## Basic usage
@@ -80,8 +79,7 @@ ax.grid()
 plt.show()
 ```
 
-<!-- [![Robertson](/data/img/Robertson.png "Robertson")](https://github.com/JonasBreuling/scipy_dae/) -->
-![Karman](https://github.com/JonasBreuling/scipy_dae/blob/main/data/img/Robertson.png)
+![Robertson](https://github.com/JonasBreuling/scipy_dae/blob/main/data/img/Robertson.png)
 
 ## Advanced usage
 
