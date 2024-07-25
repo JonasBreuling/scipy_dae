@@ -13,10 +13,17 @@ Python implementation of solvers for differential algebraic equations (DAE's) an
 
 Currently, two different methods are implemented.
 
-* Implicit **backward differentiation formula (BDF)** of variable order with quasi-constant step-size and stability/ accuracy enhancement using numerical differentiation formula (NDF).
 * Implicit **Radau IIA** methods of order 2s - 1 with arbitrary number of odd stages.
+* Implicit **backward differentiation formula (BDF)** of variable order with quasi-constant step-size and stability/ accuracy enhancement using numerical differentiation formula (NDF).
 
 More information about both methods are given in the specific class documentation.
+
+## To pique your curiosity
+
+The [Kármán vortex street](https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_vortex_street) solved by a finite element discretization of the [weak form of the incompressible Navier-Stokes equations](https://en.wikipedia.org/wiki/Navier%E2%80%93Stokes_equations#Weak_form) using [FEniCS](https://fenicsproject.org/) and the three stage Radau IIA method.
+
+<!-- [![Karman](/data/img/von_Karman.gif "Karman")](https://github.com/JonasBreuling/scipy_dae/) -->
+![Karman](https://github.com/JonasBreuling/scipy_dae/blob/main/data/img/von_Karman.gif)
 
 ## Basic usage
 
@@ -73,7 +80,8 @@ ax.grid()
 plt.show()
 ```
 
-[![Robertson](/data/img/Robertson.png "Robertson")](https://github.com/JonasBreuling/scipy_dae/)
+<!-- [![Robertson](/data/img/Robertson.png "Robertson")](https://github.com/JonasBreuling/scipy_dae/) -->
+![Karman](https://github.com/JonasBreuling/scipy_dae/blob/main/data/img/Robertson.png)
 
 ## Advanced usage
 
@@ -91,12 +99,6 @@ More examples are given in the [examples](examples/) directory, which includes
     * [Particle on circular track (index 3)](examples/particle_on_circular_track.py)
 * implicit differential equations (IDE's)
     * [Weissinger's implicit equation](examples/weissinger.py)
-
-## Comming soon
-
-The [Kármán vortex street](https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_vortex_street) solved by a finite element discretization of the [weak for of the incompressible Navier-Stokes equations](https://en.wikipedia.org/wiki/Navier%E2%80%93Stokes_equations#Weak_form) using [FEniCS](https://fenicsproject.org/).
-
-[![Karman](/data/img/von_Karman.gif "Karman")](https://github.com/JonasBreuling/scipy_dae/)
 
 ## Install
 
