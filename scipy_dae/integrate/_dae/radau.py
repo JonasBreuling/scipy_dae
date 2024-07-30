@@ -699,8 +699,14 @@ class RadauDenseOutput(DenseOutput):
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
         x = np.atleast_1d(x)
-        p = np.tile(x, (self.order + 1, 1))
-        p = np.cumprod(p, axis=0)
+
+        # factors for nterpolation polynomial and its derivative
+        # p = np.tile(x, (self.order + 1, 1))
+        # p = np.cumprod(p, axis=0)
+        c = np.arange(1, self.order + 2)[:, None]
+        p = x**c
+        dp = (c / self.h) * (x**(c - 1))
+
         # Here we don't multiply by h, not a mistake.
         y = np.dot(self.Q, p)
         yp = np.dot(self.Qp, p)
@@ -709,6 +715,14 @@ class RadauDenseOutput(DenseOutput):
         if t.ndim == 0:
             y = np.squeeze(y)
             yp = np.squeeze(yp)
+
+        # compute derivative of interpolation polynomial
+        yp = np.dot(self.Q, dp)
+
+        # # compute derivative of interpolation polynomial
+        # yp = np.zeros_like(y)
+        # for i in range(self.order + 1):
+        #     yp += np.outer(self.Q[:, i] * (i + 1), x**i) / self.h
 
         return y, yp
 
