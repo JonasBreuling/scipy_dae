@@ -1,2 +1,6 @@
-from ._dae import solve_dae, consistent_initial_conditions
-from ._dae import BDFDAE, RadauDAE
+from ._dae import (
+    solve_dae, 
+    consistent_initial_conditions, 
+    BDFDAE, 
+    RadauDAE,
+)
