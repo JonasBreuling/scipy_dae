@@ -7,6 +7,7 @@ from .dae import DaeSolver
 
 
 NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
+NEWTON_MAXITER_EMBEDDED = 2  # Maximum number of Newton iterations for embedded method.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
@@ -75,7 +76,9 @@ def radau_constants(s):
     rhs = 1 / np.arange(1, s + 1)
     gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
     b0 = gamma0 # note: this leads to the formula implemented inr ride.m by Fabien
-    # b0 = 0.02 # proposed value of de Swart
+    # b0 = 1 # that's what Hairer uses
+    # b0 = 0.1
+    b0 = 0.01 # proposed value of de Swart in PSIDE.f
     rhs[0] -= b0
     rhs -= gamma0
 
@@ -572,12 +575,25 @@ class RadauDAE(DaeSolver):
             ###############
             # Fabien (5.65)
             ###############
-            # note: This is the embedded method that is stabilized below
-            # TODO: Store MU_REAL * v during construction.
-            # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
-            yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
-            F = self.fun(t_new, y_new, yp_hat_new)
-            error_Fabien = self.solve_lu(LU_real, -F)
+            # # note: This is the embedded method that is stabilized below
+            # # TODO: Store MU_REAL * v during construction.
+            # # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
+            # yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
+            # F = self.fun(t_new, y_new, yp_hat_new)
+            # error_Fabien = self.solve_lu(LU_real, -F)
+
+            # compute embedded method
+            y_hat_new = y_new.copy() # initial guess
+            for i in range(NEWTON_MAXITER_EMBEDDED):
+                yp_hat_new = MU_REAL * (
+                    (y_hat_new - y) / h
+                    - b0 * yp
+                    - self.b_hat @ Yp
+                )
+                F = self.fun(t_new, y_hat_new, yp_hat_new)
+                y_hat_new -= self.solve_lu(LU_real, F)
+
+            error_Fabien = y_hat_new - y_new 
 
             # # add another Newton step for stabilization
             # # TODO: This is definitely better for the pendulum problem. I think for the error above

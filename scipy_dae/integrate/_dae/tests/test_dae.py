@@ -241,8 +241,8 @@ def test_integration_robertson(method):
                             continuous_error_weight=continuous_error_weight)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
-            assert res.nfev < 3000
-            assert res.njev < 100
+            assert res.nfev < 3100
+            assert res.njev < 150
 
 
 parameters_stiff = ["BDF", "Radau"]
