@@ -27,8 +27,8 @@ jobs:
         python-version: "3.8" 
         cache: "pip" # caching pip dependencies
 
-    - name: Update pip
-      run: pip install --upgrade pip
+    # - name: Update pip
+    #   run: pip install --upgrade pip
 
     - name: Install dependencies and scipy_dae
       run: pip install .
