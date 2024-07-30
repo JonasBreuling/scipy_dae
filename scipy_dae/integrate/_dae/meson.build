@@ -8,3 +8,5 @@ py3.install_sources([
   ],
   subdir: 'scipy_dae/integrate/_dae'
 )
+
+subdir('tests')
