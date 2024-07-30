@@ -1,16 +1,23 @@
 name: Build and test
 
-on: [push]
-# on:
-#   pull_request:
-#     branches:
-#       - main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
     name: Build project
-    runs-on: ubuntu-latest
-    # runs-on: python:latest
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+        matrix:
+            os: [ubuntu-latest, windows-latest, macos-latest]
+
     steps:
     - uses: actions/checkout@v4
 
@@ -20,11 +27,8 @@ jobs:
         python-version: "3.8" 
         cache: "pip" # caching pip dependencies
 
-    - name: Update pip
-      run: pip install --upgrade pip
-
     - name: Install dependencies and scipy_dae
-      run: pip install -e .
+      run: pip install .
 
     - name: Install test dependencies
       run: pip install pytest pytest-cov

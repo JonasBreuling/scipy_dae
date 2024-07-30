@@ -1,9 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages]
-find = {}  # Scanning implicit namespaces is active by default
+build-backend = "mesonpy"
+requires = ["meson-python>=0.15.0"]
 
 [project]
 name = "scipy_dae"
@@ -20,9 +17,24 @@ dependencies = [
   "matplotlib>=3.4.3",
 ]
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
 ]
 
 [project.optional-dependencies]
@@ -32,5 +44,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JonasBreuling/scipy_dae"
-Issues = "https://github.com/JonasBreuling/scipy_dae/issues"
+homepage = "https://github.com/JonasBreuling/scipy_dae"
+documentaton = "https://github.com/JonasBreuling/scipy_dae"
+source = "https://github.com/JonasBreuling/scipy_dae"
+download = "https://github.com/JonasBreuling/scipy_dae/releases"
+tracker = "https://github.com/JonasBreuling/scipy_dae/issues"
