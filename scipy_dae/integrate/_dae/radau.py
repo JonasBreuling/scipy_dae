@@ -494,6 +494,7 @@ class RadauDAE(DaeSolver):
                 Z0 = np.zeros((s, y.shape[0]))
             else:
                 Z0 = self.sol(t + h * C)[0].T - y
+            Z0 = np.zeros((s, y.shape[0]))
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -719,10 +720,18 @@ class RadauDenseOutput(DenseOutput):
         # compute derivative of interpolation polynomial
         yp = np.dot(self.Q, dp)
 
-        # # compute derivative of interpolation polynomial
+        # # compute both values by Horner's method:
+        # # https://cut-the-knot.org/Curriculum/Calculus/HornerMethod.shtml
+        # # https://math.stackexchange.com/questions/2139142/how-does-horner-method-evaluate-the-derivative-of-a-function
+        # y = np.zeros_like(y)
+        # y += self.Q[:, -1][:, None]
         # yp = np.zeros_like(y)
-        # for i in range(self.order + 1):
-        #     yp += np.outer(self.Q[:, i] * (i + 1), x**i) / self.h
+        # for i in range(self.order + 1, 1, -1):
+        #     yp = y + yp * x[None, :]
+        #     y = self.Q[:, i - 1][:, None] + y * x[None, :]
+
+        # # y += self.y_old[:, None]
+        # yp /= self.h
 
         return y, yp
 
