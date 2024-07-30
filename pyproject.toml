@@ -8,7 +8,7 @@ version = "0.0.4"
 authors = [
   { name="Jonas Breuling", email="jonas.breuling@inm.uni-stuttgart.de" },
 ]
-description = "Python implementation of solvers for differential algebraic equations (DAE's) and implicit differential equations (IDE's) that should be added to scipy one day.."
+description = "Python implementation of solvers for differential algebraic equations (DAE's) and implicit differential equations (IDE's) that should be added to scipy one day."
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
