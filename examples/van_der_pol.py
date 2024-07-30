@@ -52,8 +52,8 @@ if __name__ == "__main__":
     t1 = 3e3
     t_span = (t0, t1)
 
-    method = "BDF"
-    # method = "Radau"
+    # method = "BDF"
+    method = "Radau"
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
@@ -69,10 +69,10 @@ if __name__ == "__main__":
     # print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-4
+    atol = rtol = 1e-6
 
     t_eval = np.linspace(t0, t1, num=int(1e3))
-    t_eval = None
+    # t_eval = None
     first_step = 1e-3
 
     ####################

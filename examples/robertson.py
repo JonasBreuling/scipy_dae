@@ -56,7 +56,8 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1e7
     t_span = (t0, t1)
-    t_eval = np.logspace(-6, 7, num=1000)
+    # t_eval = np.logspace(-6, 7, num=1000)
+    t_eval = np.logspace(-6, 7, num=500)
 
     # method = "BDF"
     method = "Radau"
@@ -85,6 +86,7 @@ if __name__ == "__main__":
     print(f"elapsed time: {end - start}")
     t_scipy = sol.t
     y_scipy = sol.y
+    yp_scipy = np.array([f(ti, yi) for ti, yi in zip(t_scipy, y_scipy.T)]).T
     success = sol.success
     status = sol.status
     message = sol.message
@@ -104,6 +106,7 @@ if __name__ == "__main__":
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
+    yp = sol.yp
     success = sol.success
     status = sol.status
     message = sol.message
@@ -115,17 +118,28 @@ if __name__ == "__main__":
     print(f"nlu: {sol.nlu}")
 
     # visualization
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(2, 1)
 
-    ax.set_xlabel("t")
-    ax.plot(t, y[0], "-ok", label="y1 DAE" + f" ({method})", mfc="none")
-    ax.plot(t, y[1] * 1e4, "-ob", label="y2 DAE" + f" ({method})", mfc="none")
-    ax.plot(t, y[2], "-og", label="y3 DAE" + f" ({method})", mfc="none")
-    ax.plot(t_scipy, y_scipy[0], "xr", label="y1 scipy Radau", markersize=7)
-    ax.plot(t_scipy, y_scipy[1] * 1e4, "xy", label="y2 scipy Radau", markersize=7)
-    ax.plot(t_scipy, y_scipy[2], "xm", label="y3 scipy Radau", markersize=7)
-    ax.set_xscale("log")
-    ax.legend()
-    ax.grid()
+    ax[0].plot(t, y[0], "-ok", label="y1 DAE" + f" ({method})", mfc="none")
+    ax[0].plot(t, y[1] * 1e4, "-ob", label="y2 DAE" + f" ({method})", mfc="none")
+    ax[0].plot(t, y[2], "-og", label="y3 DAE" + f" ({method})", mfc="none")
+    ax[0].plot(t_scipy, y_scipy[0], "xr", label="y1 scipy" + f" ({method})", markersize=7)
+    ax[0].plot(t_scipy, y_scipy[1] * 1e4, "xy", label="y2 scipy" + f" ({method})", markersize=7)
+    ax[0].plot(t_scipy, y_scipy[2], "xm", label="y3 scipy" + f" ({method})", markersize=7)
+    ax[0].set_xlabel("t")
+    ax[0].set_xscale("log")
+    ax[0].legend()
+    ax[0].grid()
+
+    ax[1].plot(t, yp[0], "-ok", label="yp1 DAE" + f" ({method})", mfc="none")
+    ax[1].plot(t, yp[1], "-ob", label="yp2 DAE" + f" ({method})", mfc="none")
+    ax[1].plot(t, yp[2], "-og", label="yp3 DAE" + f" ({method})", mfc="none")
+    ax[1].plot(t_scipy, yp_scipy[0], "xr", label="yp1 scipy" + f" ({method})", markersize=7)
+    ax[1].plot(t_scipy, yp_scipy[1], "xy", label="yp2 scipy" + f" ({method})", markersize=7)
+    ax[1].plot(t_scipy, yp_scipy[2], "xm", label="yp3 scipy" + f" ({method})", markersize=7)
+    ax[1].set_xlabel("t")
+    ax[1].set_xscale("log")
+    ax[1].legend()
+    ax[1].grid()
 
     plt.show()

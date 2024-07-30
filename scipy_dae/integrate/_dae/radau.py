@@ -393,7 +393,7 @@ class RadauDAE(DaeSolver):
            solution of implicit delay differential equations", Journal of 
            Computational and Applied Mathematics 185, 261-277, 2006.
     """
-    def __init__(self, fun, t0, y0, yp0, t_bound, stages=3,
+    def __init__(self, fun, t0, y0, yp0, t_bound, stages=5,
                  max_step=np.inf, rtol=1e-3, atol=1e-6, 
                  continuous_error_weight=0.0, jac=None, 
                  jac_sparsity=None, vectorized=False, 
@@ -638,6 +638,42 @@ class RadauDAE(DaeSolver):
 
         return step_accepted, message
 
+    # def _compute_dense_output(self):
+    #     h = self.t - self.t_old
+    #     Y = self.y_old + self.Z
+    #     Yp = (self.A_inv / h) @ self.Z
+    #     # Zp = Yp - self.yp_old
+
+    #     # Compute the inverse of the Vandermonde matrix to get the 
+    #     # interpolation matrix P.
+    #     c_hat = np.array([0, *self.C])
+    #     c_hat = self.C
+    #     N = len(c_hat)
+    #     vander = np.vander(c_hat, N=2 * N, increasing=True)#.T
+    #     # P1 = vander[2:, 2:]
+    #     # P2 = vander[1:-1, 1:-1]
+
+    #     V = np.zeros((2 * N, 2 * N))
+    #     V[:N, :] = vander
+    #     V[N:, 1:] = vander[:, :-1] * (np.arange(2 * N - 1) + 1) #/ h
+
+    #     P = np.linalg.inv(V)
+
+    #     # rhs = np.zeros((2 * N, Y.shape[1]))
+    #     # rhs[0] = self.y_old
+    #     # rhs[1:N] = Y
+    #     # rhs[N] = self.yp_old * h
+    #     # rhs[N+1:] = Yp * h
+
+    #     # only use stage values
+    #     rhs = np.zeros((2 * N, Y.shape[1]))
+    #     rhs[:N] = Y
+    #     rhs[N:] = Yp * h
+
+    #     Q = P @ rhs
+
+    #     return RadauDenseOutputHermite(self.t_old, self.t, Q)
+    
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
         h = self.t - self.t_old
@@ -670,6 +706,31 @@ class RadauDenseOutput(DenseOutput):
         yp = np.dot(self.Qp, p)
         y += self.y_old[:, None]
         yp += self.yp_old[:, None]
+        if t.ndim == 0:
+            y = np.squeeze(y)
+            yp = np.squeeze(yp)
+
+        return y, yp
+
+
+class RadauDenseOutputHermite(DenseOutput):
+    def __init__(self, t_old, t, Q):
+        super().__init__(t_old, t)
+        self.h = t - t_old
+        self.Q = Q
+        self.order = Q.shape[0] - 1
+
+    def _call_impl(self, t):
+        x = (t - self.t_old) / self.h
+        x = np.atleast_1d(x)
+
+        p = x**np.arange(self.order + 1)[:, None]
+        dp = np.zeros_like(p)
+        c = np.arange(1, self.order + 1)[:, None]
+        dp[1:] = (c / self.h) * (x**(c - 1))
+
+        y = np.dot(self.Q.T, p)
+        yp = np.dot(self.Q.T, dp)
         if t.ndim == 0:
             y = np.squeeze(y)
             yp = np.squeeze(yp)

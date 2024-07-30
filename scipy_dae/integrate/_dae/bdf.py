@@ -485,6 +485,8 @@ class BdfDenseOutput(DenseOutput):
                 y2 += self.D[j, :, None] * factor_y2 / (factorial(j) * self.h**j)
                 yp2 += self.D[j, :, None] * factor_yp2 / (factorial(j) * self.h**j)
 
+        assert np.allclose(y, y2)
+
         # compute y recursively which enables the computation of yp as well using Horner's rule, see
         # https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf
         # https://en.wikipedia.org/wiki/Horner's_method#Python_implementation
@@ -500,8 +502,6 @@ class BdfDenseOutput(DenseOutput):
 
         # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
         # # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}")
-
-        assert np.allclose(y, y2)
 
         # print(f"|y - y3|: {np.linalg.norm(y - y3)}")
         print(f"|yp2 - yp3|: {np.linalg.norm(yp2 - yp3)}")
