@@ -18,9 +18,43 @@ w = S2 / 4
 e0 = (1 - w) / 3
 e1 = w + (1 / 3)
 e2 = d / 3
-b0_hat = (1 - w) / 3
-b1_hat = w + 1 / 3
-b2_hat = d / 3
+
+# embedded implicit method
+b1_hat = (1 - w) / 3
+# b1_hat = d
+b2_hat = w + 1 / 3
+b3_hat = d / 3
+# b4_hat = d
+
+# b23_hat = np.linalg.solve(
+#     np.array([
+#         [   gamma, 1],
+#         [gamma**2, 1],
+#     ]),
+#     np.array([
+#         1 / 2 - b1_hat - b4_hat,
+#         1 / 3 - b4_hat,
+#     ])
+# )
+
+# b2_hat, b3_hat = b23_hat
+
+# compute embedded method for error estimate
+c_hat = np.array([0, gamma, 1])
+vander = np.vander(c_hat, increasing=True).T
+
+rhs = 1 / np.arange(1, len(c_hat))
+gamma0 = 1 / d
+# gamma0 = d
+b0 = gamma0
+rhs[0] -= b0
+rhs -= gamma0
+
+b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
+# b_hat = np.array([b0, *b_hat])
+# b = np.array([w, w, d])
+b = np.array([w, d])
+v = b - b_hat
 
 # Coefficients required for interpolating y'
 pd0 = 1.5 + S2
@@ -381,10 +415,23 @@ class TRBDF2DAE(DaeSolver):
 
             y_new = y + z_bdf
             yp_new = z_bdf / (h * d) - (w / d) * (yp + yp_tr)
-            # y_new_hat = 
 
             # error = 0.5 * (y + e0 * z0 + e1 * z_tr + e2 * z_bdf - y_new)
-            error = h * ((b0_hat - w) * yp + (b1_hat - w) * yp_tr + (b2_hat - d) * yp_new)
+            error = h * ((b1_hat - w) * yp + (b2_hat - w) * yp_tr + (b3_hat - d) * yp_new)
+            # error = self.solve_lu(LU, error) #* (d * h) #* d / 3
+
+            # # implicit error estimate
+            # # yp_hat_new = (y_new - y) / (b4_hat * h) - (b1_hat / b4_hat) * yp - (b2_hat / b4_hat) * yp_tr - (b3_hat / b4_hat) * yp_new
+            # yp_hat_new = (v @ np.array([yp_tr, yp_new]) - b0 * yp) * d
+            # F = self.fun(t_new, y_new, yp_hat_new)
+            # error = self.solve_lu(LU, -F)
+            # error = h * d * (v @ np.array([yp_tr, yp_new]) - b0 * yp - yp_new / d)
+
+            # # # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
+            # # yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
+            # # F = self.fun(t_new, y_new, yp_hat_new)
+            # # error_Fabien = self.solve_lu(LU_real, -F)
+
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             
             # TODO: Add stabilized error
