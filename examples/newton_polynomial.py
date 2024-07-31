@@ -44,7 +44,8 @@ fp = lambda x: 1 / (1 + x**2)
 # sample points
 # x = np.array([-1, 0.25, 1])
 # x = np.array([-2, -1, 0.25, 1, 2.5])
-num = 20
+num = 5
+# num = 20
 x = np.linspace(-1, 1, num=num)
 
 # evaluate function values

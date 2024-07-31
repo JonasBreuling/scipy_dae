@@ -75,8 +75,8 @@ if __name__ == "__main__":
     t_eval = np.linspace(t0, t1, num=int(5e2))
     # t_eval = None
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0, yp0 = sol_true(t0)

@@ -365,6 +365,7 @@ class BDFDAE(DaeSolver):
             else:
                 step_accepted = True
 
+        print(f"step accepted at t: {t} with order: {order}")
         self.n_equal_steps += 1
 
         self.t = t_new
@@ -418,6 +419,7 @@ class BDFDAE(DaeSolver):
         # delta_order = np.argmin(error_norms) - 1
 
         order += delta_order
+        # order = max(2, order) # TODO: Remove this later
         self.order = order
 
         factor = min(MAX_FACTOR, safety * np.max(factors))
@@ -468,24 +470,86 @@ class BdfDenseOutput(DenseOutput):
         yp2 = np.zeros_like(y)
         for j in range(1, self.order + 1):
             # interpolate y
-            factor_y2 = np.ones_like(t)
-            factor_yp2 = np.zeros_like(t)
+            fac2 = np.ones_like(t)
+            dfac2 = np.zeros_like(t)
             for m in range(j):
-                factor_y2 *= t - (self.t - m * self.h)
-                product2 = np.ones_like(t)
+                fac2 *= t - (self.t - m * self.h)
+                prod2 = np.ones_like(t)
                 for i in range(j):
                     if i != m:
-                        product2 *= t - (self.t - m * self.h)
-                factor_yp2 += product2
+                        # prod2 *= t - (self.t - m * self.h)
+                        prod2 *= t - (self.t - i * self.h)
+                dfac2 += prod2
 
             if y.ndim == 1:
-                y2 += self.D[j] * factor_y2 / (factorial(j) * self.h**j)
-                yp2 += self.D[j] * factor_yp2 / (factorial(j) * self.h**j)
+                y2 += self.D[j] * fac2 / (factorial(j) * self.h**j)
+                yp2 += self.D[j] * dfac2 / (factorial(j) * self.h**j)
             else:
-                y2 += self.D[j, :, None] * factor_y2 / (factorial(j) * self.h**j)
-                yp2 += self.D[j, :, None] * factor_yp2 / (factorial(j) * self.h**j)
+                y2 += self.D[j, :, None] * fac2 / (factorial(j) * self.h**j)
+                yp2 += self.D[j, :, None] * dfac2 / (factorial(j) * self.h**j)
 
         assert np.allclose(y, y2)
+        # return y2, yp2
+
+        # Shampine p. 7
+        y3 = np.zeros_like(y)
+        if y.ndim == 1:
+            y3 += self.D[0]
+        else:
+            y3 += self.D[0, :, None]
+        yp3 = np.zeros_like(y)
+        for j in range(1, self.order + 1):
+            fac3 = np.ones_like(t)
+            dfac3 = np.zeros_like(t)
+            for m in range(j):
+                fac3 *= t - (self.t - m * self.h)
+
+                dprod3 = np.ones_like(t)
+                for i in range(j):
+                    if i != m:
+                        # dprod3 *= t - (self.t - m * self.h)
+                        dprod3 *= t - (self.t - i * self.h)
+                dfac3 += dprod3
+
+            fac3 /= factorial(j) * self.h**j
+            dfac3 /= factorial(j) * self.h**j
+
+            if y.ndim == 1:
+                y3 += self.D[j] * fac3
+                yp3 += self.D[j] * dfac3
+            else:
+                y3 += self.D[j, :, None] * fac3[None, :]
+                yp3 += self.D[j, :, None] * dfac3[None, :]
+
+        assert np.allclose(y, y3)
+
+        # return y3, yp3
+    
+        # Horners method, see https://orionquest.github.io/Numacom/lectures/interpolation.pdf
+        n = self.order
+        y4 = np.zeros_like(y)
+        if y.ndim == 1:
+            y4 += self.D[n]
+        else:
+            y4 += self.D[n, :, None]
+        yp4 = np.zeros_like(y)
+
+        # for j in range(self.order, -1, -1):
+        # for j in range(n, -1, -1):
+        for j in range(n - 1, -1, -1):
+            x = (t - (self.t - j * self.h)) / ((j + 1) * self.h)
+            # x = (t - (self.t - j * self.h)) / self.h
+            # x = (t - (self.t - j * self.h))# / self.h
+            # x = (t - self.t) #/ self.h
+            yp4 = y4 + x * yp4
+            yp4 /= ((j + 1) * self.h)
+            if y.ndim == 1:
+                y4 = self.D[j] + x * y4
+            else:
+                y4 = self.D[j, :, None] + x * y4
+        # yp4 /= factorial(n - 1) * self.h#**(n - 1)
+        # yp4 /= self.h
+        # return y4, yp4
 
         # compute y recursively which enables the computation of yp as well using Horner's rule, see
         # https://pages.cs.wisc.edu/~amos/412/lecture-notes/lecture08.pdf
@@ -500,14 +564,16 @@ class BdfDenseOutput(DenseOutput):
             yp3 = y3 * factor + p * yp3 # TODO: Understand factor * y3 here
             y3 = self.D[j - 1, :, None] + p * y3
 
-        # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
-        # # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}")
+        return y3, yp3 #/ self.h
 
-        # print(f"|y - y3|: {np.linalg.norm(y - y3)}")
-        print(f"|yp2 - yp3|: {np.linalg.norm(yp2 - yp3)}")
-        assert np.allclose(y, y3)
-        # assert np.allclose(yp2, yp3)
-        y = y2
-        yp = yp2
+        # # print(f"|y - y2|: {np.linalg.norm(y - y2)}")
+        # # # print(f"|yp - yp2|: {np.linalg.norm(yp - yp2)}")
+
+        # # print(f"|y - y3|: {np.linalg.norm(y - y3)}")
+        # print(f"|yp2 - yp3|: {np.linalg.norm(yp2 - yp3)}")
+        # assert np.allclose(y, y3)
+        # # assert np.allclose(yp2, yp3)
+        # y = y2
+        # yp = yp2
 
         return y, yp

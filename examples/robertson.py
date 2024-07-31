@@ -59,8 +59,8 @@ if __name__ == "__main__":
     # t_eval = np.logspace(-6, 7, num=1000)
     t_eval = np.logspace(-6, 7, num=500)
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
     y0 = np.array([1, 0, 0], dtype=float)
