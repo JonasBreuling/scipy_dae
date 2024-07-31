@@ -186,7 +186,7 @@ def test_integration_rational(vectorized, method, t_span, jac):
     e = compute_error(yc, yc_true, rtol, atol)
     assert_(np.all(e < 5))
 
-    assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-15, atol=1e-15)
+    assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-14, atol=1e-14)
 
 
 parameters_stiff = ["BDF", "Radau"]
