@@ -10,11 +10,13 @@ from scipy.integrate._ivp.common import OdeSolution
 from .base import DaeSolver
 from .bdf import BDFDAE
 from .radau import RadauDAE
+from .trbdf2 import TRBDF2DAE
 
 
 METHODS = {
     "BDF": BDFDAE,
     "Radau": RadauDAE,
+    "TR-BDF2": TRBDF2DAE,
 }
 
 

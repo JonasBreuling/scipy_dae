@@ -9,127 +9,56 @@ MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 # Butcher Tableau coefficients of the method
-gm = 2 - np.sqrt(2)
-d = gm / 2
-w = np.sqrt(2) / 4
+S2 = np.sqrt(2)
+gamma = 2 - S2
+d = gamma / 2
+w = S2 / 4
 
 # Butcher Tableau coefficients for the error estimator
 e0 = (1 - w) / 3
 e1 = w + (1 / 3)
 e2 = d / 3
+b0_hat = (1 - w) / 3
+b1_hat = w + 1 / 3
+b2_hat = d / 3
 
 # Coefficients required for interpolating y'
-pd0 = 1.5 + np.sqrt(2)
-pd1 = 2.5 + 2 * np.sqrt(2)
-pd2 = -(6 + 4.5 * np.sqrt(2))
+pd0 = 1.5 + S2
+pd1 = 2.5 + 2 * S2
+pd2 = -(6 + 4.5 * S2)
 
-
-def solve_trbdf2_system(fun, y, h, Z0, scale, tol,
-                        LU_real, LU_complex, solve_lu,
-                        C, T, TI, A_inv):
-    """Solve the collocation system.
-
-    Parameters
-    ----------
-    fun : callable
-        Right-hand side of the system.
-    t : float
-        Current time.
-    y : ndarray, shape (n,)
-        Current state.
-    h : float
-        Step to try.
-    Z0 : ndarray, shape (s, n)
-        Initial guess for the solution. It determines new values of `y` at
-        ``t + h * C`` as ``y + Z0``, where ``C`` is the Radau method constants.
-    scale : ndarray, shape (n)
-        Problem tolerance scale, i.e. ``rtol * abs(y) + atol``.
-    tol : float
-        Tolerance to which solve the system. This value is compared with
-        the normalized by `scale` error.
-    LU_real, LU_complex
-        LU decompositions of the system Jacobians.
-    solve_lu : callable
-        Callable which solves a linear system given a LU decomposition. The
-        signature is ``solve_lu(LU, b)``.
-    C : ndarray, shape (s,)
-        Array containing the Radau IIA nodes.
-    T, TI : ndarray, shape (s, s)
-        Transformation matrix and inverse of the methods coefficient matrix A.
-    A_inv : ndarray, shape (s, s)
-        Inverse the methods coefficient matrix A.
-
-    Returns
-    -------
-    converged : bool
-        Whether iterations converged.
-    n_iter : int
-        Number of completed iterations.
-    Z : ndarray, shape (3, n)
-        Found solution.
-    rate : float
-        The rate of convergence.
-    """
-    s, n = Z0.shape
-    ncs = s // 2
-    tau = t + h * C
-
-    Z = Z0
-    W = TI.dot(Z0)
-    Yp = (A_inv / h) @ Z
-    Y = y + Z
-
-    F = np.empty((s, n))
-
-    dW_norm_old = None
-    dW = np.empty_like(W)
+# TODO: 
+# - documentation
+def solve_trbdf2_system(fun, z0, LU, solve_lu, scale, tol):
+    z = z0.copy()
+    dz_norm_old = None
     converged = False
     rate = None
     for k in range(NEWTON_MAXITER):
-        for i in range(s):
-            F[i] = fun(tau[i], Y[i], Yp[i])
-
-        if not np.all(np.isfinite(F)):
+        f = fun(z)
+        if not np.all(np.isfinite(f)):
             break
 
-        U = TI @ F
-        f_real = -U[0]
-        f_complex = np.empty((ncs, n), dtype=complex)
-        for i in range(ncs):
-            f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
+        dz = solve_lu(LU, -f)
+        dz_norm = norm(dz / scale)
+        if dz_norm_old is not None:
+            rate = dz_norm / dz_norm_old
 
-        dW_real = solve_lu(LU_real, f_real)
-        dW_complex = np.empty_like(f_complex)
-        for i in range(ncs):
-            dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
-
-        dW[0] = dW_real
-        for i in range(ncs):
-            dW[2 * i + 1] = dW_complex[i].real
-            dW[2 * i + 2] = dW_complex[i].imag
-
-        dW_norm = norm(dW / scale)
-        if dW_norm_old is not None:
-            rate = dW_norm / dW_norm_old
-
-        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dz_norm > tol)):
             break
 
-        W += dW
-        Z = T.dot(W)
-        Yp = (A_inv / h) @ Z
-        Y = y + Z
+        z += dz
 
-        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
+        if (dz_norm == 0 or rate is not None and rate / (1 - rate) * dz_norm < tol):
             converged = True
             break
 
-        dW_norm_old = dW_norm
+        dz_norm_old = dz_norm
 
-    return converged, k + 1, Y, Yp, Z, rate
+    return converged, k + 1, z, rate
 
 
-def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
+def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old):
     """Predict by which factor to increase/decrease the step size.
 
     The algorithm is described in [1]_.
@@ -163,17 +92,17 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
-        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / (s + 1))
+        multiplier = h_abs / h_abs_old * (error_norm_old / error_norm) ** (1 / 3)
 
     with np.errstate(divide='ignore'):
-        factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
+        factor = min(1, multiplier) * error_norm ** (-1 / 3)
 
     return factor
 
 
 # TODO:
 # - adapt documentation
-class TRBDF2(DaeSolver):
+class TRBDF2DAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 2s - 1.
 
     The implementation follows [4]_, where most of the ideas come from [2]_. 
@@ -320,9 +249,8 @@ class TRBDF2(DaeSolver):
            solution of implicit delay differential equations", Journal of 
            Computational and Applied Mathematics 185, 261-277, 2006.
     """
-    def __init__(self, fun, t0, y0, yp0, t_bound, stages=3,
-                 max_step=np.inf, rtol=1e-3, atol=1e-6, 
-                 continuous_error_weight=0.0, jac=None, 
+    def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf, 
+                 rtol=1e-3, atol=1e-6, jac=None, 
                  jac_sparsity=None, vectorized=False, 
                  first_step=None, **extraneous):
         warn_extraneous(extraneous)
@@ -333,8 +261,6 @@ class TRBDF2(DaeSolver):
         self.error_norm_old = None
 
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
-        assert 0 <= continuous_error_weight <= 1
-        self.continuous_error_weight = continuous_error_weight
         self.sol = None
 
         self.current_jac = True
@@ -382,6 +308,7 @@ class TRBDF2(DaeSolver):
 
             h = h_abs * self.direction
             t_new = t + h
+            # print(f"t_new: {t_new}")
 
             if self.direction * (t_new - self.t_bound) > 0:
                 t_new = self.t_bound
@@ -393,126 +320,98 @@ class TRBDF2(DaeSolver):
             z0 = h_abs * self.z_scaled
             scale = atol + np.abs(y) * rtol
 
+            # TODO: Better initial guess for z0 as explained by Hosea?
+
+            # TR stage
             converged_tr = False
             while not converged_tr:
                 if LU is None:
-                    # Fabien (5.59)
-                    LU = self.lu(Jyp / h + Jy)
+                    LU = self.lu(Jy + Jyp / (d * h))
 
-                converged, n_iter, Y, Yp, Z, rate = solve_trbdf2_system(
-                    self.fun, t, y, h, Z0, scale, self.newton_tol,
-                    LU, LU_complex, self.solve_lu,
-                    C, T, TI, A_inv)
-            exit()
+                t_gamma = t + h * gamma
+                fun_tr = lambda z: self.fun(t_gamma, y + z, z / (d * h) - yp)
+                converged_tr, n_iter_tr, z_tr, rate_tr = solve_trbdf2_system(fun_tr, z0, LU, self.solve_lu, scale, self.newton_tol)
 
-            converged = False
-            while not converged:
-                if LU is None or LU_complex is None:
-                    # Fabien (5.59) and (5.60)
-                    LU = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
-
-                converged, n_iter, Y, Yp, Z, rate = solve_trbdf2_system(
-                    self.fun, t, y, h, Z0, scale, self.newton_tol,
-                    LU, LU_complex, self.solve_lu,
-                    C, T, TI, A_inv)
-
-                if not converged:
+                if not converged_tr:
                     if current_jac:
                         break
-
                     Jy, Jyp = self.jac(t, y, yp, f)
-                    current_jac = True
                     LU = None
-                    LU_complex = None
+                    current_jac = True
 
-            if not converged:
+            if not converged_tr:
                 h_abs *= 0.5
                 LU = None
-                LU_complex = None
                 continue
 
-            # Hairer1996 (8.2b)
-            y_new = Y[-1]
-            yp_new = Yp[-1]
+            y_tr = y + z_tr
+            yp_tr = z_tr / (h * d) - yp
 
+            # BDF stage
+            z_bdf0 = pd0 * z0 + pd1 * z_tr + pd2 * (y_tr - y)
+            converged_bdf = False
+            while not converged_bdf:
+                if LU is None:
+                    LU = self.lu(Jy + Jyp / (d * h))
+
+                fun_bdf = lambda z: self.fun(t_new, y + z, z / (h * d) - (w / d) * (yp + yp_tr))
+                converged_bdf, n_iter_bdf, z_bdf, rate_bdf = solve_trbdf2_system(fun_bdf, z_bdf0, LU, self.solve_lu, scale, self.newton_tol)
+
+                if not converged_bdf:
+                    if current_jac:
+                        break
+                    Jy, Jyp = self.jac(t, y, yp, f)
+                    LU = None
+                    current_jac = True
+
+            if not converged_bdf:
+                h_abs *= 0.5
+                LU = None
+                continue
+
+            n_iter = max(n_iter_tr, n_iter_bdf)
+            rate = max(rate_tr, rate_bdf)
+            # if rate_tr is not None:
+            #     if rate_bdf is not None:
+            #         rate = max(rate_tr, rate_bdf)
+            #     else:
+            #         rate = rate_tr
+            # else:
+            #     rate = 0
+
+            y_new = y + z_bdf
+            yp_new = z_bdf / (h * d) - (w / d) * (yp + yp_tr)
+            # y_new_hat = 
+
+            # error = 0.5 * (y + e0 * z0 + e1 * z_tr + e2 * z_bdf - y_new)
+            error = h * ((b0_hat - w) * yp + (b1_hat - w) * yp_tr + (b2_hat - d) * yp_new)
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
-
-            ############################################
-            # error of collocation polynomial of order s
-            ############################################
-            error_collocation = y - P2[0] @ Y
             
-            ###############
-            # Fabien (5.65)
-            ###############
-            # note: This is the embedded method that is stabilized below
-            # TODO: Store MU_REAL * v during construction.
-            # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
-            yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
-            F = self.fun(t_new, y_new, yp_hat_new)
-            error_Fabien = self.solve_lu(LU, -F)
-
-            # # add another Newton step for stabilization
-            # # TODO: This is definitely better for the pendulum problem. I think for the error above
-            # #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
-            # y_hat_new = y_new + error_Fabien
-            # # yp_hat_new = MU_REAL / h * (y_hat_new - y - h * b0 * yp - h * b_hat @ Yp)
-            # yp_hat_new = MU_REAL * (error_Fabien / h - b0 * yp + v @ Yp)
-            # F = self.fun(t_new, y_hat_new, yp_hat_new)
-            # error_Fabien += self.solve_lu(LU_real, -F)
-            # # y_hat_new += self.solve_lu(LU_real, -F)
-            # # error_Fabien = y_hat_new - y_new
-
-            # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
-            error = (
-                self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
-                + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
-            )
-            error_norm = norm(error / scale)
+            # TODO: Add stabilized error
+            # stabilised_error = self.solve_lu(LU, error)
+            stabilised_error = error
+            error_norm = norm(stabilised_error / scale)
 
             safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
 
-            # if rejected and error_norm > 1: # try with stabilised error estimate
-            # # if True:sol(t
-            #     print(f"rejected")
-            #     # add another Newton step for stabilization
-            #     # TODO: This is definitely better for the pendulum problem. I think for the error above
-            #     #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
-            #     y_hat_new = y_new + error_Fabien
-            #     yp_hat_new = MU_REAL / h * (y_hat_new - y - h * b0 * yp - h * b_hat @ Yp)
-            #     # yp_hat_new = MU_REAL * (error_Fabien / h - b0 * yp + v @ Yp)
-            #     F = self.fun(t_new, y_hat_new, yp_hat_new)
-            #     error_Fabien = self.solve_lu(LU_real, -F)
-
-            #     # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
-            #     error = (
-            #         self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
-            #         + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
-            #     )                
-            #     error_norm = norm(error / scale)
-
             if error_norm > 1:
-                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
                 h_abs *= max(MIN_FACTOR, safety * factor)
 
                 LU = None
-                LU_complex = None
-                rejected = True
             else:
                 step_accepted = True
 
         # Step is converged and accepted
         recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
 
-        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old)
         factor = min(MAX_FACTOR, safety * factor)
 
         if not recompute_jac and factor < 1.2:
             factor = 1
         else:
             LU = None
-            LU_complex = None
 
         f_new = self.fun(t_new, y_new, yp_new)
         if recompute_jac:
@@ -534,44 +433,72 @@ class TRBDF2(DaeSolver):
         self.yp = yp_new
         self.f = f_new
 
-        self.Z = Z
-
         self.LU = LU
-        self.LU_complex = LU_complex
         self.current_jac = current_jac
         self.Jy = Jy
         self.Jyp = Jyp
+        self.z_scaled = z_bdf / self.h_abs_old
 
         self.t_old = t
-        self.sol = self._compute_dense_output()
+
+        # variables for dense output
+        self.h_old = self.h_abs_old * self.direction
+        self.z0 = z0
+        self.z_tr = z_tr
+        self.z_bdf = z_bdf
+        self.y_tr = y_tr
 
         return step_accepted, message
 
-    def _compute_dense_output(self):
-        Q = np.dot(self.Z.T, self.P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
-
     def _dense_output_impl(self):
-        return self.sol
+        return Trbdf2DenseOutput(self.t_old, self.t, self.h_old,
+                                 self.z0, self.z_tr, self.z_bdf,
+                                 self.y_old, self.y_tr, self.y)
 
 
-class RadauDenseOutput(DenseOutput):
-    def __init__(self, t_old, t, y_old, Q):
-        super().__init__(t_old, t)
-        self.h = t - t_old
-        self.Q = Q
-        self.order = Q.shape[1] - 1
-        self.y_old = y_old
+class Trbdf2DenseOutput(DenseOutput):
+    """
+    The dense output formula as described in _[1] depends on the time at which interpolation is done.
+    Specifically, the formula has two sets of coefficients which are applicable depending on
+    whether t <= t0 + gamma*h or t > t0 + gamma*h
+
+    .. [1] Hosea, M. E., and L. F. Shampine. "Analysis and implementation of TR-BDF2."
+           Applied Numerical Mathematics 20.1-2 (1996): 21-37.
+    """
+
+    def __init__(self, t0, t, h, z0, z_tr, z_bdf, y0, y_tr, y_bdf):
+        super().__init__(t0, t)
+        self.t0 = t0
+        self.h = h
+        # coefficients for the case t <= t_old + gamma*h (denoted as v10, v11...)
+        v10 = y0
+        v11 = gamma * z0
+        v12 = y_tr - y0 - v11
+        v13 = gamma * (z_tr - z0)
+        self.V1 = np.array([v10, v11, 3 * v12 - v13, v13 - 2 * v12])
+
+        # coefficients for the case t > t0 + gamma*h
+        v20 = y_tr
+        v21 = (1 - gamma) * z_tr
+        v22 = y_bdf - y_tr - v21
+        v23 = (1 - gamma) * (z_bdf - z_tr)
+        self.V2 = np.array([v20, v21, 3 * v22 - v23, v23 - 2 * v22])
 
     def _call_impl(self, t):
-        x = (t - self.t_old) / self.h
-        x = np.atleast_1d(x)
-        p = np.tile(x, (self.order + 1, 1))
-        p = np.cumprod(p, axis=0)
-        # Here we don't multiply by h, not a mistake.
-        y = np.dot(self.Q, p)
-        y += self.y_old[:, None]
         if t.ndim == 0:
-            y = np.squeeze(y)
+            if t <= self.t0 + gamma * self.h:
+                r = (t - self.t0) / (gamma * self.h)
+                V = self.V1
+            else:
+                t_tr = self.t0 + gamma * self.h
+                V = self.V2
+                r = (t - t_tr) / ((1 - gamma) * self.h)
 
+            R = np.cumprod([1, r, r, r])
+            y = np.dot(V.T, R)
+        else:
+            y = []
+            for tk in t:
+                y.append(self._call_impl(tk))
+            y = np.array(y).T
         return y

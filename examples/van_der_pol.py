@@ -52,8 +52,8 @@ if __name__ == "__main__":
     t1 = 3e3
     t_span = (t0, t1)
 
-    method = "BDF"
-    # method = "Radau"
+    # method = "BDF"
+    method = "Radau"
 
     # initial conditions
     y0 = np.array([2, 0], dtype=float)
@@ -97,6 +97,7 @@ if __name__ == "__main__":
     ##############
     # dae solution
     ##############
+    method = "TR-BDF2"
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, first_step=first_step, dense_output=True)
     end = time.time()
