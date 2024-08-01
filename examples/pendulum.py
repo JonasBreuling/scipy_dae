@@ -54,6 +54,7 @@ if __name__ == "__main__":
 
     # method = "BDF"
     method = "Radau"
+    method = "TR-BDF2"
 
     # initial conditions
     y0 = np.array([l, 0, 0, 0, 0, 0], dtype=float)

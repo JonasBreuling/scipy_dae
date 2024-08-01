@@ -58,7 +58,7 @@ if __name__ == "__main__":
     t1 = 1e7
     t_span = (t0, t1)
     t_eval = np.logspace(-6, 7, num=1000)
-    t_eval = None
+    # t_eval = None
 
     # method = "BDF"
     method = "Radau"
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-6
+    atol = rtol = 1e-5
 
     ####################
     # reference solution
