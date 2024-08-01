@@ -8,6 +8,9 @@ from .dae import DaeSolver
 
 NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 NEWTON_MAXITER_EMBEDDED = 2  # Maximum number of Newton iterations for embedded method.
+# DAMPING_RATIO_ERROR_ESTIMATE = 1.0
+# DAMPING_RATIO_ERROR_ESTIMATE = 0.8
+DAMPING_RATIO_ERROR_ESTIMATE = -0.8
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
@@ -55,11 +58,16 @@ def radau_constants(s):
 
     # convert complex eigenvalues and eigenvectors to real eigenvalues 
     # in a block diagonal form and the associated real eigenvectors
-    Mus, T = cdf2rdf(lambdas, V)
+    Gammas, T = cdf2rdf(lambdas, V)
     TI = np.linalg.inv(T)
+    R = TI @ V
+    RI = np.linalg.inv(R)
 
     # check if everything worked
-    assert np.allclose(TI @ A_inv @ T, Mus)
+    assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A_inv)
+    assert np.allclose(np.linalg.inv(V) @ A_inv @ V, np.diag(lambdas))
+    assert np.allclose(T @ Gammas @ TI, A_inv)
+    assert np.allclose(TI @ A_inv @ T, Gammas)
 
     # extract real and complex eigenvalues
     real_idx = lambdas.imag == 0
@@ -74,13 +82,12 @@ def radau_constants(s):
     vander = np.vander(c_hat, increasing=True).T
 
     rhs = 1 / np.arange(1, s + 1)
-    gamma0 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
-    b0 = gamma0 # note: this leads to the formula implemented inr ride.m by Fabien
-    # b0 = 1 # that's what Hairer uses
-    # b0 = 0.1
-    b0 = 0.01 # proposed value of de Swart in PSIDE.f
-    rhs[0] -= b0
-    rhs -= gamma0
+    b_hats2 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
+    # b_hat1 = b_hats2 # note: this leads to the formula implemented in ride.m by Fabien/ Hairer
+    # b_hat1 = 0.01 # proposed value of de Swart in PSIDE.f
+    b_hat1 = DAMPING_RATIO_ERROR_ESTIMATE * b_hats2
+    rhs[0] -= b_hat1
+    rhs -= b_hats2
 
     b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
     v = b - b_hat
@@ -98,7 +105,7 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    return A_inv, c, T, TI, P, P2, b0, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
+    return A_inv, c, T, TI, P, P2, b_hat1, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
 
 
 def solve_collocation_system(self, fun, t, y, h, Z0, scale, tol,
@@ -584,7 +591,7 @@ class RadauDAE(DaeSolver):
 
             # compute embedded method
             y_hat_new = y_new.copy() # initial guess
-            for i in range(NEWTON_MAXITER_EMBEDDED):
+            for _ in range(NEWTON_MAXITER_EMBEDDED):
                 yp_hat_new = MU_REAL * (
                     (y_hat_new - y) / h
                     - b0 * yp
@@ -592,6 +599,7 @@ class RadauDAE(DaeSolver):
                 )
                 F = self.fun(t_new, y_hat_new, yp_hat_new)
                 y_hat_new -= self.solve_lu(LU_real, F)
+                # print(f"error_Fabien: {y_hat_new - y_new}")
 
             error_Fabien = y_hat_new - y_new 
 
