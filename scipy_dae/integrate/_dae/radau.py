@@ -7,10 +7,9 @@ from .dae import DaeSolver
 
 
 NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
-NEWTON_MAXITER_EMBEDDED = 2  # Maximum number of Newton iterations for embedded method.
-# DAMPING_RATIO_ERROR_ESTIMATE = 1.0
-# DAMPING_RATIO_ERROR_ESTIMATE = 0.8
-DAMPING_RATIO_ERROR_ESTIMATE = -0.8
+NEWTON_MAXITER_EMBEDDED = 1  # Maximum number of Newton iterations for embedded method.
+DAMPING_RATIO_ERROR_ESTIMATE = -0.8 # Hairer (8.19) is obtained by the choice 1.0. 
+                                    # de Swart proposes 0.067 for s=3.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
@@ -658,6 +657,8 @@ class RadauDAE(DaeSolver):
         factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
         factor = min(MAX_FACTOR, safety * factor)
 
+        # TODO: That's what Hairer proposes. We should also use the method of??? here that ensures a smooth change of the sep size, see ???.
+        # if not recompute_jac and 1.0 <= factor <= 1.2:
         if not recompute_jac and factor < 1.2:
             factor = 1
         else:

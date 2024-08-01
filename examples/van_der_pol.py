@@ -5,20 +5,23 @@ from scipy.integrate import solve_ivp
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
-"""Stiff van der Pol equation, see mathworks.
-References:
------------
-mathworks: https://de.mathworks.com/help/matlab/math/solve-stiff-odes.html
+"""Stiff van der Pol equation, see [1]_.
+
+References
+----------
+.. [1] E. Hairer, G. Wanner, "Solving Ordinary Differential Equations II:
+       Stiff and Differential-Algebraic Problems", Sec. IV.8.
 """
 
-mu = 1e3
+
+eps = 1e-6
 
 def rhs(t, y):
     y1, y2 = y
 
     yp = np.zeros(2, dtype=y.dtype)
     yp[0] = y2
-    yp[1] = mu * (1 - y1 * y1) * y2 - y1
+    yp[1] = ((1 - y1 * y1) * y2 - y1) / eps
 
     return yp
 
@@ -34,14 +37,14 @@ def f(t, z):
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 3e3
+    t1 = 2
     t_span = (t0, t1)
 
     # method = "BDF"
     method = "Radau"
 
     # initial conditions
-    y0 = np.array([2, 0], dtype=float)
+    y0 = np.array([2, -0.66], dtype=float)
     yp0 = rhs(t0, y0)
     z0 = np.concatenate((y0, yp0))
 
@@ -54,11 +57,11 @@ if __name__ == "__main__":
     print(f"fnorm: {fnorm}")
 
     # solver options
-    atol = rtol = 1e-4
+    atol = rtol = 7e-5
 
     t_eval = np.linspace(t0, t1, num=int(1e3))
     t_eval = None
-    first_step = 1e-3
+    first_step = 1e-6
 
     ####################
     # reference solution
@@ -102,7 +105,7 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots(4, 1)
 
-    t_eval = np.linspace(t0, t1, num=int(1e2))
+    t_eval = np.linspace(t0, t1, num=int(1e3))
     y_eval = sol.sol(t_eval)
 
     ax[0].plot(t, y[0], "ok", label=f"y ({method})", mfc="none")
