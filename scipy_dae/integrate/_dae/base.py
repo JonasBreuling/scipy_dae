@@ -7,7 +7,6 @@ from scipy.integrate._ivp.common import (
     validate_first_step,
 )
 from scipy.optimize._numdiff import approx_derivative
-from scipy.integrate._ivp.base import ConstantDenseOutput
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, issparse, eye
 from scipy.sparse.linalg import splu
@@ -419,7 +418,7 @@ class DaeSolver:
 
         if self.n == 0 or self.t == self.t_old:
             # Handle corner cases of empty solver and no integration.
-            return ConstantDenseOutput(self.t_old, self.t, self.y)
+            return ConstantDAEDenseOutput(self.t_old, self.t, self.y, self.yp)
         else:
             return self._dense_output_impl()
 
@@ -428,3 +427,65 @@ class DaeSolver:
 
     def _dense_output_impl(self):
         raise NotImplementedError
+
+class DAEDenseOutput:
+    """Base class for local interpolant over step made by an ODE solver.
+
+    It interpolates between `t_min` and `t_max` (see Attributes below).
+    Evaluation outside this interval is not forbidden, but the accuracy is not
+    guaranteed.
+
+    Attributes
+    ----------
+    t_min, t_max : float
+        Time range of the interpolation.
+    """
+    def __init__(self, t_old, t):
+        self.t_old = t_old
+        self.t = t
+        self.t_min = min(t, t_old)
+        self.t_max = max(t, t_old)
+
+    def __call__(self, t):
+        """Evaluate the interpolant.
+
+        Parameters
+        ----------
+        t : float or array_like with shape (n_points,)
+            Points to evaluate the solution at.
+
+        Returns
+        -------
+        y : ndarray, shape (n,) or (n, n_points)
+            Computed values. Shape depends on whether `t` was a scalar or a
+            1-D array.
+        """
+        t = np.asarray(t)
+        if t.ndim > 1:
+            raise ValueError("`t` must be a float or a 1-D array.")
+        return self._call_impl(t)
+
+    def _call_impl(self, t):
+        raise NotImplementedError
+
+
+class ConstantDAEDenseOutput(DAEDenseOutput):
+    """Constant value interpolator.
+
+    This class used for degenerate integration cases: equal integration limits
+    or a system with 0 equations.
+    """
+    def __init__(self, t_old, t, value, derivative):
+        super().__init__(t_old, t)
+        self.value = value
+        self.derivative = derivative
+
+    def _call_impl(self, t):
+        if t.ndim == 0:
+            return self.value, self.derivative
+        else:
+            ret = np.empty((self.value.shape[0], t.shape[0]))
+            ret[:] = self.value[:, None]
+            ret_der = np.empty((self.derivative.shape[0], t.shape[0]))
+            ret_der[:] = self.derivative[:, None]
+            return ret, ret_der

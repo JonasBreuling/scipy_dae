@@ -2,7 +2,7 @@ import numpy as np
 from numpy.polynomial import Polynomial as Poly
 from scipy.linalg import eig, cdf2rdf
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
+from .base import DAEDenseOutput
 from .dae import DaeSolver
 
 
@@ -499,7 +499,7 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Z0 = np.zeros((s, y.shape[0]))
             else:
-                Z0 = self.sol(t + h * C).T - y
+                Z0 = self.sol(t + h * C)[0].T - y
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -624,29 +624,57 @@ class RadauDAE(DaeSolver):
 
     def _compute_dense_output(self):
         Q = np.dot(self.Z.T, self.P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q)
+        h = self.t - self.t_old
+        Yp = (self.A_inv / h) @ self.Z
+        Zp = Yp - self.yp_old
+        Qp = np.dot(Zp.T, self.P)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
     def _dense_output_impl(self):
         return self.sol
 
 
-class RadauDenseOutput(DenseOutput):
-    def __init__(self, t_old, t, y_old, Q):
+class RadauDenseOutput(DAEDenseOutput):
+    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
         super().__init__(t_old, t)
         self.h = t - t_old
         self.Q = Q
+        self.Qp = Qp
         self.order = Q.shape[1] - 1
         self.y_old = y_old
+        self.yp_old = yp_old
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
         x = np.atleast_1d(x)
-        p = np.tile(x, (self.order + 1, 1))
-        p = np.cumprod(p, axis=0)
-        # Here we don't multiply by h, not a mistake.
+
+        # factors for interpolation polynomial and its derivative
+        c = np.arange(1, self.order + 2)[:, None]
+        p = x**c
+        dp = (c / self.h) * (x**(c - 1))
+
+        # # 1. compute derivative of interpolation polynomial for y
         y = np.dot(self.Q, p)
         y += self.y_old[:, None]
+        yp = np.dot(self.Q, dp)
+
+        # # 2. compute collocation polynomial for y and yp
+        # y = np.dot(self.Q, p)
+        # yp = np.dot(self.Qp, p)
+        # y += self.y_old[:, None]
+        # yp += self.yp_old[:, None]
+
+        # # 3. compute both values by Horner's rule
+        # y = np.zeros_like(y)
+        # yp = np.zeros_like(y)
+        # for i in range(self.order, -1, -1):
+        #     y = self.Q[:, i][:, None] + y * x[None, :]
+        #     yp = y + yp * x[None, :]
+        # y = self.y_old[:, None] + y * x[None, :]
+        # yp /= self.h
+
         if t.ndim == 0:
             y = np.squeeze(y)
+            yp = np.squeeze(yp)
 
-        return y
+        return y, yp

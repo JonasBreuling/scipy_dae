@@ -1,7 +1,8 @@
 import numpy as np
+from math import factorial
 from warnings import warn
 from scipy.integrate._ivp.common import norm, EPS, warn_extraneous
-from scipy.integrate._ivp.base import DenseOutput
+from .base import DAEDenseOutput
 from .dae import DaeSolver
 
 
@@ -220,6 +221,9 @@ class BDFDAE(DaeSolver):
     .. [5] R. W. Klopfenstein, "Numerical differentiation formulas for stiff 
            systems of ordinary differential equations", RCA Review, 32, 
            pp. 447-462, September 1971.
+    .. [6] K. Radhakrishnan  and A C. Hindmarsh, "Description and Use of LSODE, 
+           the Livermore Solver for Ordinary Differential Equations", NASA 
+           Reference Publication, December, 1993.
     """
     def __init__(self, fun, t0, y0, yp0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
@@ -418,26 +422,81 @@ class BDFDAE(DaeSolver):
                               self.order, self.D[:self.order + 1].copy())
 
 
-class BdfDenseOutput(DenseOutput):
+class BdfDenseOutput(DAEDenseOutput):
     def __init__(self, t_old, t, h, order, D):
         super().__init__(t_old, t)
         self.order = order
         self.t_shift = self.t - h * np.arange(self.order)
         self.denom = h * (1 + np.arange(self.order))
         self.D = D
+        self.h = h
 
     def _call_impl(self, t):
-        if t.ndim == 0:
-            x = (t - self.t_shift) / self.denom
-            p = np.cumprod(x)
-        else:
-            x = (t - self.t_shift[:, None]) / self.denom[:, None]
-            p = np.cumprod(x, axis=0)
+        vector_valued = t.ndim > 0
+        t = np.atleast_1d(t)
 
-        y = np.dot(self.D[1:].T, p)
-        if y.ndim == 1:
-            y += self.D[0]
-        else:
-            y += self.D[0, :, None]
+        ######################################################
+        # 0. default interpolation for y and yp is set to zero
+        ######################################################
+        # x = (t - self.t_shift[:, None]) / self.denom[:, None]
+        # p = np.cumprod(x, axis=0)
+        # y = self.D[0, :, None] + np.dot(self.D[1:].T, p)
 
-        return y
+        # # # TODO: Compute this derivative efficiently, 
+        # # # see https://stackoverflow.com/questions/40916955/how-to-compute-gradient-of-cumprod-safely
+        # # dp = np.cumsum((p)[::-1], axis=0)[::-1] / x
+        # # yp = np.dot(self.D[1:].T, dp)
+        # yp = np.zeros_like(y)
+
+        # if vector_valued:
+        #     y = np.squeeze(y)
+        #     yp = np.squeeze(yp)
+
+        # return y, yp
+
+        ############################################################
+        # 1. naive implementation of P(t) and P'(t) of p. 7 in [2]_.
+        ############################################################
+        y2 = np.zeros((self.D.shape[1], len(t)), dtype=self.D.dtype)
+        y2 += self.D[0, :, None]
+        yp2 = np.zeros_like(y2)
+        for j in range(1, self.order + 1):
+            fac2 = np.ones_like(t)
+            dfac2 = np.zeros_like(t)
+            for m in range(j):
+                fac2 *= t - (self.t - m * self.h)
+
+                dprod2 = np.ones_like(t)
+                for i in range(j):
+                    if i != m:
+                        dprod2 *= t - (self.t - i * self.h)
+                dfac2 += dprod2
+
+            denom = factorial(j) * self.h**j
+            y2 += self.D[j, :, None] * fac2 / denom
+            yp2 += self.D[j, :, None] * dfac2 / denom
+
+        if vector_valued == 0:
+            y2 = np.squeeze(y2)
+            yp2 = np.squeeze(yp2)
+
+        return y2, yp2
+    
+        #########################################################################
+        # 3. compute both values by Horner's rule,
+        # see see https://orionquest.github.io/Numacom/lectures/interpolation.pdf
+        #########################################################################
+        # y3 = np.zeros((self.D.shape[1], len(t)), dtype=self.D.dtype)
+        # y3 += self.D[n, :, None]
+        # yp3 = np.zeros_like(y3)
+        # for j in range(n, 0, -1):
+        #     x = (t - (self.t - (j - 1) * self.h)) / (j * self.h)
+        #     yp3 = y3 + x * yp3 * (j * self.h)
+        #     yp3 /= (j * self.h)
+        #     y3 = self.D[j - 1, :, None] + x * y3
+
+        # if vector_valued == 0:
+        #     y3 = np.squeeze(y3)
+        #     yp3 = np.squeeze(yp3)
+
+        # return y3, yp3

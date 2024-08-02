@@ -5,11 +5,12 @@
 
 import inspect
 import numpy as np
-from scipy.integrate._ivp.ivp import OdeResult, prepare_events, handle_events, find_active_events
-from scipy.integrate._ivp.common import OdeSolution
+from scipy.integrate._ivp.ivp import prepare_events, handle_events, find_active_events
 from .base import DaeSolver
 from .bdf import BDFDAE
 from .radau import RadauDAE
+from scipy.optimize import OptimizeResult
+from .common import DaeSolution
 
 
 METHODS = {
@@ -22,11 +23,12 @@ MESSAGES = {0: "The solver successfully reached the end of the integration inter
             1: "A termination event occurred."}
 
 
+class DaeResult(OptimizeResult):
+    pass
+
+
 # TODO:
-# - expect consistent initial conditions and add a helper function that 
-#   computes them as done by matlab?
 # - add events depending on y'(t)?
-# - dense output for y'
 def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
               dense_output=False, events=None, vectorized=False, 
               args=None, **options):
@@ -203,8 +205,8 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         Time points.
     y : ndarray, shape (n, n_points)
         Values of the solution at `t`.
-    sol : `OdeSolution` or None
-        Found solution as `OdeSolution` instance; None if `dense_output` was
+    sol : `DaeSolution` or None
+        Found solution as `DaeSolution` instance; None if `dense_output` was
         set to False.
     t_events : list of ndarray or None
         Contains for each event type a list of arrays at which an event of
@@ -413,7 +415,9 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
                 if sol is None:
                     sol = solver.dense_output()
                 ts.append(t_eval_step)
-                ys.append(sol(t_eval_step))
+                y, yp = sol(t_eval_step)
+                ys.append(y)
+                yps.append(yp)
                 t_eval_i = t_eval_i_new
 
         if t_eval is not None and dense_output:
@@ -433,29 +437,16 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     elif ts:
         ts = np.hstack(ts)
         ys = np.hstack(ys)
-        # yps = np.hstack(yps)
+        yps = np.hstack(yps)
         
-        # estimate yps via finite differences
-        t_final1 = 2 * ts[-1] - ts[-2]
-        y_final1 = 2 * ys[:, -1] - ys[:, -2]
-        ts1 = np.array([*ts, t_final1])
-        ys1 = np.concatenate((ys, y_final1[:, None]), axis=1)
-        yps = np.diff(ys1) / np.diff(ts1)
-
     if dense_output:
         if t_eval is None:
-            sol = OdeSolution(
-                ts, interpolants, #alt_segment=False
-                # ts, interpolants, alt_segment=True if method in [BDFDAE] else False
-            )
+            sol = DaeSolution(ts, interpolants)
         else:
-            sol = OdeSolution(
-                ti, interpolants, #alt_segment=False
-                # ti, interpolants, alt_segment=True if method in [BDFDAE] else False
-            )
+            sol = DaeSolution(ti, interpolants)
     else:
         sol = None
 
-    return OdeResult(t=ts, y=ys, yp=yps, sol=sol, t_events=t_events, y_events=y_events,
+    return DaeResult(t=ts, y=ys, yp=yps, sol=sol, t_events=t_events, y_events=y_events,
                      nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
                      status=status, message=message, success=status>=0)

@@ -55,8 +55,9 @@ def sol_true(t):
 if __name__ == "__main__":
     # time span
     t0 = 1
-    t1 = t0 + 10
+    t1 = t0 + 6
     t_span = (t0, t1)
+    t_eval = np.linspace(t0, t1, num=int(1e3))
 
     # method = "BDF"
     method = "Radau"
@@ -79,13 +80,12 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
     y = sol.y
-    tp = t[1:]
-    yp = np.diff(y) / np.diff(t)
+    yp = sol.yp
     success = sol.success
     status = sol.status
     message = sol.message
@@ -96,15 +96,13 @@ if __name__ == "__main__":
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
 
-    y_true, _ = sol_true(t)
-    _, yp_true = sol_true(tp)
+    y_true, yp_true = sol_true(t)
     e = compute_error(y, y_true, rtol, atol)
     ep = compute_error(yp, yp_true, rtol, atol)
     # assert np.all(e < 5)
     # print(f"e: {e}")
     print(f"max(e): {max(e)}")
     # print(f"max(ep): {max(ep)}")
-    # exit()
 
     # visualization
     fig, ax = plt.subplots(4, 1)
@@ -123,12 +121,12 @@ if __name__ == "__main__":
     ax[1].legend()
     ax[1].grid()
 
-    ax[2].plot(tp, yp[4], "-ok", label="mup")
+    ax[2].plot(t, yp[4], "-ok", label="mup")
     ax[2].legend()
     ax[2].grid()
 
-    ax[3].plot(tp, yp[5], "-ok", label="lap")
-    ax[3].plot(tp, yp_true[5], "--xr", label="lap")
+    ax[3].plot(t, yp[5], "-ok", label="lap")
+    ax[3].plot(t, yp_true[5], "--xr", label="lap")
     ax[3].legend()
     ax[3].grid()
 
