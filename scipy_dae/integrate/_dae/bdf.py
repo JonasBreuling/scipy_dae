@@ -264,7 +264,6 @@ class BDFDAE(DaeSolver):
         D = self.D
         y = self.y
         yp = self.yp
-        f = self.f
 
         max_step = self.max_step
         min_step = 10 * np.abs(np.nextafter(t, self.direction * np.inf) - t)
@@ -278,10 +277,6 @@ class BDFDAE(DaeSolver):
             self.n_equal_steps = 0
         else:
             h_abs = self.h_abs
-
-        # self.hs.append(h_abs)
-        # self.orders.append(self.order)
-        # print(f"- t: {t:.3e}; h: {h_abs:.3e}; order: {self.order}")
 
         atol = self.atol
         rtol = self.rtol
@@ -331,7 +326,7 @@ class BDFDAE(DaeSolver):
                 if not converged:
                     if current_jac:
                         break
-                    Jy, Jyp = self.jac(t, y, yp, f)
+                    Jy, Jyp = self.jac(t, y, yp)
                     LU = None
                     current_jac = True
 
@@ -371,19 +366,14 @@ class BDFDAE(DaeSolver):
         self.Jyp = Jyp
         self.LU = LU
 
-        f_new = self.fun(t_new, y_new, yp_new)
-        self.f = f_new
-
         # Update differences. The principal relation here is
         # D^{j + 1} y_n = D^{j} y_n - D^{j} y_{n - 1}. Keep in mind that D
         # contained difference for previous interpolating polynomial and
         # d = D^{k + 1} y_n. Thus this elegant code follows.
-        # print(f"D before:\n{D}")
         D[order + 2] = d - D[order + 1]
         D[order + 1] = d
         for i in reversed(range(order + 1)):
             D[i] += D[i + 1]
-        # print(f"D after:\n{D}")
 
         if self.n_equal_steps < order + 1:
             return True, None
@@ -407,8 +397,8 @@ class BDFDAE(DaeSolver):
         # choose order with largest factor
         delta_order = np.argmax(factors) - 1
 
-        # choose with smallest error
-        # TODO: This choice is advertaised in Shampine2002 but experminets 
+        # choose order with smallest error
+        # TODO: This choice is advertised in Shampine2002 but experiments 
         # indicate it is not worth it
         # delta_order = np.argmin(error_norms) - 1
 

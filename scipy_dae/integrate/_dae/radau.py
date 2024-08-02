@@ -6,7 +6,6 @@ from scipy.integrate._ivp.base import DenseOutput
 from .dae import DaeSolver
 
 
-NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
 NEWTON_MAXITER_EMBEDDED = 1  # Maximum number of Newton iterations for embedded method.
 DAMPING_RATIO_ERROR_ESTIMATE = -0.8 # Hairer (8.19) is obtained by the choice 1.0. 
                                     # de Swart proposes 0.067 for s=3.
@@ -59,8 +58,6 @@ def radau_constants(s):
     # in a block diagonal form and the associated real eigenvectors
     Gammas, T = cdf2rdf(lambdas, V)
     TI = np.linalg.inv(T)
-    R = TI @ V
-    RI = np.linalg.inv(R)
 
     # check if everything worked
     assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A_inv)
@@ -82,8 +79,6 @@ def radau_constants(s):
 
     rhs = 1 / np.arange(1, s + 1)
     b_hats2 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
-    # b_hat1 = b_hats2 # note: this leads to the formula implemented in ride.m by Fabien/ Hairer
-    # b_hat1 = 0.01 # proposed value of de Swart in PSIDE.f
     b_hat1 = DAMPING_RATIO_ERROR_ESTIMATE * b_hats2
     rhs[0] -= b_hat1
     rhs -= b_hats2
@@ -107,9 +102,9 @@ def radau_constants(s):
     return A_inv, c, T, TI, P, P2, b_hat1, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
 
 
-def solve_collocation_system(self, fun, t, y, h, Z0, scale, tol,
+def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu,
-                             C, T, TI, A_inv):
+                             C, T, TI, A_inv, newton_max_iter):
     """Solve the collocation system.
 
     Parameters
@@ -168,7 +163,7 @@ def solve_collocation_system(self, fun, t, y, h, Z0, scale, tol,
     dW = np.empty_like(W)
     converged = False
     rate = None
-    for k in range(NEWTON_MAXITER):
+    for k in range(newton_max_iter):
         for i in range(s):
             F[i] = fun(tau[i], Y[i], Yp[i])
 
@@ -180,12 +175,6 @@ def solve_collocation_system(self, fun, t, y, h, Z0, scale, tol,
         f_complex = np.empty((ncs, n), dtype=complex)
         for i in range(ncs):
             f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
-
-        # # recompute Jacobian and LU decompositions for exact Newton
-        # f_new = self.fun(t, Y[-1], Yp[-1])
-        # Jy, Jyp = self.jac(t, Y[-1], Yp[-1], f_new)
-        # LU_real = self.lu(self.MU_REAL / h * Jyp + Jy)
-        # LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in self.MU_COMPLEX]
 
         dW_real = solve_lu(LU_real, f_real)
         dW_complex = np.empty_like(f_complex)
@@ -201,37 +190,8 @@ def solve_collocation_system(self, fun, t, y, h, Z0, scale, tol,
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
 
-        if (rate is not None and (rate >= 1 or rate ** (NEWTON_MAXITER - k) / (1 - rate) * dW_norm > tol)):
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
             break
-
-        # def f(W):
-        #     Z = T.dot(W)
-        #     Yp = (A_inv / h) @ Z
-        #     Y = y + Z
-        #     F = np.zeros_like(Z)
-        #     for i in range(s):
-        #         F[i] = fun(tau[i], Y[i], Yp[i])
-
-        #     return 0.5 * F.reshape(-1) @ F.reshape(-1)
-
-        # def g(alpha):
-        #     return f(W + alpha * dW)
-        
-        # line_search_max_iter = 20
-        # g0 = 0.5 * F.reshape(-1) @ F.reshape(-1)
-        # alpha = 1.0
-        # for j in range(line_search_max_iter):
-        #     alpha *= 0.9
-        #     if alpha <= 0.1:
-        #         break
-        #     g1 = g(alpha)
-        #     if g1 <= g0:
-        #         break
-
-        # print(f"alpha: {alpha}")
-
-        # # alpha = 1
-        # W += alpha * dW
 
         W += dW
         Z = T.dot(W)
@@ -328,6 +288,10 @@ class RadauDAE(DaeSolver):
     first_step : float or None, optional
         Initial step size. Default is ``None`` which means that the algorithm
         should choose.
+    newton_max_iter : int or None, optional
+        Number of allowed (simplified) Newton iterations. Default is ``None`` 
+        which uses ``newton_max_iter = 7 + (stages - 3) * 2`` as done in
+        Hairer's radaup.f code.
     max_step : float, optional
         Maximum allowed step size. Default is np.inf, i.e., the step size is not
         bounded and determined solely by the solver.
@@ -440,32 +404,30 @@ class RadauDAE(DaeSolver):
                  max_step=np.inf, rtol=1e-3, atol=1e-6, 
                  continuous_error_weight=0.0, jac=None, 
                  jac_sparsity=None, vectorized=False, 
-                 first_step=None, **extraneous):
+                 first_step=None, newton_max_iter=None, 
+                 **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
-        self.y_old = None
-
-        # # TODO: Manipulate rtol and atol according to Radau.f?
-        # # TODO: What is the idea behind this?
-        # # https://github.com/luchr/ODEInterface.jl/blob/0bd134a5a358c4bc13e0fb6a90e27e4ee79e0115/src/radau5.f#L399-L421
-        # print(f"rtol: {rtol}")
-        # print(f"atol: {atol}")
-        # expm = 2 / 3
-        # quot = atol / rtol
-        # rtol = 0.1 * rtol**expm
-        # atol = rtol * quot
-        # print(f"rtol: {rtol}")
-        # print(f"atol: {atol}")
 
         assert stages % 2 == 1
         self.stages = stages
-        self.A_inv, self.C, self.T, self.TI, self.P, self.P2, self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, self.TI_REAL, self.TI_COMPLEX, self.b_hat = radau_constants(stages)
+        (
+            self.A_inv, self.C, self.T, self.TI, self.P, self.P2, 
+            self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, 
+            self.TI_REAL, self.TI_COMPLEX, self.b_hat,
+        ) = radau_constants(stages)
 
         self.h_abs_old = None
         self.error_norm_old = None
 
-        # TODO: Make this 0.03 an optional argument!
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
+        if newton_max_iter is None:
+            newton_max_iter = 7 + (stages - 3) * 2 # see radaup.f
+        
+        assert isinstance(newton_max_iter, int)
+        assert newton_max_iter >= 1
+        self.newton_max_iter = newton_max_iter
+
         assert 0 <= continuous_error_weight <= 1
         self.continuous_error_weight = continuous_error_weight
         self.sol = None
@@ -479,7 +441,6 @@ class RadauDAE(DaeSolver):
         t = self.t
         y = self.y
         yp = self.yp
-        f = self.f
 
         s = self.stages
         MU_REAL = self.MU_REAL
@@ -495,6 +456,8 @@ class RadauDAE(DaeSolver):
         max_step = self.max_step
         atol = self.atol
         rtol = self.rtol
+        newton_tol = self.newton_tol
+        newton_max_iter = self.newton_max_iter
 
         min_step = 10 * np.abs(np.nextafter(t, self.direction * np.inf) - t)
         if self.h_abs > max_step:
@@ -518,7 +481,6 @@ class RadauDAE(DaeSolver):
         current_jac = self.current_jac
         jac = self.jac
 
-        rejected = False
         step_accepted = False
         message = None
         while not step_accepted:
@@ -543,20 +505,19 @@ class RadauDAE(DaeSolver):
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    # Fabien (5.59) and (5.60)
                     LU_real = self.lu(MU_REAL / h * Jyp + Jy)
                     LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
-                    self, self.fun, t, y, h, Z0, scale, self.newton_tol,
+                    self.fun, t, y, h, Z0, scale, newton_tol,
                     LU_real, LU_complex, self.solve_lu,
-                    C, T, TI, A_inv)
+                    C, T, TI, A_inv, newton_max_iter)
 
                 if not converged:
                     if current_jac:
                         break
 
-                    Jy, Jyp = self.jac(t, y, yp, f)
+                    Jy, Jyp = self.jac(t, y, yp)
                     current_jac = True
                     LU_real = None
                     LU_complex = None
@@ -567,7 +528,6 @@ class RadauDAE(DaeSolver):
                 LU_complex = None
                 continue
 
-            # Hairer1996 (8.2b)
             y_new = Y[-1]
             yp_new = Yp[-1]
 
@@ -578,17 +538,14 @@ class RadauDAE(DaeSolver):
             ############################################
             error_collocation = y - P2[0] @ Y
             
-            ###############
-            # Fabien (5.65)
-            ###############
-            # # note: This is the embedded method that is stabilized below
+            # compute implicit embedded method with a single iteration
             # # TODO: Store MU_REAL * v during construction.
-            # # error_Fabien = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
+            # error_embedded = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
             # yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
             # F = self.fun(t_new, y_new, yp_hat_new)
-            # error_Fabien = self.solve_lu(LU_real, -F)
+            # error_embedded = self.solve_lu(LU_real, -F)
 
-            # compute embedded method
+            # compute implicit embedded method with NEWTON_MAXITER_EMBEDDED iterations
             y_hat_new = y_new.copy() # initial guess
             for _ in range(NEWTON_MAXITER_EMBEDDED):
                 yp_hat_new = MU_REAL * (
@@ -598,48 +555,17 @@ class RadauDAE(DaeSolver):
                 )
                 F = self.fun(t_new, y_hat_new, yp_hat_new)
                 y_hat_new -= self.solve_lu(LU_real, F)
-                # print(f"error_Fabien: {y_hat_new - y_new}")
 
-            error_Fabien = y_hat_new - y_new 
-
-            # # add another Newton step for stabilization
-            # # TODO: This is definitely better for the pendulum problem. I think for the error above
-            # #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
-            # y_hat_new = y_new + error_Fabien
-            # # yp_hat_new = MU_REAL / h * (y_hat_new - y - h * b0 * yp - h * b_hat @ Yp)
-            # yp_hat_new = MU_REAL * (error_Fabien / h - b0 * yp + v @ Yp)
-            # F = self.fun(t_new, y_hat_new, yp_hat_new)
-            # error_Fabien += self.solve_lu(LU_real, -F)
-            # # y_hat_new += self.solve_lu(LU_real, -F)
-            # # error_Fabien = y_hat_new - y_new
+            error_embedded = y_hat_new - y_new 
 
             # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
             error = (
                 self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
-                + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
+                + (1 - self.continuous_error_weight) * np.abs(error_embedded)
             )
             error_norm = norm(error / scale)
 
-            safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
-
-            # if rejected and error_norm > 1: # try with stabilised error estimate
-            # # if True:sol(t
-            #     print(f"rejected")
-            #     # add another Newton step for stabilization
-            #     # TODO: This is definitely better for the pendulum problem. I think for the error above
-            #     #       R(z) = -1 for hz -> intfy and the error below satisfies R(z) = 0 for hz -> infty
-            #     y_hat_new = y_new + error_Fabien
-            #     yp_hat_new = MU_REAL / h * (y_hat_new - y - h * b0 * yp - h * b_hat @ Yp)
-            #     # yp_hat_new = MU_REAL * (error_Fabien / h - b0 * yp + v @ Yp)
-            #     F = self.fun(t_new, y_hat_new, yp_hat_new)
-            #     error_Fabien = self.solve_lu(LU_real, -F)
-
-            #     # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
-            #     error = (
-            #         self.continuous_error_weight * np.abs(error_collocation)**((s + 1) / s) 
-            #         + (1 - self.continuous_error_weight) * np.abs(error_Fabien)
-            #     )                
-            #     error_norm = norm(error / scale)
+            safety = 0.9 * (2 * newton_max_iter + 1) / (2 * newton_max_iter + n_iter)
 
             if error_norm > 1:
                 factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
@@ -647,7 +573,6 @@ class RadauDAE(DaeSolver):
 
                 LU_real = None
                 LU_complex = None
-                rejected = True
             else:
                 step_accepted = True
 
@@ -657,17 +582,17 @@ class RadauDAE(DaeSolver):
         factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
         factor = min(MAX_FACTOR, safety * factor)
 
-        # TODO: That's what Hairer proposes. We should also use the method of??? here that ensures a smooth change of the sep size, see ???.
-        # if not recompute_jac and 1.0 <= factor <= 1.2:
+        # TODO: We should also use the ideas of Söderlind 
+        # (https://doi.org/10.1016/j.cam.2005.03.008) 
+        # that proposes a smooth change of the step-size.
         if not recompute_jac and factor < 1.2:
             factor = 1
         else:
             LU_real = None
             LU_complex = None
 
-        f_new = self.fun(t_new, y_new, yp_new)
         if recompute_jac:
-            Jy, Jyp = self.jac(t_new, y_new, yp_new, f_new)
+            Jy, Jyp = self.jac(t_new, y_new, yp_new)
             current_jac = True
         elif jac is not None:
             current_jac = False
@@ -683,7 +608,6 @@ class RadauDAE(DaeSolver):
         self.t = t_new
         self.y = y_new
         self.yp = yp_new
-        self.f = f_new
 
         self.Z = Z
 

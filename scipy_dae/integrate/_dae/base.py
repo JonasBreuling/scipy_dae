@@ -224,7 +224,6 @@ class DaeSolver:
         self.fun = fun
         self.fun_single = fun_single
         self.fun_vectorized = fun_vectorized
-        self.f = self.fun(self.t, self.y, self.yp)
 
         self.direction = np.sign(t_bound - t0) if t_bound != t0 else 1
         self.status = 'running'
@@ -276,8 +275,11 @@ class DaeSolver:
             else:
                 sparsity_y, sparsity_yp = None, None
 
-            def jac_wrapped(t, y, yp, f):
+            def jac_wrapped(t, y, yp):
                 self.njev += 1
+
+                f = self.fun_single(t, y, yp)
+
                 # Jy, self.jac_factor_y = num_jac(
                 #     lambda t, y: self.fun_vectorized(t, y, yp), 
                 #     t, y, f, self.atol, self.jac_factor_y, sparsity_y)
@@ -295,8 +297,8 @@ class DaeSolver:
                     t, yp, f, threshold, self.jac_factor_yp, sparsity_yp)
                 
                 # # test better Jacobian approximation
-                # method = "2-point"
-                # # method = "3-point"
+                # # method = "2-point"
+                # method = "3-point"
                 # Jy = approx_derivative(
                 #     lambda y: self.fun_single(t, y, yp), 
                 #     y, f0=f, sparsity=sparsity_y, method=method)
@@ -306,7 +308,7 @@ class DaeSolver:
                 
                 return Jy, Jyp
             
-            Jy, Jyp = jac_wrapped(t0, y0, yp0, self.f)
+            Jy, Jyp = jac_wrapped(t0, y0, yp0)
         
         elif callable(jac):
             Jy, Jyp = jac(t0, y0, yp0)

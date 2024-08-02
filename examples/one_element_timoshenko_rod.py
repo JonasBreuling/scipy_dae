@@ -17,8 +17,8 @@ t1 = 10
 
 # geometry of the rod
 length = 1 # [m]
-width = 0.01 # [m]
-# width = 1e-3 # [m]
+# width = 1e-2 # [m]
+width = 1e-3 # [m]
 density = 8.e3  # [kg / m^3]
 
 # material properties
