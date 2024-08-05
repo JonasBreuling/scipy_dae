@@ -100,12 +100,12 @@ More examples are given in the [examples](examples/) directory, which includes
 
 ## Work-precision
 
-In order to investigate the work precision of the implemented solvers, we use [Brenan's index 1 problem](https://doi.org/10.1137/1.9781611971224.ch4). It is described by
+In order to investigate the work precision of the implemented solvers, we use [Brenan's index 1 problem](https://doi.org/10.1137/1.9781611971224.ch4). It is described by the system of differential algebraic equations
 
 $$
 \begin{aligned}
     \dot{y}_1 - t \dot{y}_2 &= y_1 - (1 + t) y_2 \\
-    0 &= y_2 - \sin(t) \, .
+    0 &= y_2 - \sin(t) .
 \end{aligned}
 $$
 
