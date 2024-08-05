@@ -113,9 +113,13 @@ For the consistent initial conditions $t_0 = 0$, $y_1(t_0) = 1$, $y_2(t_0) = 0$,
 
 This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 45$. The resulting error at $t_1$ is compared with the elapsed time in the figure below:
 
-![Brenan1996](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Brenan1996.png)
+![Brenan1996_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Brenan1996_work_precision.png)
 
 Clearly, the family of Radau IIA methods outplay the BDF/NDF methods for low tolerances. For high tolerances, both methods are appropriate.
+
+Similar results are obtained for the Robertson problem, where the reference solution is taken from the [archimede ivp testset](https://archimede.uniba.it/~testset/report/rober.pdf):
+
+![Robertson_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Robertson_work_precision.png)
 
 ## Install
 

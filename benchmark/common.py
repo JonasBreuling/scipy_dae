@@ -8,7 +8,6 @@ solvers = [
     ("Radau", {"stages": 3}),
     ("Radau", {"stages": 5}),
     ("Radau", {"stages": 7}),
-    ("Radau", {"stages": 9}),
     ("BDF", {"NDF_strategy": "stability"}),
     ("BDF", {"NDF_strategy": "accuracy"}),
     ("BDF", {"NDF_strategy": None}),
