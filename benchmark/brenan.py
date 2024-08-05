@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     # time span
     t0 = 0
-    t1 = 1e1
+    t1 = 10
 
     # initial conditions
     y0 = np.array([1, 0], dtype=float)
