@@ -53,8 +53,8 @@ if __name__ == "__main__":
     t1 = 1e7
     t1 = 4e10
     t_span = (t0, t1)
-    t_eval = np.logspace(-6, 7, num=200)
-    # t_eval = None
+    # t_eval = np.logspace(-6, 7, num=200)
+    t_eval = None
 
     method = "BDF"
     # method = "Radau"
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     ##############
     stages = 3
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, jac=jac, stages=stages)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, jac=jac, stages=stages, dense_output=True)
     end = time.time()
     print(f"elapsed time: {end - start}")
     t = sol.t
@@ -114,6 +114,8 @@ if __name__ == "__main__":
     print(f"nfev: {sol.nfev}")
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
+
+    y, yp = sol.sol(t)
 
     # visualization
     fig, ax = plt.subplots(2, 1)

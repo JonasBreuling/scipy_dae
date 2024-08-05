@@ -432,15 +432,77 @@ class BdfDenseOutput(DAEDenseOutput):
         self.h = h
 
     def _call_impl(self, t):
+        # if t.ndim == 0:
+        #     dt = t - self.t_shift
+        #     x = (t - self.t_shift) / self.denom
+        #     p = np.cumprod(x)
+        # else:
+        #     dt = t - self.t_shift[:, None]
+        #     x = (t - self.t_shift[:, None]) / self.denom[:, None]
+        #     p = np.cumprod(x, axis=0)
+
+        # with np.errstate(divide="ignore", invalid="ignore"):
+        #     dp = p * np.cumsum(1 / dt, axis=0)
+        #     idx = (np.abs(dt) == 0)[0]
+        #     # dp[np.abs(dt) == 0] = 0
+
+        # if np.any(idx):
+        #     print(f"hit grid exactly")
+
+        # y = np.dot(self.D[1:].T, p)
+        # yp = np.dot(self.D[1:].T, dp)
+        # if y.ndim == 1:
+        #     y += self.D[0]
+        # else:
+        #     y += self.D[0, :, None]
+
+        # # return y, np.zeros_like(y)
+        # return y, yp
+
         vector_valued = t.ndim > 0
         t = np.atleast_1d(t)
 
-        ######################################################
-        # 0. default interpolation for y and yp is set to zero
-        ######################################################
+        # ######################################################
+        # # 0. default interpolation for y and yp is set to zero
+        # ######################################################
         # x = (t - self.t_shift[:, None]) / self.denom[:, None]
         # p = np.cumprod(x, axis=0)
         # y = self.D[0, :, None] + np.dot(self.D[1:].T, p)
+        # return y, 0 * y
+
+
+        # #######################################################
+        # # 1. Vectorized implementation of P(t) as given in 
+        # #    reference [2]_. Logarithmic differentiation gives 
+        # #    the derivative P'(t).
+        # # TODO: Vectorized implementation of yp is not valid 
+        # #       when t - t_shift = 0.
+        # #######################################################
+        # dt = t - self.t_shift[:, None]
+        # if not np.all(np.abs(dt) > 0):
+        #     print("logarithmix differentiation is not valid")
+        # x = dt / self.denom[:, None]
+        # p = np.cumprod(x, axis=0)
+
+        # # # dp = p * np.cumsum(1 / dt, axis=0)
+        # # with np.errstate(divide="ignore", invalid="ignore"):
+        # #     dp = p * np.cumsum(1 / dt, axis=0)
+        # #     # dp[np.abs(dt) == 0] = 0
+
+        # # try:
+        # #     dp = p * np.cumsum(1 / dt, axis=0)
+        # # except:
+        # #     print(f"warning")
+
+        # y = self.D[0, :, None] + np.dot(self.D[1:].T, p)
+        # # yp = np.dot(self.D[1:].T, dp)
+
+        # if vector_valued:
+        #     y = np.squeeze(y)
+        #     # yp = np.squeeze(yp)
+
+        # # return y, yp
+        # return y, np.zeros_like(y)
 
         # # # TODO: Compute this derivative efficiently, 
         # # # see https://stackoverflow.com/questions/40916955/how-to-compute-gradient-of-cumprod-safely
@@ -455,7 +517,7 @@ class BdfDenseOutput(DAEDenseOutput):
         # return y, yp
 
         ############################################################
-        # 1. naive implementation of P(t) and P'(t) of p. 7 in [2]_.
+        # 2. naive implementation of P(t) and P'(t) of p. 7 in [2]_.
         ############################################################
         y2 = np.zeros((self.D.shape[1], len(t)), dtype=self.D.dtype)
         y2 += self.D[0, :, None]
