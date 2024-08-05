@@ -8,7 +8,7 @@ from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 References:
 -----------
-Brenan1996: https://doi.org/10.1137/1.9781611971224.ch
+Brenan1996: https://doi.org/10.1137/1.9781611971224.ch4
 """
 def F(t, y, yp):
     y1, y2 = y

@@ -443,11 +443,10 @@ class BdfDenseOutput(DAEDenseOutput):
 
         # with np.errstate(divide="ignore", invalid="ignore"):
         #     dp = p * np.cumsum(1 / dt, axis=0)
-        #     idx = (np.abs(dt) == 0)[0]
+        #     mask = np.abs(dt) == 0
+        #     mask.nonzero()
+        #     # idx = np.where(mask, axis=0)
         #     # dp[np.abs(dt) == 0] = 0
-
-        # if np.any(idx):
-        #     print(f"hit grid exactly")
 
         # y = np.dot(self.D[1:].T, p)
         # yp = np.dot(self.D[1:].T, dp)
@@ -456,7 +455,14 @@ class BdfDenseOutput(DAEDenseOutput):
         # else:
         #     y += self.D[0, :, None]
 
-        # # return y, np.zeros_like(y)
+        # # if np.any(mask):
+        # #     print(f"hit grid exactly")
+        # #     # yp[:, mask[0, :]] = np.dot(self.D[1:].T, mask)
+        # #     for i in range(len(t)):
+        # #         idx = mask[i]
+        # #         yp[:, i] = self.D[0, :, None]
+        # #         print(f"")
+
         # return y, yp
 
         vector_valued = t.ndim > 0

@@ -98,6 +98,25 @@ More examples are given in the [examples](examples/) directory, which includes
 * implicit differential equations (IDE's)
     * [Weissinger's implicit equation](examples/weissinger.py)
 
+## Work-precision
+
+In order to investigate the work precision of the implemented solvers, we use [Brenan's index 1 problem](https://doi.org/10.1137/1.9781611971224.ch4). It is described by
+
+$$
+\begin{aligned}
+    \dot{y}_1 - t \dot{y}_2 &= y_1 - (1 + t) y_2 \\
+    0 &= y_2 - \sin(t) \, .
+\end{aligned}
+$$
+
+For the consistent initial conditions $t_0 = 0$, $y_1(t_0) = 1$, $y_2(t_0) = 0$, $\dot{y}_1 = -1$ and $\dot{y}_2 = 1$, the analytical solution is given by $y_1(t) = e^{-t} + t \sin(t)$ and $y_2(t) = \sin(t)$.
+
+This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 45$. The resulting error at $t_1$ is compared with the elapsed time in the figure below:
+
+![Brenan1996](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Brenan1996.png)
+
+Clearly, the family of Radau IIA methods outplay the BDF/NDF methods for low tolerances. For high tolerances, both methods are appropriate.
+
 ## Install
 
 An editable developer mode can be installed via
