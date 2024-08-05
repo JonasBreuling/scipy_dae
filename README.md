@@ -111,7 +111,7 @@ $$
 
 For the consistent initial conditions $t_0 = 0$, $y_1(t_0) = 1$, $y_2(t_0) = 0$, $\dot{y}_1 = -1$ and $\dot{y}_2 = 1$, the analytical solution is given by $y_1(t) = e^{-t} + t \sin(t)$ and $y_2(t) = \sin(t)$.
 
-This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 45$. The resulting error at $t_1$ is compared with the elapsed time in the figure below. For reference, the work-precision diagram of sundials IDA solver is also added. Note that the elapsed time is scaled by a factor of 100 since the sundials C-code is ways faster.
+This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 45$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below. For reference, the work-precision diagram of [sundials IDA solver](https://computing.llnl.gov/projects/sundials/ida) is also added. Note that the elapsed time is scaled by a factor of 100 since the sundials C-code is ways faster.
 
 ![Brenan1996_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Brenan1996_work_precision.png)
 
