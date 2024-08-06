@@ -40,7 +40,7 @@ int main(void)
   void* mem;
   N_Vector yy, yp, avtol;
   sunrealtype rtol, atol, *yval, *ypval, *atval;
-  sunrealtype t0, tout1, tout, tret;
+  sunrealtype t0, t1, tout, tret;
   int iout, retval, retvalr;
   SUNMatrix A;
   SUNLinearSolver LS;
@@ -90,16 +90,15 @@ int main(void)
     int mxsteps = 1e8;
 
     /* Integration limits */
-    t0    = SUN_RCONST(0.0);
-    tout1 = SUN_RCONST(1.0);
-
-    // PrintHeader(rtol, avtol, yy);
+    t0 = SUN_RCONST(0.0);
+    t1 = SUN_RCONST(10.0);
 
     /* Call IDACreate and IDAInit to initialize IDA memory */
     mem = IDACreate(ctx);
     if (check_retval((void*)mem, "IDACreate", 0)) { return (1); }
     retval = IDAInit(mem, res, t0, yy, yp);
     if (check_retval(&retval, "IDAInit", 1)) { return (1); }
+  
     /* Call IDASVtolerances to set tolerances */
     retval = IDASVtolerances(mem, rtol, avtol);
     if (check_retval(&retval, "IDASVtolerances", 1)) { return (1); }
@@ -116,10 +115,6 @@ int main(void)
     retval = IDASetLinearSolver(mem, LS, A);
     if (check_retval(&retval, "IDASetLinearSolver", 1)) { return (1); }
 
-    // /* Set the user-supplied Jacobian routine */
-    // retval = IDASetJacFn(mem, jac);
-    // if (check_retval(&retval, "IDASetJacFn", 1)) { return (1); }
-
     /* Create Newton SUNNonlinearSolver object. IDA uses a
     * Newton SUNNonlinearSolver by default, so it is unecessary
     * to create it and attach it. It is done in this example code
@@ -134,25 +129,20 @@ int main(void)
     /* Maximum number of steps */
     IDASetMaxNumSteps(mem, mxsteps);
 
-    /* In loop, call IDASolve, print results, and test for error.
-      Break out of loop when NOUT preset output times have been reached. */
-
-    iout = 0;
-    tout = 10.0;
-
+    /* Call IDASolve */
     clock_t start = clock();
-    retval = IDASolve(mem, tout, &tret, yy, yp, IDA_NORMAL);
+    retval = IDASolve(mem, t1, &tret, yy, yp, IDA_NORMAL);
     clock_t end = clock();
     double elapsed_time = (double)(end - start) / CLOCKS_PER_SEC;
 
     /* Print elapsed time and error to a file in CSV format */
     yval  = N_VGetArrayPointer(yy);
 
-    double diff_y1 = yval[0] - (exp(-tout) + tout * sin(tout));
-    double diff_y2 = yval[1] - sin(tout);
+    double diff_y1 = yval[0] - (exp(-t1) + t1 * sin(t1));
+    double diff_y2 = yval[1] - sin(t1);
     double error = sqrt(diff_y1 * diff_y1 + diff_y2 * diff_y2);
 
-    FID = fopen("idaBrenan_dns_stats.csv", "a");
+    FID = fopen("brenan_errors_IDA.csv", "a");
     fprintf(FID, "%17.17e, %17.17e\n", error, elapsed_time);
     fclose(FID);
 

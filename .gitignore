@@ -11,3 +11,5 @@ coverage.*
 .vscode
 
 export.py
+
+build/

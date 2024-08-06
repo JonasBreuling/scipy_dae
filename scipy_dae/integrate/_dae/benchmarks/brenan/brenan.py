@@ -1,5 +1,5 @@
 import numpy as np
-from common import benchmark
+from scipy_dae.integrate._dae.benchmarks.common import benchmark
 
 
 """Index 1 DAE found in Chapter 4 of Brenan1996.

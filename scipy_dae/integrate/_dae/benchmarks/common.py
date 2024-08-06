@@ -75,9 +75,13 @@ def benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, name, y_ref=None):
         ax.plot(ri[:, 0], ri[:, 1], label=solvers[i])
 
     if name == "Brenan1996 - index 1":
-        result_IDA_Brenan = np.loadtxt("benchmark/Brenan_errors_IDA.csv", delimiter=',')
-        result_IDA_Brenan[:, 1] *= 100 # scale elapsed time by 100
-        ax.plot(*result_IDA_Brenan.T, label="sundials IDA (elapsed time *= 100)")
+        result_IDA = np.loadtxt("scipy_dae/integrate/_dae/benchmarks/brenan/brenan_errors_IDA.csv", delimiter=',')
+        result_IDA[:, 1] *= 100 # scale elapsed time by 100
+        ax.plot(*result_IDA.T, label="sundials IDA (elapsed time *= 100)")
+    elif name == "Robertson":
+        result_IDA = np.loadtxt("scipy_dae/integrate/_dae/benchmarks/robertson/robertson_errors_IDA.csv", delimiter=',')
+        result_IDA[:, 1] *= 100 # scale elapsed time by 100
+        ax.plot(*result_IDA.T, label="sundials IDA (elapsed time *= 100)")
 
     ax.set_title(f"work-precision: {name}")
     ax.set_xscale("log")

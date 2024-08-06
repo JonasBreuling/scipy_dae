@@ -1,5 +1,5 @@
 import numpy as np
-from common import benchmark
+from scipy_dae.integrate._dae.benchmarks.common import benchmark
 
 
 """Robertson problem of semi-stable chemical reaction, see mathworks and Shampine2005.
@@ -24,12 +24,12 @@ def F(t, y, yp):
 
 
 # exponents
-m_max = 20
-ms = np.arange(1, m_max + 1)
+m_max = 25
+ms = np.arange(m_max + 1)
 
 # tolerances and initial step size
-rtols = 10**(-(4 + ms / 4))
-atols = 1e-2 * rtols
+rtols = 10**(-(5.5 + ms / 4))
+atols = rtols
 h0s = 1e-2 * rtols
 
 

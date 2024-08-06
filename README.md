@@ -111,13 +111,13 @@ $$
 
 For the consistent initial conditions $t_0 = 0$, $y_1(t_0) = 1$, $y_2(t_0) = 0$, $\dot{y}_1 = -1$ and $\dot{y}_2 = 1$, the analytical solution is given by $y_1(t) = e^{-t} + t \sin(t)$ and $y_2(t) = \sin(t)$.
 
-This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 45$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below. For reference, the work-precision diagram of [sundials IDA solver](https://computing.llnl.gov/projects/sundials/ida) is also added. Note that the elapsed time is scaled by a factor of 100 since the sundials C-code is ways faster.
+This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 45$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below. For reference, the work-precision diagram of [sundials IDA solver](https://computing.llnl.gov/projects/sundials/ida) is also added. Note that the elapsed time is scaled by a factor of 100 since the sundials C-code is way faster.
 
-![Brenan1996_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Brenan1996_work_precision.png)
+![Brenan_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Brenan_work_precision.png)
 
-Clearly, the family of Radau IIA methods outplay the BDF/NDF methods for low tolerances. For high tolerances, both methods are appropriate.
+Clearly, the family of Radau IIA methods outplay the BDF/NDF methods for low tolerances. For medium to high tolerances, both methods are appropriate.
 
-Similar results are obtained for the Robertson problem, where the reference solution is taken from the [archimede ivp testset](https://archimede.uniba.it/~testset/report/rober.pdf):
+Similar results are obtained for the Robertson problem. Since this problem does not have an analtical solution, the reference solution is taken from the [archimede ivp testset](https://archimede.uniba.it/~testset/report/rober.pdf). Since all three Radau IIA methods show saturation, it is questionable whether the reference solution is accurate enough.
 
 ![Robertson_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Robertson_work_precision.png)
 
