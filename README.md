@@ -133,7 +133,7 @@ $$
 \begin{aligned}
 	\dot{x} &= u \\
 	\dot{y} &= v \\
-	\dot{u} &= \phantom{-}2 y + x \lambda \\
+	\dot{u} &= 2 y + x \lambda \\
 	\dot{v} &= -2 x + y \lambda \\
 	0 &= x^2 + y^2 - 1 .
 \end{aligned}
@@ -145,7 +145,7 @@ $$
 \begin{aligned}
 	\dot{x} &= u + x \dot{\Gamma} \\
 	\dot{y} &= v + y \dot{\Gamma} \\
-	\dot{u} &= \phantom{-}2 y + x \dot{\Lambda} \\
+	\dot{u} &= 2 y + x \dot{\Lambda} \\
 	\dot{v} &= -2 x + y \dot{\Lambda} \\
 	0 &= x u + y v \\
 	0 &= x^2 + y^2 - 1 .
@@ -158,7 +158,7 @@ $$
 \begin{aligned}
 	x(t) &= \sin(t^2) \\
 	y(t) &= \cos(t^2) \\
-	u(t) &= \phantom{-}2 t \cos(t^2) \\
+	u(t) &= 2 t \cos(t^2) \\
 	v(t) &= -2 t \sin(t^2) \\
 	\Lambda(t) &= -\frac{4}{3} t^3 \\
 	\Gamma(t) &= 0 ,
