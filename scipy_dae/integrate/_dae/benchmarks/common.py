@@ -14,7 +14,7 @@ solvers = [
 ]
 
 
-def benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, name, y_ref=None):
+def benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, name, y_ref=None, y_idx=None):
     # time span
     t_span = (t0, t1)
 
@@ -63,7 +63,10 @@ def benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, name, y_ref=None):
             assert sol.success
 
             # error
-            diff = y_ref - sol.y[:, -1]
+            if y_idx is not None:
+                diff = y_ref[y_idx] - sol.y[y_idx, -1]
+            else:
+                diff = y_ref - sol.y[:, -1]
             error = np.linalg.norm(diff)
             print(f"     => error: {error}")
 
@@ -74,12 +77,16 @@ def benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, name, y_ref=None):
     for i, ri in enumerate(results):
         ax.plot(ri[:, 0], ri[:, 1], label=solvers[i])
 
-    if name == "Brenan1996 - index 1":
+    if name == "Brenan":
         result_IDA = np.loadtxt("scipy_dae/integrate/_dae/benchmarks/brenan/brenan_errors_IDA.csv", delimiter=',')
         result_IDA[:, 1] *= 100 # scale elapsed time by 100
         ax.plot(*result_IDA.T, label="sundials IDA (elapsed time *= 100)")
     elif name == "Robertson":
         result_IDA = np.loadtxt("scipy_dae/integrate/_dae/benchmarks/robertson/robertson_errors_IDA.csv", delimiter=',')
+        result_IDA[:, 1] *= 100 # scale elapsed time by 100
+        ax.plot(*result_IDA.T, label="sundials IDA (elapsed time *= 100)")
+    elif name == "Arevalo":
+        result_IDA = np.loadtxt("scipy_dae/integrate/_dae/benchmarks/arevalo/arevalo_errors_IDA.csv", delimiter=',')
         result_IDA[:, 1] *= 100 # scale elapsed time by 100
         ax.plot(*result_IDA.T, label="sundials IDA (elapsed time *= 100)")
 

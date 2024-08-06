@@ -56,7 +56,7 @@ int main(void)
   NLS                  = NULL;
 
   double m_max = 32.0;
-  for (double m=0.0; m<m_max; m++) {
+  for (double m=0.0; m<m_max+1; m++) {
 
     /* Create SUNDIALS context */
     retval = SUNContext_Create(SUN_COMM_NULL, &ctx);

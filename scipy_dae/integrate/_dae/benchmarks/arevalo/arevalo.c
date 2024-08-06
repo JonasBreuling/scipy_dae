@@ -20,7 +20,7 @@
 #endif
 
 /* Problem Constants */
-#define NEQ  2
+#define NEQ  6
 
 /* Prototypes of functions called by IDA */
 int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector resval,
@@ -55,8 +55,13 @@ int main(void)
   LS                   = NULL;
   NLS                  = NULL;
 
-  double m_max = 45.0;
-  for (double m=0.0; m<m_max+1; m++) {
+  double m_max = 24.0;
+  for (double m=0.0; m<m_max+1.0; m++) {
+
+    /* Integration limits */
+    int mxsteps = 1e8;
+    t0 = SUN_RCONST(0.0);
+    t1 = SUN_RCONST(5.0);
 
     /* Create SUNDIALS context */
     retval = SUNContext_Create(SUN_COMM_NULL, &ctx);
@@ -72,26 +77,31 @@ int main(void)
 
     /* Create and initialize  y, y', and absolute tolerance vectors. */
     yval    = N_VGetArrayPointer(yy);
-    yval[0] = SUN_RCONST(1.0);
-    yval[1] = SUN_RCONST(0.0);
+    yval[0] = sin(t0 * t0);
+    yval[1] = cos(t0 * t0);
+    yval[2] = 2.0 * t0 * cos(t0 * t0);
+    yval[3] = -2.0 * t0 * sin(t0 * t0);
+    yval[4] = -4.0 / 3.0 * t0 * t0 * t0;
+    yval[5] = 0.0;
 
     ypval    = N_VGetArrayPointer(yp);
-    ypval[0] = SUN_RCONST(-1.0);
-    ypval[1] = SUN_RCONST(1.0);
+    ypval[0] = 2.0 * t0 * cos(t0 * t0);
+    ypval[1] = -2.0 * t0 * sin(t0 * t0);
+    ypval[2] = 2.0 * cos(t0 * t0) - 4.0 * t0 * t0 * sin(t0 * t0);
+    ypval[3] = -2.0 * sin(t0 * t0) - 4.0 * t0 * t0 * cos(t0 * t0);
+    ypval[4] = -4.0 * t0 * t0;
+    ypval[5] = 0.0;
     
     /* define tolerances */
-    rtol = pow(10, -(1 + m / 4));
+    rtol = pow(10, -(3 + m / 4));
 
     atval    = N_VGetArrayPointer(avtol);
     atval[0] = rtol;
     atval[1] = rtol;
     atval[2] = rtol;
-
-    int mxsteps = 1e8;
-
-    /* Integration limits */
-    t0 = SUN_RCONST(0.0);
-    t1 = SUN_RCONST(10.0);
+    atval[3] = rtol;
+    atval[4] = rtol;
+    atval[5] = rtol;
 
     /* Call IDACreate and IDAInit to initialize IDA memory */
     mem = IDACreate(ctx);
@@ -138,11 +148,23 @@ int main(void)
     /* Print elapsed time and error to a file in CSV format */
     yval  = N_VGetArrayPointer(yy);
 
-    double diff_y1 = yval[0] - (exp(-t1) + t1 * sin(t1));
-    double diff_y2 = yval[1] - sin(t1);
-    double error = sqrt(diff_y1 * diff_y1 + diff_y2 * diff_y2);
+    double diff_y1 = yval[0] - sin(t1 * t1);
+    double diff_y2 = yval[1] - cos(t1 * t1);
+    double diff_y3 = yval[2] - 2.0 * t1 * cos(t1 * t1);
+    double diff_y4 = yval[3] - (-2.0 * t1 * sin(t1 * t1));
+    double diff_y5 = yval[4] - (-4.0 / 3.0 * t1 * t1 * t1);
+    double diff_y6 = yval[5] - 0.0;
 
-    FID = fopen("brenan_errors_IDA.csv", "a");
+    double error = sqrt(
+      diff_y1 * diff_y1
+      + diff_y2 * diff_y2
+      + diff_y3 * diff_y3
+      + diff_y4 * diff_y4
+      + diff_y5 * diff_y5
+      + diff_y6 * diff_y6
+    );
+
+    FID = fopen("arevalo_errors_IDA.csv", "a");
     fprintf(FID, "%17.17e, %17.17e\n", error, elapsed_time);
     fclose(FID);
 
@@ -182,8 +204,24 @@ int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector rr,
   ypval = N_VGetArrayPointer(yp);
   rval  = N_VGetArrayPointer(rr);
 
-  rval[0] = ypval[0] - tres * ypval[1] + yval[0] - (1 + tres) * yval[1];
-  rval[1] = yval[1] - sin(tres);
+  sunrealtype x = yval[0];
+  sunrealtype y = yval[1];
+  sunrealtype u = yval[2];
+  sunrealtype v = yval[3];
+
+  sunrealtype x_dot = ypval[0];
+  sunrealtype y_dot = ypval[1];
+  sunrealtype u_dot = ypval[2];
+  sunrealtype v_dot = ypval[3];
+  sunrealtype lap = ypval[4];
+  sunrealtype mup = ypval[5];
+
+  rval[0] = x_dot - (u + x * mup);
+  rval[1] = y_dot - (v + y * mup);
+  rval[2] = u_dot - (2 * y + x * lap);
+  rval[3] = v_dot - (-2 * x + y * lap);
+  rval[4] = x * u + y * v;
+  rval[5] = x * x + y * y - 1.0;
 
   return (0);
 }

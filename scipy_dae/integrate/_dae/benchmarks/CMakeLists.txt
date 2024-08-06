@@ -13,3 +13,6 @@ target_link_libraries(brenan PRIVATE ${SUNDIALS_LIB})
 
 add_executable(robertson robertson/robertson.c)
 target_link_libraries(robertson PRIVATE ${SUNDIALS_LIB})
+
+add_executable(arevalo arevalo/arevalo.c)
+target_link_libraries(arevalo PRIVATE ${SUNDIALS_LIB})

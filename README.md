@@ -100,6 +100,8 @@ More examples are given in the [examples](examples/) directory, which includes
 
 ## Work-precision
 
+### Brenan
+
 In order to investigate the work precision of the implemented solvers, we use [Brenan's index 1 problem](https://doi.org/10.1137/1.9781611971224.ch4). It is described by the system of differential algebraic equations
 
 $$
@@ -117,9 +119,58 @@ This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dot
 
 Clearly, the family of Radau IIA methods outplay the BDF/NDF methods for low tolerances. For medium to high tolerances, both methods are appropriate.
 
+### Robertson
+
 Similar results are obtained for the Robertson problem. Since this problem does not have an analtical solution, the reference solution is taken from the [archimede ivp testset](https://archimede.uniba.it/~testset/report/rober.pdf). Since all three Radau IIA methods show saturation, it is questionable whether the reference solution is accurate enough.
 
 ![Robertson_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Robertson_work_precision.png)
+
+### Arevalo
+
+In a final example, we investigate the work precision of the implemented solvers using [Arevalo's index 3 problem](https://link.springer.com/article/10.1007/BF01732606). It is described by the system of differential algebraic equations of differential index 3:
+
+$$
+\begin{aligned}
+	\dot{x} &= u \\
+	\dot{y} &= v \\
+	\dot{u} &= \phantom{-}2 y + x \lambda \\
+	\dot{v} &= -2 x + y \lambda \\
+	0 &= x^2 + y^2 - 1 .
+\end{aligned}
+$$
+
+Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting system is given as
+
+$$
+\begin{aligned}
+	\dot{x} &= u + x \dot{\Gamma} \\
+	\dot{y} &= v + y \dot{\Gamma} \\
+	\dot{u} &= \phantom{-}2 y + x \dot{\Lambda} \\
+	\dot{v} &= -2 x + y \dot{\Lambda} \\
+	0 &= x u + y v \\
+	0 &= x^2 + y^2 - 1 .
+\end{aligned}
+$$
+
+The analytical solution to this problem is given by
+
+$$
+\begin{aligned}
+	x(t) &= \sin(t^2) \\
+	y(t) &= \cos(t^2) \\
+	u(t) &= \phantom{-}2 t \cos(t^2) \\
+	v(t) &= -2 t \sin(t^2) \\
+	\Lambda(t) &= -\frac{4}{3} t^3 \\
+	\Gamma(t) &= 0 ,
+\end{aligned}
+$$
+
+with the Lagrange multipliers $\dot{\Gamma} = 0$ and $\dot{\Lambda} = -4t^2$.
+
+This problem is solved for $atol = rtol = 10^{-(3 + m / 4)}$, where $m = 0, \dots, 24$. The resulting error at $t_1 = 5$ is compared with the elapsed time of the used solvers in the figure below.
+
+![Arevalo_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Arevalo_work_precision.png)
+
 
 ## Install
 
