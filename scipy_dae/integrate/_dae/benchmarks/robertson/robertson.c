@@ -55,7 +55,7 @@ int main(void)
   LS                   = NULL;
   NLS                  = NULL;
 
-  double m_max = 25.0;
+  double m_max = 32.0;
   for (double m=0.0; m<m_max; m++) {
 
     /* Create SUNDIALS context */

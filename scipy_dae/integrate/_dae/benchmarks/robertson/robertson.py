@@ -24,7 +24,7 @@ def F(t, y, yp):
 
 
 # exponents
-m_max = 25
+m_max = 32
 ms = np.arange(m_max + 1)
 
 # tolerances and initial step size
