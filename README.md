@@ -86,17 +86,17 @@ plt.show()
 More examples are given in the [examples](examples/) directory, which includes
 
 * ordinary differential equations (ODE's)
-    * [Van der Pol oscillator](examples/van_der_pol.py)
-    * [Sparse brusselator](examples/sparse_brusselator.py)
+    * [Van der Pol oscillator](examples/odes/van_der_pol.py)
+    * [Sparse brusselator](examples/odes/sparse_brusselator.py)
 * differential algebraic equations (DAE's)
-    * [Robertson problem (index 1)](examples/robertson.py)
-    * [Stiff transistor amplifier (index 1)](examples/stiff_transistor_amplifier.py)
-    * [Brenan's problem (index 1)](examples/brenan1996.py)
-    * [Jay's probem (index 2)](examples/jay1993.py)
-    * [Cartesian pendulum (index 3)](examples/pendulum.py)
-    * [Particle on circular track (index 3)](examples/particle_on_circular_track.py)
+    * [Robertson problem (index 1)](examples/daes/robertson.py)
+    * [Stiff transistor amplifier (index 1)](examples/daes/stiff_transistor_amplifier.py)
+    * [Brenan's problem (index 1)](examples/daes/brenan1996.py)
+    * [Jay's probem (index 2)](examples/daes/jay1993.py)
+    * [Cartesian pendulum (index 3)](examples/daes/pendulum.py)
+    * [Particle on circular track (index 3)](examples/daes/particle_on_circular_track.py)
 * implicit differential equations (IDE's)
-    * [Weissinger's implicit equation](examples/weissinger.py)
+    * [Weissinger's implicit equation](examples/ides/weissinger.py)
 
 ## Work-precision
 
