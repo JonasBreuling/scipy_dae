@@ -16,12 +16,11 @@ Anantharaman1991: https://doi.org/10.1002/nme.1620320803
 def F(t, vy, vyp):
     # stabilized index 1
     x, y, u, v, _, _ = vy
-    x_dot, y_dot, u_dot, v_dot, mup, lap = vyp
+    x_dot, y_dot, u_dot, v_dot, lap, mup = vyp
 
     R = np.zeros(6, dtype=np.common_type(vy, vyp))
     R[0] = x_dot - (u + x * mup)
     R[1] = y_dot - (v + y * mup)
-    # R[2] = u_dot - (-2 * y + x * lap) # TODO: Compute analytical solution of this example!
     R[2] = u_dot - (2 * y + x * lap)
     R[3] = v_dot - (-2 * x + y * lap)
     R[4] = x * u + y * v
@@ -36,17 +35,17 @@ def sol_true(t):
         np.cos(t**2),
         2 * t * np.cos(t**2),
         -2 * t * np.sin(t**2),
-        0 * t,
         -4 / 3 * t**3,
+        0 * t,
     ])
 
     yp =  np.array([
         2 * t * np.cos(t**2),
         -2 * t * np.sin(t**2),
-        -4 * t**2 * np.sin(t**2),
-        -4 * t**2 * np.cos(t**2),
-        0 * t,
+        2 * np.cos(t**2) - 4 * t**2 * np.sin(t**2),
+        -2 * np.sin(t**2) - 4 * t**2 * np.cos(t**2),
         -4 * t**2,
+        0 * t,
     ])
 
     return y, yp
@@ -55,7 +54,7 @@ def sol_true(t):
 if __name__ == "__main__":
     # time span
     t0 = 1
-    t1 = t0 + 6
+    t1 = 5
     t_span = (t0, t1)
     t_eval = np.linspace(t0, t1, num=int(1e3))
 
@@ -97,12 +96,10 @@ if __name__ == "__main__":
     print(f"nlu: {sol.nlu}")
 
     y_true, yp_true = sol_true(t)
-    e = compute_error(y, y_true, rtol, atol)
-    ep = compute_error(yp, yp_true, rtol, atol)
-    # assert np.all(e < 5)
-    # print(f"e: {e}")
-    print(f"max(e): {max(e)}")
-    # print(f"max(ep): {max(ep)}")
+    e = compute_error(y[:, -1], y_true[:, -1], rtol, atol)
+    ep = compute_error(yp[:, -1], yp_true[:, -1], rtol, atol)
+    print(f"max(e): {e}")
+    print(f"max(ep): {ep}")
 
     # visualization
     fig, ax = plt.subplots(4, 1)
@@ -121,12 +118,13 @@ if __name__ == "__main__":
     ax[1].legend()
     ax[1].grid()
 
-    ax[2].plot(t, yp[4], "-ok", label="mup")
+    ax[2].plot(t, yp[4], "-ok", label="lap")
+    ax[2].plot(t, yp_true[4], "--xr", label="lap_true")
     ax[2].legend()
     ax[2].grid()
 
-    ax[3].plot(t, yp[5], "-ok", label="lap")
-    ax[3].plot(t, yp_true[5], "--xr", label="lap")
+    ax[3].plot(t, yp[5], "-ok", label="mup")
+    ax[3].plot(t, yp_true[5], "--xr", label="mup_true")
     ax[3].legend()
     ax[3].grid()
 

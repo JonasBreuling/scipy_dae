@@ -7,8 +7,6 @@ from .dae import DaeSolver
 
 
 NEWTON_MAXITER_EMBEDDED = 1  # Maximum number of Newton iterations for embedded method.
-# DAMPING_RATIO_ERROR_ESTIMATE = -0.8 # Hairer (8.19) is obtained by the choice 1.0. 
-#                                     # de Swart proposes 0.067 for s=3.
 DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
                                    # de Swart proposes 0.067 for s=3.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.

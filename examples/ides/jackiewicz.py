@@ -4,22 +4,17 @@ import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae
 
 
-"""Weissinger's implicit differential equation, see mathworks.
+"""Jackiewicz's implicit differential equation, see Jackiewicz1981.
 
 References:
 -----------
-mathworks: https://www.mathworks.com/help/matlab/ref/ode15i.html#bu7u4dt-1
+Jackiewicz1981: https://eudml.org/doc/15186
 """
 def F(t, y, yp):
-    # return yp - (
-    #     (np.sin(t**2 * yp)) / 16
-    #     - np.sin(np.exp(y)) / 16
-    #     + 1 / t
-    # )
-    return 16 * yp - (
-        (np.sin(t**2 * yp))
-        - np.sin(np.exp(y))
-        + 16 / t
+    return yp - (
+        (np.sin(t**2 * yp)) / 16
+        - np.sin(np.exp(y)) / 16
+        + 1 / t
     )
 
 def true_sol(t):
@@ -32,16 +27,14 @@ if __name__ == "__main__":
     t1 = 4
     t_span = (t0, t1)
 
-    method = "BDF"
-    # method = "Radau"
+    # method = "BDF"
+    method = "Radau"
 
     # initial conditions
-    # y0 = np.array([1])
-    # yp0 = np.array([np.sqrt(6) / 3])
     y0, yp0 = true_sol(t0)
 
     # solver options
-    atol = rtol = 1e-12
+    atol = rtol = 1e-6
 
     # run the solver
     start = time.time()

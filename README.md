@@ -91,12 +91,13 @@ More examples are given in the [examples](examples/) directory, which includes
 * differential algebraic equations (DAE's)
     * [Robertson problem (index 1)](examples/daes/robertson.py)
     * [Stiff transistor amplifier (index 1)](examples/daes/stiff_transistor_amplifier.py)
-    * [Brenan's problem (index 1)](examples/daes/brenan1996.py)
-    * [Jay's probem (index 2)](examples/daes/jay1993.py)
+    * [Brenan's problem (index 1)](examples/daes/brenan.py)
+    * [Jay's probem (index 2)](examples/daes/jay.py)
     * [Cartesian pendulum (index 3)](examples/daes/pendulum.py)
-    * [Particle on circular track (index 3)](examples/daes/particle_on_circular_track.py)
+    * [Particle on circular track (index 3)](examples/daes/arevalo.py)
 * implicit differential equations (IDE's)
     * [Weissinger's implicit equation](examples/ides/weissinger.py)
+    * [jackiewicz's implicit equation](examples/ides/jackiewicz.py)
 
 ## Work-precision
 

@@ -42,8 +42,8 @@ if __name__ == "__main__":
     t1 = 10
     t_span = (t0, t1)
 
-    method = "BDF"
-    # method = "Radau"
+    # method = "BDF"
+    method = "Radau"
 
     # initial conditions
     y0, yp0 = true_sol(t0)
