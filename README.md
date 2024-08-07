@@ -119,11 +119,11 @@ This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dot
 
 Clearly, the family of Radau IIA methods outplay the BDF/NDF methods for low tolerances. For medium to high tolerances, both methods are appropriate.
 
-### Robertson
+<!-- ### Robertson
 
 Similar results are obtained for the Robertson problem. Since this problem does not have an analtical solution, the reference solution is taken from the [archimede ivp testset](https://archimede.uniba.it/~testset/report/rober.pdf). Since all three Radau IIA methods show saturation, it is questionable whether the reference solution is accurate enough.
 
-![Robertson_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Robertson_work_precision.png)
+![Robertson_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Robertson_work_precision.png) -->
 
 ### Arevalo
 
@@ -171,6 +171,19 @@ This problem is solved for $atol = rtol = 10^{-(3 + m / 4)}$, where $m = 0, \dot
 
 ![Arevalo_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Arevalo_work_precision.png)
 
+### Weissinger
+
+A simple example of an implicit differential equations is called Weissinger's equation
+
+$$
+	t y^2 (\dot{y})^3 - y^3 (\dot{y}^2) + t (t^2 + 1) \dot{y} - t^2 y = 0 .
+$$
+
+For $t \neq 0$, it has the analytical solution $y(t) = \sqrt{t^2 + \frac{1}{2}}$ and $\dot{y}(t) = \frac{t}{\sqrt{t^2 + \frac{1}{2}}}$.
+
+Starting at $t_0 = 1$, this problem is solved for $atol = rtol = 10^{-(4 + m / 4)}$, where $m = 0, \dots, 28$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below.
+
+![Weissinger_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Weissinger_work_precision.png)
 
 ## Install
 

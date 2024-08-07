@@ -7,8 +7,10 @@ from .dae import DaeSolver
 
 
 NEWTON_MAXITER_EMBEDDED = 1  # Maximum number of Newton iterations for embedded method.
-DAMPING_RATIO_ERROR_ESTIMATE = -0.8 # Hairer (8.19) is obtained by the choice 1.0. 
-                                    # de Swart proposes 0.067 for s=3.
+# DAMPING_RATIO_ERROR_ESTIMATE = -0.8 # Hairer (8.19) is obtained by the choice 1.0. 
+#                                     # de Swart proposes 0.067 for s=3.
+DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
+                                   # de Swart proposes 0.067 for s=3.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
@@ -86,6 +88,12 @@ def radau_constants(s):
     b_hat = np.linalg.solve(vander[:-1, 1:], rhs)
     v = b - b_hat
 
+    rhs2 = 1 / np.arange(1, s + 1)
+    rhs2[0] -= 1 / gammas[0] # Hairer (8.16)
+
+    b_hat2 = np.linalg.solve(vander[:-1, 1:], rhs2)
+    v2 = b_hat2 - b
+
     # Compute the inverse of the Vandermonde matrix to get the interpolation matrix P.
     P = np.linalg.inv(vander)[1:, 1:]
 
@@ -99,7 +107,7 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    return A_inv, c, T, TI, P, P2, b_hat1, v, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat
+    return A_inv, c, T, TI, P, P2, b_hat1, v, v2, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, b_hat2
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -413,8 +421,8 @@ class RadauDAE(DaeSolver):
         self.stages = stages
         (
             self.A_inv, self.C, self.T, self.TI, self.P, self.P2, 
-            self.b0, self.v, self.MU_REAL, self.MU_COMPLEX, 
-            self.TI_REAL, self.TI_COMPLEX, self.b_hat,
+            self.b0, self.v, self.v2, self.MU_REAL, self.MU_COMPLEX, 
+            self.TI_REAL, self.TI_COMPLEX, self.b_hat, self.b_hat2
         ) = radau_constants(stages)
 
         self.h_abs_old = None
@@ -450,6 +458,7 @@ class RadauDAE(DaeSolver):
         TI = self.TI
         A_inv = self.A_inv
         v = self.v
+        v2 = self.v2
         b0 = self.b0
         P2 = self.P2
 
@@ -537,26 +546,29 @@ class RadauDAE(DaeSolver):
             # error of collocation polynomial of order s
             ############################################
             error_collocation = y - P2[0] @ Y
+
+            # # explicit embedded method with R(z) = +oo for z -> oo
+            # error_embedded = h * (yp / MU_REAL + v2 @ Yp)
             
             # compute implicit embedded method with a single iteration
             # # TODO: Store MU_REAL * v during construction.
             # error_embedded = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
-            # yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
-            # F = self.fun(t_new, y_new, yp_hat_new)
-            # error_embedded = self.solve_lu(LU_real, -F)
+            yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
+            F = self.fun(t_new, y_new, yp_hat_new)
+            error_embedded = self.solve_lu(LU_real, -F)
 
-            # compute implicit embedded method with NEWTON_MAXITER_EMBEDDED iterations
-            y_hat_new = y_new.copy() # initial guess
-            for _ in range(NEWTON_MAXITER_EMBEDDED):
-                yp_hat_new = MU_REAL * (
-                    (y_hat_new - y) / h
-                    - b0 * yp
-                    - self.b_hat @ Yp
-                )
-                F = self.fun(t_new, y_hat_new, yp_hat_new)
-                y_hat_new -= self.solve_lu(LU_real, F)
+            # # compute implicit embedded method with NEWTON_MAXITER_EMBEDDED iterations
+            # y_hat_new = y_new.copy() # initial guess
+            # for _ in range(NEWTON_MAXITER_EMBEDDED):
+            #     yp_hat_new = MU_REAL * (
+            #         (y_hat_new - y) / h
+            #         - b0 * yp
+            #         - self.b_hat @ Yp
+            #     )
+            #     F = self.fun(t_new, y_hat_new, yp_hat_new)
+            #     y_hat_new -= self.solve_lu(LU_real, F)
 
-            error_embedded = y_hat_new - y_new 
+            # error_embedded = y_hat_new - y_new 
 
             # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
             error = (

@@ -32,18 +32,21 @@ def jac(t, y, yp):
     return Jy, Jyp
 
 
+def true_sol(t):
+    return np.atleast_1d(np.sqrt(t**2 + 0.5)), np.atleast_1d(t / np.sqrt(t**2 + 0.5))
+
+
 if __name__ == "__main__":
     # time span
-    t0 = 1
+    t0 = 0.5
     t1 = 10
     t_span = (t0, t1)
 
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
 
     # initial conditions
-    y0 = np.array([np.sqrt(3 / 2)])
-    yp0 = np.array([np.sqrt(6) / 3])
+    y0, yp0 = true_sol(t0)
 
     # solver options
     atol = rtol = 1e-6
@@ -68,7 +71,9 @@ if __name__ == "__main__":
 
     ax.set_xlabel("t")
     ax.set_ylabel("y")
-    ax.plot(t, y[0], "-ok")
+    ax.plot(t, true_sol(t)[0], "-ok", label="y_true")
+    ax.plot(t, y[0], "--xr", label=f"y {method}")
     ax.grid()
+    ax.legend()
 
     plt.show()
