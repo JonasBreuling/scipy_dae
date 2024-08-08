@@ -32,7 +32,7 @@ if __name__ == "__main__":
     h0s = 1e-2 * rtols
 
     # time span
-    t0 = 1
+    t0 = np.sqrt(0.5)
     t1 = 10
 
     # initial conditions

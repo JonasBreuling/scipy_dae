@@ -93,6 +93,7 @@ More examples are given in the [examples](examples/) directory, which includes
     * [Stiff transistor amplifier (index 1)](examples/daes/stiff_transistor_amplifier.py)
     * [Brenan's problem (index 1)](examples/daes/brenan.py)
     * [Jay's probem (index 2)](examples/daes/jay.py)
+    * [Knife edge (index 2)](examples/daes/knife_edge.py)
     * [Cartesian pendulum (index 3)](examples/daes/pendulum.py)
     * [Particle on circular track (index 3)](examples/daes/arevalo.py)
 * implicit differential equations (IDE's)
@@ -233,9 +234,9 @@ $$
 	t y^2 (\dot{y})^3 - y^3 (\dot{y}^2) + t (t^2 + 1) \dot{y} - t^2 y = 0 .
 $$
 
-For $t \neq 0$, it has the analytical solution $y(t) = \sqrt{t^2 + \frac{1}{2}}$ and $\dot{y}(t) = \frac{t}{\sqrt{t^2 + \frac{1}{2}}}$.
+It has the analytical solution $y(t) = \sqrt{t^2 + \frac{1}{2}}$ and $\dot{y}(t) = \frac{t}{\sqrt{t^2 + \frac{1}{2}}}$.
 
-Starting at $t_0 = 1$, this problem is solved for $atol = rtol = 10^{-(4 + m / 4)}$, where $m = 0, \dots, 28$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below.
+Starting at $t_0 = \sqrt(1 / 2)$, this problem is solved for $atol = rtol = 10^{-(4 + m / 4)}$, where $m = 0, \dots, 28$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below.
 
 ![Weissinger_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Weissinger_work_precision.png)
 
