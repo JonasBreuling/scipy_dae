@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
-m = 1
-Theta = 0.1
+m = 1.25
+Theta = 0.13
 a = 0.1
 g = 9.81
 # Omega = 1
@@ -39,18 +39,19 @@ def F(t, vy, vyp):
     return F
 
 def sol_true(t):
-    fac = g * salpha / (2 * Omega**2)
-
-    x = fac * np.sin(Omega * t)**2
-    y = fac * (Omega * t - 0.5 * np.sin(2 * Omega * t))
+    x = (g * salpha / (2 * Omega**2)) * np.sin(Omega * t)**2
+    y = (g * salpha / (2 * Omega**2)) * (Omega * t - 0.5 * np.sin(2 * Omega * t))
     phi = Omega * t
     
-    u = 2 * fac * np.sin(Omega * t) * np.cos(Omega * t) * Omega
-    v = fac * (Omega - Omega * np.cos(2 * Omega * t))
+    u =  (g * salpha / Omega) * np.sin(Omega * t) * np.cos(Omega * t)
+    # v = (g * salpha / (2 * Omega)) * (1 - np.cos(2 * Omega * t))
+    v = (g * salpha / Omega) * np.sin(Omega * t)**2
     omega = Omega * np.ones_like(t)
     
-    La = -np.sin(0.5 * Omega * t)**2 * salpha * g * 4 / Omega
-    Lap = -np.sin(0.5 * Omega * t) * np.cos(0.5 * Omega * t) * salpha * g * 4
+    # La = -np.sin(0.5 * Omega * t)**2 * salpha * g * 4 / Omega
+    # Lap = -np.sin(0.5 * Omega * t) * np.cos(0.5 * Omega * t) * salpha * g * 4
+    La = (2 * m * g * salpha / Omega) * (np.cos(Omega * t) - 1)
+    Lap = -2 * m * g * salpha * np.sin(Omega * t)
 
     return np.array([
         x,
