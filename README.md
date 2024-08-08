@@ -97,13 +97,15 @@ More examples are given in the [examples](examples/) directory, which includes
     * [Particle on circular track (index 3)](examples/daes/arevalo.py)
 * implicit differential equations (IDE's)
     * [Weissinger's implicit equation](examples/ides/weissinger.py)
-    * [jackiewicz's implicit equation](examples/ides/jackiewicz.py)
+    * [Jackiewicz's implicit equation](examples/ides/jackiewicz.py)
 
 ## Work-precision
 
-### Brenan
+In order to investigate the work precision of the implemented solvers, we use different DAE examples with differentiation index 1, 2 and 3 as well as and IDE example.
 
-In order to investigate the work precision of the implemented solvers, we use [Brenan's index 1 problem](https://doi.org/10.1137/1.9781611971224.ch4). It is described by the system of differential algebraic equations
+### Index 1 DAE - Brenan
+
+[Brenan's index 1 problem](https://doi.org/10.1137/1.9781611971224.ch4) is described by the system of differential algebraic equations
 
 $$
 \begin{aligned}
@@ -126,9 +128,60 @@ Similar results are obtained for the Robertson problem. Since this problem does 
 
 ![Robertson_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Robertson_work_precision.png) -->
 
-### Arevalo
+### Index 2 DAE - knife edge
 
-In a final example, we investigate the work precision of the implemented solvers using [Arevalo's index 3 problem](https://link.springer.com/article/10.1007/BF01732606). It is described by the system of differential algebraic equations of differential index 3:
+The [knife edge index 2 problem](https://doi.org/10.1007/978-1-4939-3017-3) is a simple mechanical example with nonholonomic constraint. It is described by the system of differential algebraic equations
+
+$$
+\begin{aligned}
+	\dot{x} &= u \\
+	\dot{y} &= v \\
+	\dot{\varphi} &= \omega \\
+	m \dot{u} &= m g \sin\alpha + \sin\varphi \lambda \\
+	m \dot{v} &= -\cos\varphi \lambda \\
+	J \dot{\omega} &= 0 \\
+	0 &= u \sin\varphi - v \cos\varphi .
+\end{aligned}
+$$
+
+Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting system is given as
+
+$$
+\begin{aligned}
+	\dot{x} &= u \\
+	\dot{y} &= v \\
+	\dot{\varphi} &= \omega \\
+	m \dot{u} &= m g \sin\alpha + \sin\varphi \dot{\Lambda} \\
+	m \dot{v} &= -\cos\varphi \dot{\Lambda} \\
+	J \dot{\omega} &= 0 \\
+	0 &= u \sin\varphi - v \cos\varphi .
+\end{aligned}
+$$
+
+For the initial conditions $t_0 = 0$, $x(t_0) = \dot{x}(t_0) = y(t_0) = \dot{y}(t_0) = \varphi(t_0) = 0$ and $\dot{\varphi}(t_0) = \Omega$, a closed form solution is given by
+
+$$
+\begin{aligned}
+	x(t) &= \frac{g \sin\alpha}{2 \Omega^2} \sin^2(\Omega t) \\
+	y(t) &= \frac{g \sin\alpha}{2 \Omega^2} \left(\Omega t - \frac{1}{2}\sin(2 \Omega t)\right) \\
+	\varphi(t) &= \Omega t \\
+	u(t) &= \frac{g \sin\alpha}{\Omega} \sin(\Omega t) \cos(\Omega t) \\
+	v(t) &= \frac{g \sin\alpha}{2 \Omega} \left(1 - \cos(2 \Omega t)\right) = \frac{g \sin\alpha}{\Omega} \sin^2(\Omega t) \\
+	\omega(t) &= \Omega \\
+	\lambda(t) &= \frac{2g \sin\alpha}{\Omega} (\cos(\Omega t) - 1) ,
+    % (2 * m * g * salpha / Omega) * (np.cos(Omega * t) - 1)
+\end{aligned}
+$$
+
+with the Lagrange multiplier $\dot{\Lambda}(t) = - 2g \sin\alpha \sin(\Omega t)$.
+
+This problem is solved for $atol = rtol = 10^{-(1 + m / 4)}$, where $m = 0, \dots, 32$. The resulting error at $t_1 = 2 \pi / \Omega$ is compared with the elapsed time of the used solvers in the figure below.
+
+![knife_edge_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/knife_edge_work_precision.png)
+
+### Index 3 DAE - Arevalo
+
+[Arevalo's index 3 problem](https://link.springer.com/article/10.1007/BF01732606) describes the motion of a particle on a circular track. It is described by the system of differential algebraic equations
 
 $$
 \begin{aligned}
@@ -172,7 +225,7 @@ This problem is solved for $atol = rtol = 10^{-(3 + m / 4)}$, where $m = 0, \dot
 
 ![Arevalo_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Arevalo_work_precision.png)
 
-### Weissinger
+### IDE - Weissinger
 
 A simple example of an implicit differential equations is called Weissinger's equation
 
