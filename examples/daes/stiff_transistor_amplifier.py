@@ -17,72 +17,60 @@ References
 # Problem parameters
 Ub = 6
 R0 = 1000
-R = 9000
+Ri = 9000
+R1, R2, R3, R4, R5 = 9000 * np.ones(5)
 alpha = 0.99
-beta = 1e-6
-Uf = 0.026
 Ue = lambda t: 0.4 * np.sin(200 * np.pi * t)  
+f = lambda U: 1e-6 * (np.exp(U / 0.026) - 1)
+C1, C2, C3 = 1e-6 * np.arange(1, 4)
 
-# The constant, singular mass matrix
-c = 1e-6 * np.arange(1, 4)
-M = np.zeros((5, 5))
-M[0, 0] = -c[0]
-M[0, 1] =  c[0]
-M[1, 0] =  c[0]
-M[1, 1] = -c[0]
-M[2, 2] = -c[1]
-M[3, 3] = -c[2]
-M[3, 4] =  c[2]
-M[4, 3] =  c[2]
-M[4, 4] = -c[2]
-
-# Hairer and Wanner's RADAU5 requires consistent initial conditions
-# which they take to be
-u0 = np.zeros(5)
-u0[1] = Ub / 2
-u0[2] = Ub / 2
-u0[3] = Ub
-
-# Perturb the algebraic variables to test initialization.
-u0[3] = u0[3] + 0.1
-u0[4] = u0[4] + 0.1
+# initial states
+y0 = np.zeros(5)
+y0[1] = Ub * R1 / (R1 + R2)
+y0[2] = Ub * R1 / (R1 + R2)
+y0[3] = Ub
 
 
-def F(t, u, up):
-    f23 = beta * (np.exp((u[1] - u[2]) / Uf) - 1)
-    dudt = np.array([
-        -(Ue(t) - u[0]) / R0,
-        -(Ub / R - u[1] * 2 / R - (1 - alpha) * f23),
-        -(f23 - u[2] / R),
-        -((Ub - u[3]) / R - alpha * f23),
-        u[4] / R,
+def F(t, y, yp):
+    U1, U2, U3, U4, U5 = y
+    Up1, Up2, Up3, Up4, Up5 = yp
+
+    f23 = f(U2 - U3)
+
+    return np.array([
+        (Ue(t) - U1) / R0 + C1 * (Up2 - Up1),
+        (Ub - U2) / R2 - U2 / R1 + C1 * (Up1 - Up2) - (1 - alpha) * f23,
+        f23 - U3 / R3 - C2 * Up3,
+        (Ub - U4) / R4 + C3 * (Up5 - Up4) - alpha * f23,
+        -U5 / R5 + C3 * (Up4 - Up5),
     ])
-    return M @ up - dudt
 
 
 # time span
 t0 = 0
-t1 = 0.05
+t1 = 0.15
 t_span = (t0, t1)
+t_eval = np.linspace(t0, t1, num=int(1e3))
 
 method = "Radau"
 # method = "BDF" # alternative solver
 
 # consistent initial conditions
-up0 = np.zeros_like(u0)
-print(f"u0: {u0}")
+up0 = np.zeros_like(y0)
+print(f"u0: {y0}")
 print(f"up0: {up0}")
-u0, up0, fnorm = consistent_initial_conditions(F, t0, u0, up0)
-print(f"u0: {u0}")
+y0, up0, fnorm = consistent_initial_conditions(F, t0, y0, up0)
+print(f"u0: {y0}")
 print(f"up0: {up0}")
 print(f"fnorm: {fnorm}")
+exit()
 
 # solver options
 atol = rtol = 1e-6
 
 # dae solution
 start = time.time()
-sol = solve_dae(F, t_span, u0, up0, atol=atol, rtol=rtol, method=method)
+sol = solve_dae(F, t_span, y0, up0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=7)
 end = time.time()
 print(f"elapsed time: {end - start}")
 t = sol.t
