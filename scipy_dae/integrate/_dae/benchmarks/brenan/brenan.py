@@ -19,6 +19,20 @@ def F(t, y, yp):
     return F
 
 
+def sol_true(t):
+    y =  np.array([
+        np.exp(-t) + t * np.sin(t),
+        np.sin(t),
+    ])
+
+    yp =  np.array([
+        -np.exp(-t) + np.sin(t) + t * np.cos(t),
+        np.cos(t),
+    ])
+
+    return y, yp
+
+
 if __name__ == "__main__":
     # exponents
     m_max = 45
@@ -34,13 +48,9 @@ if __name__ == "__main__":
     t1 = 10
 
     # initial conditions
-    y0 = np.array([1, 0], dtype=float)
-    yp0 = np.array([-1, 1], dtype=float)
+    y0, yp0 = sol_true(t0)
 
     # reference solution
-    y_ref = np.array([
-        np.exp(-t1) + t1 * np.sin(t1),
-        np.sin(t1),
-    ])
+    y_ref = sol_true(t1)[0]
 
     benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, "Brenan", y_ref)

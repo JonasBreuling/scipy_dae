@@ -40,7 +40,7 @@ int main(void)
   void* mem;
   N_Vector yy, yp, avtol;
   sunrealtype rtol, atol, *yval, *ypval, *atval;
-  sunrealtype t0, t1, tret;
+  sunrealtype t0, tout1, tout, tret;
   int iout, retval, retvalr;
   SUNMatrix A;
   SUNLinearSolver LS;
@@ -56,7 +56,7 @@ int main(void)
   NLS                  = NULL;
 
   double m_max = 32.0;
-  for (double m=0.0; m<m_max+1; m++) {
+  for (double m=1.0; m<m_max + 1.0; m++) {
 
     /* Create SUNDIALS context */
     retval = SUNContext_Create(SUN_COMM_NULL, &ctx);
@@ -82,7 +82,7 @@ int main(void)
     ypval[2] = SUN_RCONST(0.0);
 
     /* define tolerances */
-    rtol = pow(10, -(5.5 + m / 4));
+    rtol = pow(10, -(4 + m / 4));
 
     atval    = N_VGetArrayPointer(avtol);
     atval[0] = 1e-2 * rtol;
@@ -92,8 +92,8 @@ int main(void)
     int mxsteps = 1e8;
 
     /* Integration limits */
-    t0 = SUN_RCONST(0.0);
-    t1 = SUN_RCONST(1.0e11);
+    t0    = SUN_RCONST(0.0);
+    tout1 = SUN_RCONST(1.0e11);
 
     /* Call IDACreate and IDAInit to initialize IDA memory */
     mem = IDACreate(ctx);
@@ -130,9 +130,14 @@ int main(void)
     /* Maximum number of steps */
     IDASetMaxNumSteps(mem, mxsteps);
 
-    /* Call IDASolve */
+    /* In loop, call IDASolve, print results, and test for error.
+      Break out of loop when NOUT preset output times have been reached. */
+
+    iout = 0;
+    tout = tout1;
+
     clock_t start = clock();
-    retval = IDASolve(mem, t1, &tret, yy, yp, IDA_NORMAL);
+    retval = IDASolve(mem, tout, &tret, yy, yp, IDA_NORMAL);
     clock_t end = clock();
     double elapsed_time = (double)(end - start) / CLOCKS_PER_SEC;
 
@@ -185,13 +190,10 @@ int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector rr,
   ypval = N_VGetArrayPointer(yp);
   rval  = N_VGetArrayPointer(rr);
 
-  rval[0] = ypval[0] - (
-    -0.04 * yval[0] + 1.0e4 * yval[1] * yval[2]
-  );
-  rval[1] = ypval[1] - (
-    0.04 * yval[0] - 1.0e4 * yval[1] * yval[2] - 3.0e7 * yval[1] * yval[1]
-  );
-  rval[2] = yval[0] + yval[1] + yval[2] - 1.0;
+  rval[0] = SUN_RCONST(-0.04) * yval[0] + SUN_RCONST(1.0e4) * yval[1] * yval[2];
+  rval[1] = -rval[0] - SUN_RCONST(3.0e7) * yval[1] * yval[1] - ypval[1];
+  rval[0] -= ypval[0];
+  rval[2] = yval[0] + yval[1] + yval[2] - SUN_RCONST(1.0);
 
   return (0);
 }

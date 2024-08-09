@@ -27,6 +27,7 @@ int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector resval,
         void* user_data);
 
 /* Prototypes of private functions */
+int sol_true(sunrealtype t, N_Vector yy, N_Vector yp);
 static int check_retval(void* returnvalue, const char* funcname, int opt);
 
 /*
@@ -38,9 +39,9 @@ static int check_retval(void* returnvalue, const char* funcname, int opt);
 int main(void)
 {
   void* mem;
-  N_Vector yy, yp, avtol;
+  N_Vector yy, yp, avtol, y_true, yp_true, w, diff;
   sunrealtype rtol, atol, *yval, *ypval, *atval;
-  sunrealtype t0, t1, tout, tret;
+  sunrealtype t0, t1, tret;
   int iout, retval, retvalr;
   SUNMatrix A;
   SUNLinearSolver LS;
@@ -49,14 +50,19 @@ int main(void)
   FILE* FID;
 
   mem = NULL;
-  yy = yp = avtol = NULL;
+  yy = yp = avtol = y_true = yp_true = w = diff = NULL;
   yval = ypval = atval = NULL;
   A                    = NULL;
   LS                   = NULL;
   NLS                  = NULL;
 
   double m_max = 45.0;
-  for (double m=0.0; m<m_max+1; m++) {
+  for (double m=0.0; m<m_max+1.0; m++) {
+
+    /* Integration limits */
+    int mxsteps = 1e8;
+    t0 = 0.0;
+    t1 = 10.0;
 
     /* Create SUNDIALS context */
     retval = SUNContext_Create(SUN_COMM_NULL, &ctx);
@@ -69,36 +75,28 @@ int main(void)
     if (check_retval((void*)yp, "N_VNew_Serial", 0)) { return (1); }
     avtol = N_VClone(yy);
     if (check_retval((void*)avtol, "N_VNew_Serial", 0)) { return (1); }
+    y_true = N_VClone(yy);
+    if (check_retval((void*)y_true, "N_VNew_Serial", 0)) { return (1); }
+    yp_true = N_VClone(yy);
+    if (check_retval((void*)yp_true, "N_VNew_Serial", 0)) { return (1); }
+    w = N_VClone(yy);
+    N_VConst(1.0, w);  // Set all weights to 1.0
+    if (check_retval((void*)w, "N_VNew_Serial", 0)) { return (1); }
+    diff = N_VClone(yy);
+    if (check_retval((void*)diff, "N_VNew_Serial", 0)) { return (1); }
 
-    /* Create and initialize  y, y', and absolute tolerance vectors. */
-    yval    = N_VGetArrayPointer(yy);
-    yval[0] = SUN_RCONST(1.0);
-    yval[1] = SUN_RCONST(0.0);
-
-    ypval    = N_VGetArrayPointer(yp);
-    ypval[0] = SUN_RCONST(-1.0);
-    ypval[1] = SUN_RCONST(1.0);
+    /* Initialize  y, y' */
+    sol_true(t0, yy, yp);
     
     /* define tolerances */
     rtol = pow(10, -(1 + m / 4));
-
-    atval    = N_VGetArrayPointer(avtol);
-    atval[0] = rtol;
-    atval[1] = rtol;
-    atval[2] = rtol;
-
-    int mxsteps = 1e8;
-
-    /* Integration limits */
-    t0 = SUN_RCONST(0.0);
-    t1 = SUN_RCONST(10.0);
-
+    N_VConst(rtol, avtol);
+    
     /* Call IDACreate and IDAInit to initialize IDA memory */
     mem = IDACreate(ctx);
     if (check_retval((void*)mem, "IDACreate", 0)) { return (1); }
     retval = IDAInit(mem, res, t0, yy, yp);
     if (check_retval(&retval, "IDAInit", 1)) { return (1); }
-  
     /* Call IDASVtolerances to set tolerances */
     retval = IDASVtolerances(mem, rtol, avtol);
     if (check_retval(&retval, "IDASVtolerances", 1)) { return (1); }
@@ -135,18 +133,17 @@ int main(void)
     clock_t end = clock();
     double elapsed_time = (double)(end - start) / CLOCKS_PER_SEC;
 
-    /* Print elapsed time and error to a file in CSV format */
-    yval  = N_VGetArrayPointer(yy);
+    /* compute error*/
+    sol_true(t1, y_true, yp_true);
+    N_VLinearSum(1.0, yy, -1.0, y_true, diff);
+    double error = N_VWL2Norm(diff, w);
 
-    double diff_y1 = yval[0] - (exp(-t1) + t1 * sin(t1));
-    double diff_y2 = yval[1] - sin(t1);
-    double error = sqrt(diff_y1 * diff_y1 + diff_y2 * diff_y2);
-
+    /* write results to file */
     FID = fopen("brenan_errors_IDA.csv", "a");
     fprintf(FID, "%17.17e, %17.17e\n", error, elapsed_time);
     fclose(FID);
 
-    /* Print rtol, elapsed time and error to a file in CSV format */
+    /* Print rtol, elapsed time and error */
     printf("rtol: %e, elapsed time: %e, error: %e\n", rtol, elapsed_time, error);
 
   }
@@ -156,9 +153,13 @@ int main(void)
   SUNNonlinSolFree(NLS);
   SUNLinSolFree(LS);
   SUNMatDestroy(A);
-  N_VDestroy(avtol);
   N_VDestroy(yy);
   N_VDestroy(yp);
+  N_VDestroy(avtol);
+  N_VDestroy(y_true);
+  N_VDestroy(yp_true);
+  N_VDestroy(w);
+  N_VDestroy(diff);
   SUNContext_Free(&ctx);
 
   return (retval);
@@ -193,6 +194,22 @@ int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector rr,
  * Private functions
  *--------------------------------------------------------------------
  */
+
+int sol_true(sunrealtype t, N_Vector yy, N_Vector yp)
+{
+  sunrealtype *yval, *ypval;
+
+  yval  = N_VGetArrayPointer(yy);
+  ypval = N_VGetArrayPointer(yp);
+
+  yval[0] = exp(-t) + t * sin(t);
+  yval[1] = sin(t);
+
+  ypval[0] = -exp(-t) + sin(t) + t * cos(t);
+  ypval[1] = cos(t);
+
+  return (0);
+}
 
 /*
  * Check function return value...

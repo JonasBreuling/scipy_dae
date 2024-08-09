@@ -20,7 +20,15 @@
 #endif
 
 /* Problem Constants */
-#define NEQ  6
+#define NEQ  7
+
+#define pi acos(-1)
+#define m 1.25
+#define Theta 0.13
+#define g 9.81
+#define Omega (pi / 3.0)
+#define alpha (pi / 4.0)
+#define salpha sin(alpha)
 
 /* Prototypes of functions called by IDA */
 int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector resval,
@@ -40,7 +48,7 @@ int main(void)
 {
   void* mem;
   N_Vector yy, yp, avtol, y_true, yp_true, w, diff;
-  sunrealtype rtol, atol, *yval, *ypval, *atval;
+  sunrealtype rtol, *yval, *ypval, *atval;
   sunrealtype t0, t1, tout, tret;
   int iout, retval, retvalr;
   SUNMatrix A;
@@ -56,13 +64,13 @@ int main(void)
   LS                   = NULL;
   NLS                  = NULL;
 
-  double m_max = 24.0;
-  for (double m=0.0; m<m_max+1.0; m++) {
+  double m_max = 32.0;
+  for (double mm=0.0; mm<m_max+1.0; mm++) {
 
     /* Integration limits */
     int mxsteps = 1e8;
     t0 = 0.0;
-    t1 = 5.0;
+    t1 = (2.0 * pi) / Omega;
 
     /* Create SUNDIALS context */
     retval = SUNContext_Create(SUN_COMM_NULL, &ctx);
@@ -87,9 +95,9 @@ int main(void)
 
     /* Initialize  y, y' */
     sol_true(t0, yy, yp);
-      
+    
     /* define tolerances */
-    rtol = pow(10, -(3 + m / 4));
+    rtol = pow(10, -(1 + mm / 4));
     N_VConst(rtol, avtol);
 
     /* Call IDACreate and IDAInit to initialize IDA memory */
@@ -138,9 +146,9 @@ int main(void)
     sol_true(t1, y_true, yp_true);
     N_VLinearSum(1.0, yy, -1.0, y_true, diff);
     double error = N_VWL2Norm(diff, w);
-
+  
     /* write results to file */
-    FID = fopen("arevalo_errors_IDA.csv", "a");
+    FID = fopen("knife_edge_errors_IDA.csv", "a");
     fprintf(FID, "%17.17e, %17.17e\n", error, elapsed_time);
     fclose(FID);
 
@@ -186,22 +194,30 @@ int res(sunrealtype tres, N_Vector yy, N_Vector yp, N_Vector rr,
 
   sunrealtype x = yval[0];
   sunrealtype y = yval[1];
-  sunrealtype u = yval[2];
-  sunrealtype v = yval[3];
+  sunrealtype phi = yval[2];
+  sunrealtype u = yval[3];
+  sunrealtype v = yval[4];
+  sunrealtype omega = yval[5];
+  sunrealtype La = yval[6];
 
   sunrealtype x_dot = ypval[0];
   sunrealtype y_dot = ypval[1];
-  sunrealtype u_dot = ypval[2];
-  sunrealtype v_dot = ypval[3];
-  sunrealtype lap = ypval[4];
-  sunrealtype mup = ypval[5];
+  sunrealtype phi_dot = ypval[2];
+  sunrealtype u_dot = ypval[3];
+  sunrealtype v_dot = ypval[4];
+  sunrealtype omega_dot = ypval[5];
+  sunrealtype Lap = ypval[6];
 
-  rval[0] = x_dot - (u + x * mup);
-  rval[1] = y_dot - (v + y * mup);
-  rval[2] = u_dot - (2 * y + x * lap);
-  rval[3] = v_dot - (-2 * x + y * lap);
-  rval[4] = x * u + y * v;
-  rval[5] = x * x + y * y - 1.0;
+  sunrealtype sphi = sin(phi);
+  sunrealtype cphi = cos(phi);
+
+  rval[0] = x_dot - u;
+  rval[1] = y_dot - v;
+  rval[2] = phi_dot - omega;
+  rval[3] = m * u_dot - m * g * salpha - sphi * Lap;
+  rval[4] = m * v_dot + cphi * Lap;
+  rval[5] = Theta * omega_dot;
+  rval[6] = u * sphi - v * cphi;
 
   return (0);
 }
@@ -216,24 +232,43 @@ int sol_true(sunrealtype t, N_Vector yy, N_Vector yp)
 {
   sunrealtype *yval, *ypval;
 
-  sunrealtype t2 = t * t;
+  sunrealtype x = (g * salpha / (2.0 * pow(Omega, 2.0))) * pow(sin(Omega * t), 2.0);
+  sunrealtype y = (g * salpha / (2.0 * pow(Omega, 2.0))) * (Omega * t - 0.5 * sin(2 * Omega * t));
+  sunrealtype phi = Omega * t;
+  
+  sunrealtype u =  (g * salpha / Omega) * sin(Omega * t) * cos(Omega * t);
+  sunrealtype v = (g * salpha / Omega) * pow(sin(Omega * t), 2.0);
+  sunrealtype omega = Omega;
+  
+  sunrealtype La = (2.0 * m * g * salpha / Omega) * (cos(Omega * t) - 1.0);
+  sunrealtype La_dot = -2.0 * m * g * salpha * sin(Omega * t);
+
+  sunrealtype x_dot = u;
+  sunrealtype y_dot = v;
+  sunrealtype phi_dot = omega;
+
+  sunrealtype u_dot = g * salpha + sin(Omega * t) * La_dot / m;
+  sunrealtype v_dot = -cos(Omega * t) * La_dot / m;
+  sunrealtype omega_dot = 0;
 
   yval  = N_VGetArrayPointer(yy);
   ypval = N_VGetArrayPointer(yp);
 
-  yval[0] = sin(t2);
-  yval[1] = cos(t2);
-  yval[2] = 2.0 * t * cos(t2);
-  yval[3] = -2.0 * t * sin(t2);
-  yval[4] = -4.0 / 3.0 * t2 * t;
-  yval[5] = 0;
+  yval[0] = x;
+  yval[1] = y;
+  yval[2] = phi;
+  yval[3] = u;
+  yval[4] = v;
+  yval[5] = omega;
+  yval[6] = La;
 
-  ypval[0] = 2.0 * t * cos(t2);
-  ypval[1] = -2.0 * t * sin(t2);
-  ypval[2] = 2.0 * cos(t2) - 4.0 * t2 * sin(t2);
-  ypval[3] = -2.0 * sin(t2) - 4.0 * t2 * cos(t2);
-  ypval[4] = -4.0 * t2;
-  ypval[5] = 0;
+  ypval[0] = x_dot;
+  ypval[1] = y_dot;
+  ypval[2] = phi_dot;
+  ypval[3] = u_dot;
+  ypval[4] = v_dot;
+  ypval[5] = omega_dot;
+  ypval[6] = La_dot;
 
   return (0);
 }

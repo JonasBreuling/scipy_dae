@@ -4,7 +4,6 @@ from scipy_dae.integrate._dae.benchmarks.common import benchmark
 
 m = 1.25
 Theta = 0.13
-a = 0.1
 g = 9.81
 Omega = np.pi / 3
 alpha = np.pi / 4
@@ -25,7 +24,7 @@ def F(t, vy, vyp):
 
     F = np.zeros_like(vy, dtype=np.common_type(vy, vyp))
 
-    # Bloch 2005, equation (1.7.6)
+    # Bloch 2015 - Section 1.6
     F[0] = xp - u
     F[1] = yp - v
     F[2] = phip - omega
