@@ -163,17 +163,3 @@ def test_weissinger(y0_and_yp0_and_fixed_y0_and_fixed_yp0, jac):
     assert np.allclose(y0, np.array([np.sqrt(3 / 2)]), rtol=rtol, atol=atol)
     assert np.allclose(yp0, np.array([np.sqrt(6) / 3]), rtol=rtol, atol=atol)
     assert np.allclose(f0, np.zeros_like(f0), rtol=rtol, atol=atol)
-
-if __name__ == "__main__":
-    # python -m pytest scipy_dae/integrate/_dae/tests/test_consistent_initial_conditions.py 
-    for p in parameters_implicit:
-        test_implicit(*p)
-
-    for p in parameters_algebraic:
-        test_algebraic(*p)
-
-    for p in parameters_differential:
-        test_differential(*p)
-
-    for p in parameters_weissinger:
-        test_weissinger(*p)
