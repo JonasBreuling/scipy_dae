@@ -17,7 +17,7 @@ Sundials IDA (page 6): https://computing.llnl.gov/sites/default/files/ida_exampl
 def f(t, y):
     y1, y2, y3 = y
 
-    yp = np.zeros(3, dtype=float)
+    yp = np.zeros(3, dtype=y.dtype)
     yp[0] = -0.04 * y1 + 1e4 * y2 * y3
     yp[1] = 0.04 * y1 - 1e4 * y2 * y3 - 3e7 * y2**2
     yp[2] = 3e7 * y2**2
@@ -28,7 +28,7 @@ def F(t, y, yp):
     y1, y2, y3 = y
     y1p, y2p, y3p = yp
 
-    F = np.zeros(3, dtype=float)
+    F = np.zeros(3, dtype=np.common_type(y, yp))
     F[0] = y1p - (-0.04 * y1 + 1e4 * y2 * y3)
     F[1] = y2p - (0.04 * y1 - 1e4 * y2 * y3 - 3e7 * y2**2)
     F[2] = y1 + y2 + y3 - 1

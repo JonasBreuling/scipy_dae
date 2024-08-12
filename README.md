@@ -39,7 +39,7 @@ def F(t, y, yp):
     y1, y2, y3 = y
     y1p, y2p, y3p = yp
 
-    F = np.zeros(3, dtype=y.dtype)
+    F = np.zeros(3, dtype=np.common_type(y, yp))
     F[0] = y1p - (-0.04 * y1 + 1e4 * y2 * y3)
     F[1] = y2p - (0.04 * y1 - 1e4 * y2 * y3 - 3e7 * y2**2)
     F[2] = y1 + y2 + y3 - 1 # algebraic equation
@@ -69,10 +69,10 @@ y = sol.y
 
 # visualization
 fig, ax = plt.subplots()
-ax.set_xlabel("t")
 ax.plot(t, y[0], label="y1")
 ax.plot(t, y[1] * 1e4, label="y2 * 1e4")
 ax.plot(t, y[2], label="y3")
+ax.set_xlabel("t")
 ax.set_xscale("log")
 ax.legend()
 ax.grid()
@@ -102,7 +102,7 @@ More examples are given in the [examples](examples/) directory, which includes
 
 ## Work-precision
 
-In order to investigate the work precision of the implemented solvers, we use different DAE examples with differentiation index 1, 2 and 3 as well as and IDE example.
+In order to investigate the work precision of the implemented solvers, we use different DAE examples with differentiation index 1, 2 and 3 as well as IDE example.
 
 ### Index 1 DAE - Brenan
 
@@ -169,7 +169,7 @@ $$
 	u(t) &= \frac{g \sin\alpha}{\Omega} \sin(\Omega t) \cos(\Omega t) \\
 	v(t) &= \frac{g \sin\alpha}{2 \Omega} \left(1 - \cos(2 \Omega t)\right) = \frac{g \sin\alpha}{\Omega} \sin^2(\Omega t) \\
 	\omega(t) &= \Omega \\
-	\lambda(t) &= \frac{2g \sin\alpha}{\Omega} (\cos(\Omega t) - 1) ,
+	\Lambda(t) &= \frac{2g \sin\alpha}{\Omega} (\cos(\Omega t) - 1) ,
     % (2 * m * g * salpha / Omega) * (np.cos(Omega * t) - 1)
 \end{aligned}
 $$
@@ -220,7 +220,7 @@ $$
 \end{aligned}
 $$
 
-with the Lagrange multipliers $\dot{\Gamma} = 0$ and $\dot{\Lambda} = -4t^2$.
+with the Lagrange multipliers $\dot{\Lambda} = -4t^2$ and $\dot{\Gamma} = 0$.
 
 This problem is solved for $atol = rtol = 10^{-(3 + m / 4)}$, where $m = 0, \dots, 24$. The resulting error at $t_1 = 5$ is compared with the elapsed time of the used solvers in the figure below.
 
@@ -236,7 +236,7 @@ $$
 
 It has the analytical solution $y(t) = \sqrt{t^2 + \frac{1}{2}}$ and $\dot{y}(t) = \frac{t}{\sqrt{t^2 + \frac{1}{2}}}$.
 
-Starting at $t_0 = \sqrt(1 / 2)$, this problem is solved for $atol = rtol = 10^{-(4 + m / 4)}$, where $m = 0, \dots, 28$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below.
+Starting at $t_0 = \sqrt{1 / 2}$, this problem is solved for $atol = rtol = 10^{-(4 + m / 4)}$, where $m = 0, \dots, 28$. The resulting error at $t_1 = 10$ is compared with the elapsed time of the used solvers in the figure below.
 
 ![Weissinger_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Weissinger_work_precision.png)
 
