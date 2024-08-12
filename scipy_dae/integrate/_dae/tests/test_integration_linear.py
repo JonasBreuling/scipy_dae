@@ -28,7 +28,7 @@ parameters_linear = product(
     [None, J_linear, J_linear_sparse] # jac
 )
 @pytest.mark.parametrize("method, jac", parameters_linear)
-def test_linear(method, jac):
+def test_integration_linear(method, jac):
     rtol = 1e-3
     atol = 1e-6
     y0 = [0, 2]
@@ -47,3 +47,7 @@ def test_linear(method, jac):
     y_true = sol_linear(res.t)
     e = compute_error(res.y, y_true, rtol, atol)
     assert_(np.all(e < 5))
+
+# if __name__ == "__main__":
+#     for param in parameters_linear:
+#         test_integration_linear(*param)

@@ -52,6 +52,32 @@ def test_check_arguments(method):
     t_span = (0, 1)
     with pytest.raises(ValueError) as excinfo:
         solve_dae(F, t_span, y0, yp0, method=method)
+    assert (
+        "`y0` and `yp0` must be of same shape."
+        in str(excinfo.value)
+    )
+
+    # All components of the initial state `y0` must be finite.
+    y0 = np.arange(1, 3) * np.infty
+    yp0 = np.arange(2)
+    t_span = (0, 1)
+    with pytest.raises(ValueError) as excinfo:
+        solve_dae(F, t_span, y0, yp0, method=method)
+    assert (
+        "All components of the initial state `y0` must be finite."
+        in str(excinfo.value)
+    )
+    
+    # All components of the initial state `yp0` must be finite.
+    y0 = np.arange(2)
+    yp0 = np.arange(1, 3) * np.infty
+    t_span = (0, 1)
+    with pytest.raises(ValueError) as excinfo:
+        solve_dae(F, t_span, y0, yp0, method=method)
+    assert (
+        "All components of the initial state `yp0` must be finite."
+        in str(excinfo.value)
+    )
 
 
 # if __name__ == "__main__":

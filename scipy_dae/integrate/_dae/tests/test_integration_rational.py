@@ -1,8 +1,8 @@
 from itertools import product
 import numpy as np
-from numpy.testing import assert_, assert_allclose, assert_equal, suppress_warnings
+from numpy.testing import assert_, assert_allclose, assert_equal
 import pytest
-from scipy.sparse import identity
+from scipy.sparse import identity, csc_matrix
 from scipy_dae.integrate import solve_dae
 
 from scipy.integrate._ivp.tests.test_ivp import fun_rational, fun_rational_vectorized, jac_rational, jac_rational_sparse, sol_rational
@@ -14,7 +14,7 @@ def F_rational(t, y, yp):
 
 
 def F_rational_vectorized(t, y, yp):
-    return yp - fun_rational_vectorized(t, y)
+    return np.vstack(yp) - fun_rational_vectorized(t, y)
 
 
 def J_rational(t, y, yp):
@@ -29,17 +29,21 @@ def J_rational_sparse(t, y, yp):
     return Jy, Jyp
 
 
+sparsity = (
+    csc_matrix(np.ones((2, 2))),
+    identity(2),
+)
+
 parameters_rational = product(
-    # [False, True], # vectorized
-    [False], # vectorized
-    # [True], # vectorized
+    [None, 0.1], # first_step
+    [False, True], # vectorized
     ["BDF", "Radau"], # method
     [[5, 9], [5, 1]], # t_span
-    # [None, J_rational, J_rational_sparse] # jac
-    [None, J_rational, J_rational_sparse] # jac
+    [None, J_rational, J_rational_sparse], # jac
+    [None, sparsity], # jac_sparsity
 )
-@pytest.mark.parametrize("vectorized, method, t_span, jac", parameters_rational)
-def test_integration_rational(vectorized, method, t_span, jac):
+@pytest.mark.parametrize("first_step, vectorized, method, t_span, jac, jac_sparsity", parameters_rational)
+def test_integration_rational(first_step, vectorized, method, t_span, jac, jac_sparsity):
     rtol = 1e-3
     atol = 1e-6
     y0 = [1/3, 2/9]
@@ -52,7 +56,8 @@ def test_integration_rational(vectorized, method, t_span, jac):
 
     res = solve_dae(fun, t_span, y0, yp0, rtol=rtol, atol=atol, 
                     method=method, dense_output=True, jac=jac, 
-                    vectorized=vectorized)
+                    vectorized=vectorized, first_step=first_step,
+                    jac_sparsity=jac_sparsity)
     
     assert_equal(res.t[0], t_span[0])
     assert_(res.t_events is None)
@@ -87,7 +92,6 @@ def test_integration_rational(vectorized, method, t_span, jac):
 
     assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-15, atol=1e-15)
 
-
 if __name__ == "__main__":
-    for params in parameters_rational:
-        test_integration_rational(*params)
+    for param in parameters_rational:
+        test_integration_rational(*param)

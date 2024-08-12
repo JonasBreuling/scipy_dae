@@ -205,11 +205,6 @@ class DaeSolver:
                     else:
                         m = yp.shape[1]
                         y = np.tile(y[:, None], m)
-                else:
-                    raise RuntimeError("This case should be impossible")
-                    m = 1
-                    y = np.tile(y[:, None], m)
-                    yp = np.tile(yp[:, None], m)
 
                 f = np.empty_like(y)
                 for i, (yi, ypi) in enumerate(zip(y.T, yp.T)):
@@ -294,7 +289,7 @@ class DaeSolver:
                 Jyp, self.jac_factor_yp = num_jac(
                     lambda t, yp: self.fun_vectorized(t, y, yp), 
                     t, yp, f, threshold, self.jac_factor_yp, sparsity_yp)
-                
+                                
                 # # test better Jacobian approximation
                 # # method = "2-point"
                 # method = "3-point"
@@ -304,7 +299,7 @@ class DaeSolver:
                 # Jyp = approx_derivative(
                 #     lambda yp: self.fun_single(t, y, yp), 
                 #     yp, f0=f, sparsity=sparsity_yp, method=method)
-                
+                                
                 return Jy, Jyp
             
             Jy, Jyp = jac_wrapped(t0, y0, yp0)
