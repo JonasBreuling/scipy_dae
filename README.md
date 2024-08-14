@@ -145,7 +145,7 @@ $$
 \end{aligned}
 $$
 
-Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting system is given as
+Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we transform the semi-explicit form into a general form as proposed by [Gear](https://doi.org/10.1137/0909004). The resulting index 1 system is given as
 
 $$
 \begin{aligned}
@@ -194,7 +194,7 @@ $$
 \end{aligned}
 $$
 
-Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting system is given as
+Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting index 1 system is given as
 
 $$
 \begin{aligned}
@@ -228,7 +228,7 @@ This problem is solved for $atol = rtol = 10^{-(3 + m / 4)}$, where $m = 0, \dot
 
 ### IDE - Weissinger
 
-A simple example of an implicit differential equations is called Weissinger's equation
+A simple example of an implicit differential equations is called [Weissinger's equation](https://www.mathworks.com/help/matlab/ref/ode15i.html#bu7u4dt-1)
 
 $$
 	t y^2 (\dot{y})^3 - y^3 (\dot{y}^2) + t (t^2 + 1) \dot{y} - t^2 y = 0 .
