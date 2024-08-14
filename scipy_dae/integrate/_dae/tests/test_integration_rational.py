@@ -70,7 +70,7 @@ def test_integration_rational(first_step, vectorized, method, t_span, jac, jac_s
         assert_(0 < res.nlu < 10)
     else: # Radau
         assert_(0 < res.njev < 4)
-        assert_(0 < res.nlu < 11)
+        assert_(0 < res.nlu < 13)
 
     y_true = sol_rational(res.t)
     e = compute_error(res.y, y_true, rtol, atol)
@@ -92,6 +92,6 @@ def test_integration_rational(first_step, vectorized, method, t_span, jac, jac_s
 
     assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-15, atol=1e-15)
 
-if __name__ == "__main__":
-    for param in parameters_rational:
-        test_integration_rational(*param)
+# if __name__ == "__main__":
+#     for param in parameters_rational:
+#         test_integration_rational(*param)

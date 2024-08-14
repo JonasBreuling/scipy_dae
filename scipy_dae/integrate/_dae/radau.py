@@ -6,11 +6,12 @@ from .base import DAEDenseOutput
 from .dae import DaeSolver
 
 
-NEWTON_MAXITER_EMBEDDED = 1  # Maximum number of Newton iterations for embedded method.
+NEWTON_MAXITER_EMBEDDED = 3  # Maximum number of Newton iterations for embedded method.
 DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
                                    # de Swart proposes 0.067 for s=3.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
+KAPPA = 1 # Factor of the smooth limiter
 
 
 def butcher_tableau(s):
@@ -105,7 +106,7 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    return A_inv, c, T, TI, P, P2, b_hat1, v, v2, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, b_hat2
+    return A_inv, c, T, TI, P, P2, b_hat1, v, v2, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, b_hat2, p
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
@@ -169,6 +170,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     dW = np.empty_like(W)
     converged = False
     rate = None
+    rate_old = None
     for k in range(newton_max_iter):
         for i in range(s):
             F[i] = fun(tau[i], Y[i], Yp[i])
@@ -195,9 +197,24 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         dW_norm = norm(dW / scale)
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
+            # if rate_old is not None:
+            #     rate = np.sqrt(rate_old * rate)
 
-        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
+        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
+        #     break
+
+        if (rate is not None and rate >= 1.0):
+            # print(f"rate >= 1")
             break
+            # if n_bad_iter > 5:
+            #     break
+            # else:
+            #     n_bad_iter += 1
+
+        # # TODO: Why this is a bad indicator for divergence of the iteration?
+        # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol):
+        # #     print(f"rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol")
+        #     break
 
         W += dW
         Z = T.dot(W)
@@ -208,12 +225,28 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             converged = True
             break
 
+        # # inexact simplified Newton method (https://doi.org/10.1137/S0036142999360573)
+        # # kappa2 = 0.1
+        # kappa2 = 0.01
+        # if (
+        #     dW_norm == 0 
+        #     or rate is not None and (
+        #         rate / (1 - rate) * dW_norm < tol 
+        #         # or dW_norm_old is not None and rate / (1 - rate) * dW_norm < kappa2 * rate**2 * dW_norm_old
+        #         or dW_norm_old is not None and rate / (1 - rate) * dW_norm < kappa2 * rate**2 / (1 - rate) * dW_norm_old
+        #     )
+        # ):
+        #     converged = True
+        #     break
+
         dW_norm_old = dW_norm
+        rate_old = rate
 
     return converged, k + 1, Y, Yp, Z, rate
 
 
-def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
+# def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
+def predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, error_norm_oldold, s):
     """Predict by which factor to increase/decrease the step size.
 
     The algorithm is described in [1]_.
@@ -244,6 +277,92 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
+    # # predictive PID controller
+    # # a = 0.8
+    # a = 1
+    # b = -0.4
+    # c = 0.1
+    # d = -0.2
+    # e = 0
+
+    # # Söderlind2003
+    # # # - H211b
+    # # bb = 2
+    # # a = 1 / bb
+    # # b = 1 / bb
+    # # c = 0
+    # # d = 1 / bb
+    # # e = 0
+
+    # # # - H211 PI
+    # # a = 1 / 6
+    # # b = 1 / 6
+    # # c = 0
+    # # d = 0
+    # # e = 0
+
+    # # # - H312b
+    # # bb = 2
+    # # a = 1 / bb
+    # # b = 2 / bb
+    # # c = 1 / bb
+    # # d = 3 / bb
+    # # e = 1 / bb
+
+    # # # - H312 PID
+    # # a = 1 / 18
+    # # b = 1 / 9
+    # # c = 1 / 18
+    # # d = 0
+    # # e = 0
+
+    # # # - H0321
+    # # a = 5 / 4
+    # # b = 1 / 2
+    # # c = -3 / 4
+    # # d = -1 / 4
+    # # e = -3 / 4
+
+    # # # - H321
+    # # a = 1 / 3
+    # # b = 1 / 18
+    # # c = -5 / 18
+    # # d = -5 / 6
+    # # e = -1 / 6
+
+    # k = s + 1
+    # if (
+    #     error_norm_old is not None 
+    #     and h_abs_old is not None
+    #     or error_norm == 0
+    # ):
+    #     if (
+    #         error_norm_oldold is not None
+    #         and h_abs_oldold is not None
+    #     ):
+    #         # predictive PID controller
+    #         multiplier = (
+    #             error_norm_old ** (-b / k)
+    #             * error_norm_oldold ** (-c / k)
+    #             * (h_abs / h_abs_old) ** (-d)
+    #             * (h_abs_old / h_abs_oldold) ** (-e)
+    #         )
+    #     else:
+    #         # predictive PI controller
+    #         multiplier = (
+    #             error_norm_old ** (-b / k)
+    #             * (h_abs / h_abs_old) ** (-d)
+    #         )
+    # else:
+    #     multiplier = 1
+
+    # with np.errstate(divide='ignore'):
+    #     factor = min(1, multiplier) * error_norm ** (-a / k)
+    #     # factor = multiplier * error_norm ** (-a / k)
+
+
+
+
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
@@ -251,6 +370,12 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
 
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
+
+    # # nonsmooth limiter
+    # factor = max(MIN_FACTOR, min(factor, MAX_FACTOR))
+
+    # smooth limiter
+    factor = 1 + KAPPA * np.arctan((factor - 1) / KAPPA)
 
     return factor
 
@@ -410,7 +535,9 @@ class RadauDAE(DaeSolver):
                  max_step=np.inf, rtol=1e-3, atol=1e-6, 
                  continuous_error_weight=0.0, jac=None, 
                  jac_sparsity=None, vectorized=False, 
-                 first_step=None, newton_max_iter=None, 
+                 first_step=None, newton_max_iter=None,
+                 jac_recompute_rate=1e-3, 
+                 controller_deadband=(1.0, 1.2),
                  **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
@@ -420,15 +547,37 @@ class RadauDAE(DaeSolver):
         (
             self.A_inv, self.C, self.T, self.TI, self.P, self.P2, 
             self.b0, self.v, self.v2, self.MU_REAL, self.MU_COMPLEX, 
-            self.TI_REAL, self.TI_COMPLEX, self.b_hat, self.b_hat2
+            self.TI_REAL, self.TI_COMPLEX, self.b_hat, self.b_hat2, 
+            self.order,
         ) = radau_constants(stages)
 
         self.h_abs_old = None
+        self.h_abs_oldold = None
         self.error_norm_old = None
+        self.error_norm_oldold = None
 
-        self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
+        # modify tolerances as in radau.f line 824ff and 920ff
+        # TODO: This rescaling leads to a saturation of the convergence
+        EXPMNS = (stages + 1) / (2 * stages)
+        # print(f"atol: {atol}")
+        # print(f"rtol: {rtol}")
+        # rtol = 0.1 * rtol ** EXPMNS
+        # quott = atol / rtol
+        # atol = rtol * quott
+        # print(f"atol: {atol}")
+        # print(f"rtol: {rtol}")
+
+        # newton tolerance as in radau.f line 1008ff
+        EXPMI = 1 / EXPMNS
+        self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** (EXPMI - 1)))
+        # print(f"newton_tol: {self.newton_tol}")
+        # print(f"10 * EPS / rtol: {10 * EPS / rtol}")
+        # print(f"0.03")
+        # print(f"rtol ** (EXPMI - 1): {rtol ** (EXPMI - 1)}")
+
+        # maximum number of newton terations as in radaup.f line 234
         if newton_max_iter is None:
-            newton_max_iter = 7 + (stages - 3) * 2 # see radaup.f
+            newton_max_iter = 7 + int((stages - 3) * 2.5)
         
         assert isinstance(newton_max_iter, int)
         assert newton_max_iter >= 1
@@ -437,6 +586,12 @@ class RadauDAE(DaeSolver):
         assert 0 <= continuous_error_weight <= 1
         self.continuous_error_weight = continuous_error_weight
         self.sol = None
+
+        assert 0 < jac_recompute_rate < 1
+        self.jac_recompute_rate = jac_recompute_rate
+
+        assert 0 < controller_deadband[0] <= controller_deadband[1]
+        self.controller_deadband = controller_deadband
 
         self.current_jac = True
         self.LU_real = None
@@ -470,15 +625,21 @@ class RadauDAE(DaeSolver):
         if self.h_abs > max_step:
             h_abs = max_step
             h_abs_old = None
+            h_abs_oldold = None
             error_norm_old = None
+            error_norm_oldold = None
         elif self.h_abs < min_step:
             h_abs = min_step
             h_abs_old = None
+            h_abs_oldold = None
             error_norm_old = None
+            error_norm_oldold = None
         else:
             h_abs = self.h_abs
             h_abs_old = self.h_abs_old
+            h_abs_oldold = self.h_abs_oldold
             error_norm_old = self.error_norm_old
+            error_norm_oldold = self.error_norm_oldold
 
         Jy = self.Jy
         Jyp = self.Jyp
@@ -521,6 +682,7 @@ class RadauDAE(DaeSolver):
                     C, T, TI, A_inv, newton_max_iter)
 
                 if not converged:
+                    # print(f"Newton not converged")
                     if current_jac:
                         break
 
@@ -578,8 +740,10 @@ class RadauDAE(DaeSolver):
             safety = 0.9 * (2 * newton_max_iter + 1) / (2 * newton_max_iter + n_iter)
 
             if error_norm > 1:
-                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
-                h_abs *= max(MIN_FACTOR, safety * factor)
+                # factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+                factor = predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, error_norm_oldold, s)
+                # h_abs *= max(MIN_FACTOR, safety * factor)
+                h_abs *= safety * factor
 
                 LU_real = None
                 LU_complex = None
@@ -587,15 +751,25 @@ class RadauDAE(DaeSolver):
                 step_accepted = True
 
         # Step is converged and accepted
-        recompute_jac = jac is not None and n_iter > 2 and rate > 1e-3
+        recompute_jac = (
+            jac is not None 
+            and n_iter > 2 
+            and rate > self.jac_recompute_rate
+        )
 
-        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
-        factor = min(MAX_FACTOR, safety * factor)
+        # factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+        factor = predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, error_norm_oldold, s)
+        # factor = min(MAX_FACTOR, safety * factor)
+        factor = safety * factor
 
         # TODO: We should also use the ideas of Söderlind 
         # (https://doi.org/10.1016/j.cam.2005.03.008) 
         # that proposes a smooth change of the step-size.
-        if not recompute_jac and factor < 1.2:
+        # if not recompute_jac and factor < 1.2:
+        if (
+            not recompute_jac 
+            and self.controller_deadband[0] <= factor <= self.controller_deadband[1]
+        ):
             factor = 1
         else:
             LU_real = None
@@ -603,11 +777,28 @@ class RadauDAE(DaeSolver):
 
         if recompute_jac:
             Jy, Jyp = self.jac(t_new, y_new, yp_new)
+            # use better approximation for Jacobian (https://doi.org/10.1016/j.cam.2011.05.027)
+            # Jy, Jyp = self.jac(
+            #     t_new + h * np.sum(C) / s,
+            #     y_new + np.sum(Z, axis=0) / s,
+            #     # ((self.A_inv / h) @ (Z + np.sum(Z, axis=0) / s))[-1],
+            #     ((self.A_inv / h) @ (np.sum(Z, axis=0) / s))[-1],
+            # )
+            # c = np.sum(C) / s
+            # Z0 = self.sol(t + h * c)[0].T - y
+            # Jy, Jyp = self.jac(
+            #     t_new + h * np.sum(C) / s,
+            #     y_new + np.sum(Z, axis=0) / s,
+            #     # ((self.A_inv / h) @ (Z + np.sum(Z, axis=0) / s))[-1],
+            #     ((self.A_inv / h) @ (np.sum(Z, axis=0) / s))[-1],
+            # )
             current_jac = True
         elif jac is not None:
             current_jac = False
 
+        self.h_abs_oldold = self.h_abs_old
         self.h_abs_old = self.h_abs
+        self.error_norm_oldold = error_norm_old
         self.error_norm_old = error_norm
 
         self.h_abs = h_abs * factor
@@ -663,7 +854,7 @@ class RadauDenseOutput(DAEDenseOutput):
         p = x**c
         dp = (c / self.h) * (x**(c - 1))
 
-        # # 1. compute derivative of interpolation polynomial for y
+        # 1. compute derivative of interpolation polynomial for y
         y = np.dot(self.Q, p)
         y += self.y_old[:, None]
         yp = np.dot(self.Q, dp)

@@ -240,6 +240,23 @@ Starting at $t_0 = \sqrt{1 / 2}$, this problem is solved for $atol = rtol = 10^{
 
 ![Weissinger_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Weissinger_work_precision.png)
 
+### Nonlinear index 1 DAE - Kvaernø
+
+In a final example, an nonlinear index 1 DAE is investigated as proposed by [Kvaernø](https://doi.org/10.2307/2008502). The system is given by
+
+$$
+\begin{aligned}
+	(\sin^2(\dot{y}_1) + \sin^2(y_2)) (\dot{y}_2)^2  - (t - 6)^2 (t - 2)^2 y_1 e^{-t} &= 0 \\
+	(4 - t) (y_2 + y_1)^3 - 64 t^2 e^{-t} y_1 y_2 &= 0 ,
+\end{aligned}
+$$
+
+It has the analytical solution $y_1(t) = t^4 e^{-t}$, $y_2(t) = t^3 e^{-t} (4 - t)$ and $\dot{y}_1(t) = (4 t^3 - t^4) e^{-t}$, $y_2(t) = (-t^3 + (4 - t) 3 t^2 - (4 - t) t^3) e^{-t}$.
+
+Starting at $t_0 = 0.5$, this problem is solved for $atol = rtol = 10^{-(4 + m / 4)}$, where $m = 0, \dots, 32$. The resulting error at $t_1 = 1$ is compared with the elapsed time of the used solvers in the figure below.
+
+![Kvaerno_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Kvaerno_work_precision.png)
+
 ## Install
 
 An editable developer mode can be installed via

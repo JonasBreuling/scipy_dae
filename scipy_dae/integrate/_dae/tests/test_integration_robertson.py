@@ -5,6 +5,8 @@ from scipy_dae.integrate import solve_dae
 
 
 parameters_stiff = ["BDF", "Radau"]
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize("method", parameters_stiff)
 def test_integration_robertson_ode(method):
@@ -56,11 +58,10 @@ def test_integration_robertson_ode(method):
                             continuous_error_weight=continuous_error_weight)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
-            assert res.nfev < 3100
+            assert res.nfev < 3200
             assert res.njev < 150
 
 
-parameters_stiff = ["BDF", "Radau"]
 @pytest.mark.slow
 @pytest.mark.parametrize("method", parameters_stiff)
 def test_integration_robertson_dae(method):
@@ -113,3 +114,9 @@ def test_integration_robertson_dae(method):
             # If the stiff mode is not activated correctly, these numbers will be much bigger
             assert res.nfev < 3000
             assert res.njev < 100
+
+
+# if __name__ == "__main__":
+#     for param in parameters_stiff:
+#         test_integration_robertson_ode(param)
+#         test_integration_robertson_dae(param)

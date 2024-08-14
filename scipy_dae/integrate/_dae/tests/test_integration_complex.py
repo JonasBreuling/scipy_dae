@@ -60,3 +60,8 @@ def test_integration_complex(method, jac):
     e = compute_error(yc, yc_true, rtol, atol)
 
     assert np.all(e < 5)
+
+
+# if __name__ == "__main__":
+#     for params in parameters_complex:
+#         test_integration_complex(*params)

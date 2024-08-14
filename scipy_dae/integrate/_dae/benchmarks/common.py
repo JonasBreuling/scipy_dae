@@ -106,6 +106,6 @@ def benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, name, y_ref=None, y_idx=Non
     ax.set_xlabel("||y_ref(t1) - y(t1)||")
     ax.set_ylabel("elapsed time [s]")
 
-    plt.savefig(f"{name}.png", dpi=300)
+    plt.savefig(f"data/img/{name}_work_precision.png", dpi=300)
 
     plt.show()
