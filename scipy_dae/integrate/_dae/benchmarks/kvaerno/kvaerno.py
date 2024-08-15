@@ -25,14 +25,15 @@ def true_sol(t):
         ]),
         np.array([
             (4 * t**3 - t**4) * np.exp(-t),
-            (-t**3 + (4 - t) * 3 * t**2 - (4 - t) * t**3) * np.exp(-t)
+            ((4 - t) * 3 * t**2 - (5 - t) * t**3) * np.exp(-t)
         ])
     )
 
 
-if __name__ == "__main__":
+def run_kvaerno():
     # exponents
-    m_max = 32
+    # m_max = 32
+    m_max = 10
     ms = np.arange(m_max + 1)
 
     # tolerances and initial step size
@@ -51,3 +52,7 @@ if __name__ == "__main__":
     y_ref = true_sol(t1)[0]
 
     benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, "Kvaerno", y_ref)
+
+
+if __name__ == "__main__":
+    run_kvaerno()

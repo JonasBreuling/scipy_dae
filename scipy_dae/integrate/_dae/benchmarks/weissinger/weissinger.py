@@ -21,7 +21,7 @@ def true_sol(t):
     return np.atleast_1d(np.sqrt(t**2 + 0.5)), np.atleast_1d(t / np.sqrt(t**2 + 0.5))
 
 
-if __name__ == "__main__":
+def run_weissinger():
     # exponents
     m_max = 28
     ms = np.arange(m_max + 1)
@@ -42,3 +42,7 @@ if __name__ == "__main__":
     y_ref = true_sol(t1)[0]
 
     benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, "Weissinger", y_ref)
+
+
+if __name__ == "__main__":
+    run_weissinger()

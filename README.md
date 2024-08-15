@@ -98,7 +98,8 @@ More examples are given in the [examples](examples/) directory, which includes
     * [Particle on circular track (index 3)](examples/daes/arevalo.py)
 * implicit differential equations (IDE's)
     * [Weissinger's implicit equation](examples/ides/weissinger.py)
-    * [Jackiewicz's implicit equation](examples/ides/jackiewicz.py)
+    * [Jackiewicz' implicit equation](examples/ides/jackiewicz.py)
+    * [Kvaernø's problem (nonlinear index 1)](examples/ides/kvaerno.py)
 
 ## Work-precision
 

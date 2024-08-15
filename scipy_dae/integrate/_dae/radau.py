@@ -203,7 +203,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         #     break
 
         if (rate is not None and rate >= 1.0):
-            print(f"rate >= 1")
+            # print(f"rate >= 1")
             break
             # if n_bad_iter > 5:
             #     break

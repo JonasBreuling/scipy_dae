@@ -79,7 +79,7 @@ def sol_true(t):
     return vy, vyp
 
 
-if __name__ == "__main__":
+def run_knife_edge():
     # exponents
     # m_max = 
     m_max = 32
@@ -101,3 +101,7 @@ if __name__ == "__main__":
     y_ref = sol_true(t1)[0]
 
     benchmark(t0, t1, vy0, vyp0, F, rtols, atols, h0s, "knife_edge", y_ref)
+
+
+if __name__ == "__main__":
+    run_knife_edge()

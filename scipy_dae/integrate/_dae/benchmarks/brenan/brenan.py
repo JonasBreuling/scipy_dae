@@ -33,7 +33,7 @@ def sol_true(t):
     return y, yp
 
 
-if __name__ == "__main__":
+def run_brenan():
     # exponents
     m_max = 45
     ms = np.arange(m_max + 1)
@@ -54,3 +54,7 @@ if __name__ == "__main__":
     y_ref = sol_true(t1)[0]
 
     benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, "Brenan", y_ref)
+
+
+if __name__ == "__main__":
+    run_brenan()

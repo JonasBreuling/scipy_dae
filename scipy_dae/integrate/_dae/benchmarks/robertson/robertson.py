@@ -33,7 +33,7 @@ atols = rtols
 h0s = 1e-2 * rtols
 
 
-if __name__ == "__main__":
+def run_robertson():
     # time span
     t0 = 0
     t1 = 1e11
@@ -60,3 +60,7 @@ if __name__ == "__main__":
     # y_ref = None
 
     benchmark(t0, t1, y0, yp0, F, rtols, atols, h0s, "Robertson", y_ref)
+
+
+if __name__ == "__main__":
+    run_robertson()
