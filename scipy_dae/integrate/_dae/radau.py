@@ -12,6 +12,9 @@ DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
+# VELOCITIY_FORMULATION = False
+VELOCITIY_FORMULATION = True
+SCALED_VELOCITIES = True
 
 
 def butcher_tableau(s):
@@ -43,7 +46,10 @@ def radau_constants(s):
     A_inv = np.linalg.inv(A)
 
     # eigenvalues and corresponding eigenvectors of inverse coefficient matrix
-    lambdas, V = eig(A_inv)
+    if VELOCITIY_FORMULATION:
+        lambdas, V = eig(A)
+    else:
+        lambdas, V = eig(A_inv)
 
     # sort eigenvalues and permut eigenvectors accordingly
     idx = np.argsort(lambdas)[::-1]
@@ -61,10 +67,16 @@ def radau_constants(s):
     TI = np.linalg.inv(T)
 
     # check if everything worked
-    assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A_inv)
-    assert np.allclose(np.linalg.inv(V) @ A_inv @ V, np.diag(lambdas))
-    assert np.allclose(T @ Gammas @ TI, A_inv)
-    assert np.allclose(TI @ A_inv @ T, Gammas)
+    if VELOCITIY_FORMULATION:
+        assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A)
+        assert np.allclose(np.linalg.inv(V) @ A @ V, np.diag(lambdas))
+        assert np.allclose(T @ Gammas @ TI, A)
+        assert np.allclose(TI @ A @ T, Gammas)
+    else:
+        assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A_inv)
+        assert np.allclose(np.linalg.inv(V) @ A_inv @ V, np.diag(lambdas))
+        assert np.allclose(T @ Gammas @ TI, A_inv)
+        assert np.allclose(TI @ A_inv @ T, Gammas)
 
     # extract real and complex eigenvalues
     real_idx = lambdas.imag == 0
@@ -79,7 +91,11 @@ def radau_constants(s):
     vander = np.vander(c_hat, increasing=True).T
 
     rhs = 1 / np.arange(1, s + 1)
-    b_hats2 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
+    if VELOCITIY_FORMULATION:
+        # TODO:
+        b_hats2 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
+    else:
+        b_hats2 = 1 / gammas[0] # real eigenvalue of A, i.e., 1 / gamma[0]
     b_hat1 = DAMPING_RATIO_ERROR_ESTIMATE * b_hats2
     rhs[0] -= b_hat1
     rhs -= b_hats2
@@ -106,12 +122,12 @@ def radau_constants(s):
     TI_REAL = TI[0]
     TI_COMPLEX = TI[1::2] + 1j * TI[2::2]
 
-    return A_inv, c, T, TI, P, P2, b_hat1, v, v2, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, b_hat2, p
+    return A, A_inv, c, T, TI, P, P2, b_hat1, v, v2, MU_REAL, MU_COMPLEX, TI_REAL, TI_COMPLEX, b_hat, b_hat2, p
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
                              LU_real, LU_complex, solve_lu,
-                             C, T, TI, A_inv, newton_max_iter):
+                             C, T, TI, A, A_inv, newton_max_iter):
     """Solve the collocation system.
 
     Parameters
@@ -159,10 +175,21 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     ncs = s // 2
     tau = t + h * C
 
-    Z = Z0
-    W = TI.dot(Z0)
-    Yp = (A_inv / h) @ Z
-    Y = y + Z
+    if VELOCITIY_FORMULATION:
+        if SCALED_VELOCITIES:
+            Yp = Z0
+            Z = Yp * h
+            W = TI.dot(Z)
+            Y = y + A @ Z
+        else:
+            Yp = Z0
+            W = TI.dot(Z0)
+            Y = y + h * A @ Yp
+    else:
+        Z = Z0
+        W = TI.dot(Z0)
+        Yp = (A_inv / h) @ Z
+        Y = y + Z
 
     F = np.empty((s, n))
 
@@ -204,7 +231,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         #     break
 
         if (rate is not None and rate >= 1.0):
-            # print(f"rate >= 1")
+            print(f"rate >= 1")
             break
             # if n_bad_iter > 5:
             #     break
@@ -217,9 +244,18 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         #     break
 
         W += dW
-        Z = T.dot(W)
-        Yp = (A_inv / h) @ Z
-        Y = y + Z
+        if VELOCITIY_FORMULATION:
+            if SCALED_VELOCITIES:
+                Z = T.dot(W)
+                Yp = Z / h
+                Y = y + A @ Z
+            else:
+                Yp = T.dot(W)
+                Y = y + h * A @ Yp
+        else:
+            Z = T.dot(W)
+            Yp = (A_inv / h) @ Z
+            Y = y + Z
 
         if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
@@ -241,6 +277,14 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
 
         dW_norm_old = dW_norm
         rate_old = rate
+
+        if VELOCITIY_FORMULATION:
+            if SCALED_VELOCITIES:
+                # Y = y + A @ Z
+                # Z = A_inv @ Z
+                Z = Y - y
+            else:
+                Z = Y - y
 
     return converged, k + 1, Y, Yp, Z, rate
 
@@ -370,6 +414,10 @@ def predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, e
 
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
+        # k_kI = 0.25
+        # k_kI = 0.9
+        # k_kI = 2.5
+        # factor = min(1, multiplier) * error_norm ** (-k_kI / (s + 1))
 
     # # nonsmooth limiter
     # factor = max(MIN_FACTOR, min(factor, MAX_FACTOR))
@@ -545,7 +593,7 @@ class RadauDAE(DaeSolver):
         assert stages % 2 == 1
         self.stages = stages
         (
-            self.A_inv, self.C, self.T, self.TI, self.P, self.P2, 
+            self.A, self.A_inv, self.C, self.T, self.TI, self.P, self.P2, 
             self.b0, self.v, self.v2, self.MU_REAL, self.MU_COMPLEX, 
             self.TI_REAL, self.TI_COMPLEX, self.b_hat, self.b_hat2, 
             self.order,
@@ -609,6 +657,7 @@ class RadauDAE(DaeSolver):
         C = self.C
         T = self.T
         TI = self.TI
+        A = self.A
         A_inv = self.A_inv
         v = self.v
         v2 = self.v2
@@ -664,22 +713,46 @@ class RadauDAE(DaeSolver):
             h = t_new - t
             h_abs = np.abs(h)
 
-            if self.sol is None:
-                Z0 = np.zeros((s, y.shape[0]))
+            if VELOCITIY_FORMULATION:
+                if self.sol is None:
+                    Z0 = np.zeros((s, y.shape[0]))
+                else:
+                    # actually, this is Yp0
+                    Z0 = self.sol(t + h * C)[1].T
+                    # Z0 = np.zeros((s, y.shape[0]))
+                    # Z0 = self.sol(t + h * C)[0].T - y
+                    # Z0 = (A_inv / h) @ Z0
+                if SCALED_VELOCITIES:
+                    # scale = atol + np.abs(h * yp) * rtol
+                    scale = atol + np.abs(y) * rtol
+                else:
+                    scale = atol + np.abs(yp) * rtol
             else:
-                Z0 = self.sol(t + h * C)[0].T - y
-            scale = atol + np.abs(y) * rtol
+                if self.sol is None:
+                    Z0 = np.zeros((s, y.shape[0]))
+                else:
+                    Z0 = self.sol(t + h * C)[0].T - y
+                    Z0 = np.zeros((s, y.shape[0]))
+                scale = atol + np.abs(y) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
+                    if VELOCITIY_FORMULATION:
+                        if SCALED_VELOCITIES:
+                            LU_real = self.lu(MU_REAL * Jy + (1 / h) * Jyp)
+                            LU_complex = [self.lu(MU * Jy + (1 / h) * Jyp) for MU in MU_COMPLEX]
+                        else:
+                            LU_real = self.lu(MU_REAL * h * Jy + Jyp)
+                            LU_complex = [self.lu(MU * h * Jy + Jyp) for MU in MU_COMPLEX]
+                    else:
+                        LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                        LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Z0, scale, newton_tol,
                     LU_real, LU_complex, self.solve_lu,
-                    C, T, TI, A_inv, newton_max_iter)
+                    C, T, TI, A, A_inv, newton_max_iter)
 
                 if not converged:
                     # print(f"Newton not converged")
@@ -706,16 +779,17 @@ class RadauDAE(DaeSolver):
             # error of collocation polynomial of order s
             ############################################
             error_collocation = y - P2[0] @ Y
+            error_embedded = error_collocation
 
             # # explicit embedded method with R(z) = +oo for z -> oo
             # error_embedded = h * (yp / MU_REAL + v2 @ Yp)
             
-            # compute implicit embedded method with a single iteration
-            # # TODO: Store MU_REAL * v during construction.
-            # error_embedded = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
-            yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
-            F = self.fun(t_new, y_new, yp_hat_new)
-            error_embedded = self.solve_lu(LU_real, -F)
+            # # compute implicit embedded method with a single iteration
+            # # # TODO: Store MU_REAL * v during construction.
+            # # error_embedded = h * MU_REAL * (v @ Yp - b0 * yp - yp_new / MU_REAL)
+            # yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
+            # F = self.fun(t_new, y_new, yp_hat_new)
+            # error_embedded = self.solve_lu(LU_real, -F)
 
             # # compute implicit embedded method with NEWTON_MAXITER_EMBEDDED iterations
             # y_hat_new = y_new.copy() # initial guess

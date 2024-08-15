@@ -106,7 +106,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(4, 1)
 
     t_eval = np.linspace(t0, t1, num=int(1e3))
-    y_eval = sol.sol(t_eval)
+    y_eval, yp_eval = sol.sol(t_eval)
 
     ax[0].plot(t, y[0], "ok", label=f"y ({method})", mfc="none")
     ax[0].plot(t_eval, y_eval[0], "-xk", label=f"y_dense ({method})", mfc="none")
