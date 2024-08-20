@@ -97,6 +97,7 @@ if __name__ == "__main__":
     ##############
     # method = "BDF"
     method = "Radau"
+    # method = "PSIDE"
     start = time.time()
     sol = solve_dae(F, t_span, vy0, vyp0, atol=atol, rtol=rtol, method=method)
     end = time.time()

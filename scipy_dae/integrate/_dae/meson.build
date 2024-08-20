@@ -5,6 +5,7 @@ py3.install_sources([
     'common.py',
     'dae.py',
     'radau.py',
+    'pside.py',
   ],
   subdir: 'scipy_dae/integrate/_dae'
 )

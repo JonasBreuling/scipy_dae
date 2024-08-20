@@ -24,11 +24,11 @@ def F(t, y, yp):
 if __name__ == "__main__":
     # time span
     t0 = 0
-    t1 = 1e1
+    t1 = 1e2
     t_span = (t0, t1)
 
     # tolerances
-    rtol = atol = 1e-8
+    rtol = atol = 1.5e-8
 
     # initial conditions
     y0 = np.array([1, 0], dtype=float)
@@ -47,6 +47,7 @@ if __name__ == "__main__":
     start = time.time()
     # method = "BDF"
     method = "Radau"
+    # method = "PSIDE"
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
@@ -63,12 +64,15 @@ if __name__ == "__main__":
     print(f"nfev: {sol.nfev}")
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
+    print(f"y[:, -1]: {y[:, -1]}")
 
-    # errors
-    dt = t[1] - t[0]
-    error_y1 = np.linalg.norm((y[0] - np.exp(-t) + t * np.sin(t)) * dt)
-    error_y2 = np.linalg.norm((y[1] - np.sin(t)) * dt)
-    print(f"error: [{error_y1}, {error_y2}]")
+    # error
+    diff = y[:, -1] - np.array([
+        np.exp(-t1) + t1 * np.sin(t1),
+        np.sin(t1),
+    ])
+    error = np.linalg.norm(diff)
+    print(f"error: {error}")
 
     # visualization
     fig, ax = plt.subplots()

@@ -43,7 +43,8 @@ if __name__ == "__main__":
     t_span = (t0, t1)
 
     # method = "BDF"
-    method = "Radau"
+    # method = "Radau"
+    method = "PSIDE"
 
     # initial conditions
     y0, yp0 = true_sol(t0)
@@ -65,6 +66,10 @@ if __name__ == "__main__":
     print(f"nfev: {sol.nfev}")
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
+
+    # error
+    error = np.linalg.norm(y[:, -1] - np.sqrt(t1**2 + 0.5))
+    print(f"error: {error}")
 
     # visualization
     fig, ax = plt.subplots()
