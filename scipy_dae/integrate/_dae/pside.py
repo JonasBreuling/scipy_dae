@@ -265,7 +265,7 @@ def radau_constants(s):
 
 
 def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
-                             M, LUs, solve_lu, newton_max_iter):
+                             M, LUs, solve_lu, newton_max_iter, atol):
     s, n = Yp0.shape
     tau = t + h * C
 
@@ -276,8 +276,6 @@ def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
     F = np.empty((s, n))
 
     dY_norm_old = None
-    # dV_dot = np.zeros_like(V_dot)
-    # dY = np.zeros_like(V_dot)
     converged = False
     rate = None
     for k in range(newton_max_iter):
@@ -296,8 +294,8 @@ def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
 
         # other inner iterations
         for _ in range(1, INNER_NEWTON_ITERATIONS):
-            # see https://en.wikipedia.org/wiki/Kronecker_product#Matrix_equations
             # U += (np.kron(B, M) @ dV_dot.reshape(-1)).reshape(s, -1)
+            # see https://en.wikipedia.org/wiki/Kronecker_product#Matrix_equations
             U += B.dot(dV_dot.dot(M.T))
             dV_dot_inner = np.zeros((s, n))
             for i in range(s):
@@ -310,27 +308,77 @@ def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
         Yp += dYp
         Y += dY
 
-        dY_norm = norm(dY / scale)
-        if dY_norm_old is not None:
-            rate = dY_norm / dY_norm_old
+        ###############################
+        # original convergence criteria
+        ###############################
+        # dY_norm = norm(dY / scale)
+        # if dY_norm_old is not None:
+        #     rate = dY_norm / dY_norm_old
 
         # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
         #     break
 
-        # print(f"- h: {h}")
-        # print(f"- rate: {rate}")
-        # print(f"- F:\n{F}")
-        if (rate is not None and rate >= 1.0):
-            # print(f"rate >= 1")
-            break
+        # # if (rate is not None and rate >= 1.0):
+        # #     break
 
-        # # TODO: Why this is a bad indicator for divergence of the iteration?
-        # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dZ_norm > tol):
-        # #     print(f"rate ** (newton_max_iter - k) / (1 - rate) * dZ_norm > tol")
+        # # # TODO: Why this is a bad indicator for divergence of the iteration?
+        # # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol):
+        # #     break
+
+        # if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
+        #     converged = True
         #     break
 
-        if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
-            converged = True
+        # dY_norm_old = dY_norm
+
+        ##############################
+        # pside.f convergence criteria
+        ##############################
+        dY_norm = norm(dY / scale)
+
+        growth = False
+        diver = False
+        slow = False
+        solved = False
+        exact = False
+
+        # parameters of pside.f
+        tau_ = 0.01
+        kappa = 100.0
+        kmax = 15
+        gamma = 1.0
+        theta = 0.5
+        gfac = 100.0
+        rate1 = 0.1
+
+        # check if solution grows to prevent overflow
+        # TODO: Why only check last stage?
+        growth = np.any(np.abs(Y[-1]) > gfac * np.maximum(np.abs(y), atol))
+        if growth:
+            break
+
+        # compute rate of convergence and other conditions if not growing
+        rate = rate1
+        ready = growth
+        if not growth:
+            if dY_norm_old is None:
+                exact = (dY_norm == 0.0)
+                solved = exact
+            else:
+                rate = rate ** theta * (dY_norm / dY_norm_old) ** (1 - theta)
+                print(f"rate: {rate}")
+                if rate >= gamma:
+                    diver = True
+                elif (dY_norm * rate < (1.0 - rate) * tau_ or 
+                    dY_norm < kappa * EPS * norm(y / scale)):
+                    solved = True
+                elif (k == kmax or dY_norm * rate ** (kmax - k) > tau_ * (1.0 - rate)):
+                    slow = True
+
+        ready = growth or diver or slow or solved or exact
+        converged = solved or exact
+
+        if ready:
             break
 
         dY_norm_old = dY_norm
@@ -542,6 +590,175 @@ def ctrl(ldlu, neqn, y, dy, t, tend, geval, jbnd, nlj, nuj, hp, h, hlu, tolvect,
     return h, hlu, hp, jacnew, facnew, idid
 
 
+def snorms(y, uys, h, tolvec, rtol, atol, ind):
+    # Placeholder for the actual implementation of snorms (since it's not provided)
+    # Add the correct implementation here
+    return np.linalg.norm(uys)  # A simple norm as an example
+
+
+def vergen(y, Y, dY, h, k, tolvec, rtol, atol, ind, uround):
+    n = len(y)
+
+    # parameters of pside.f
+    tau = 0.01
+    kappa = 100.0
+    kmax = 15
+    gamma = 1.0
+    theta = 0.5
+    gfac = 100.0
+    alpha1 = 0.1
+    
+    # initialize states
+    growth = False # monitors whether the current iterate is too large with respect to y (necessary to prevent overflow)
+    diver = False # indicates divergence
+    slow = False # Newton process that is converging too slow
+    solved = False
+    exact = False
+    
+    # compute GROWTH condition
+    growth = False
+    growth = np.any(np.abs(Y) > gfac * np.max(np.abs(y), atol))
+    # for kn in range(n):
+    #     if abs(Y[kn, -1]) > gfac * max(abs(y[kn]), atol[0]):
+    #         growth = True
+    #         break
+
+    # Compute ALPHA and other conditions if not growing
+    alpha = alpha1
+    ready = growth
+    if not growth:
+        if k == 1:
+            u = snorms(n, y, dY, h, tolvec, rtol, atol, indgt1, ind)
+            exact = (u == 0.0)
+            solved = exact
+        elif k > 1:
+            up = u
+            u = snorms(n, y, dY, h, tolvec, rtol, atol, indgt1, ind)
+            alpha = alpha ** theta * (u / up) ** (1 - theta)
+            if alpha >= gamma:
+                diver = True
+            elif (u * alpha < (1.0 - alpha) * tau or 
+                  u < kappa * uround * snorms(n, y, y, h, tolvec, rtol, atol, indgt1, ind)):
+                solved = True
+            elif (k == kmax or u * alpha ** (kmax - k) > tau * (1.0 - alpha)):
+                slow = True
+
+    # Determine if the process is ready
+    ready = growth or diver or slow or solved or exact
+    return ready, growth, diver, slow, solved, exact, alpha
+
+
+def error(ldlu, neqn, y, dy, t, tend, geval, jbnd, nlj, nuj, hp, h, hr, tolvec, rtol, atol,
+          indgt1, ind, uround, ierr, rpar, ipar, nreje, nf, nfb, ys, dys, dysp, declus, ipvts, aux, r, first, jacu2d):
+    # Constants
+    S = 4
+    zeta = 0.8
+    pmin = 0.1
+    fmax = 2.0
+    b0 = 1e-2
+    
+    # Coefficients
+    c = [0.0885879595127039430, 0.40946686444073471, 0.78765946176084711, 1.0]
+    d = [0.15207736897657173, 0.19863166560205286, 0.17370482124558614, 0.2268797665248472]
+    v = [0.015775376397741153, -0.00973676595200762, 0.0064613895542650068, 0.22437976652484806]
+    
+    a = np.array([
+        [0.11299947932315615, -0.040309220723522124, 0.025802377420336316, -0.009904676507266402],
+        [0.23438399574740021, 0.20689257393535912, -0.047857128048540976, 0.016047422806516373],
+        [0.21668178462324983, 0.40612326386737485, 0.18903651817005485, -0.024182104899832302],
+        [0.22046221117676756, 0.38819346884317474, 0.3288443199800568, 0.0625]
+    ])
+    
+    b = np.array([
+        [-3.3639874568020707, -0.44654700754009785, 0.0, 0.0],
+        [25.342038841242246, 3.363987456802068, 0.0, 0.0],
+        [0.0, 0.0, -0.43736727682531051, -0.058057603118404071],
+        [0.0, 0.0, 3.294833485417354, 0.43736727682531251]
+    ])
+    
+    q = np.array([
+        [2.9525629137644849, 0.31593967652654426, 1.5325036185735899, 0.02760017730709198],
+        [-7.2663844252260921, -0.87557712087216921, -1.0552592555408382, -0.31127768044562443],
+        [3.4206013418970489, 0.94933195009126692, -10.799719062652594, -2.1349139436375046],
+        [34.897309284201455, 4.3752802963652595, -42.903926578042316, -5.8960002010445862]
+    ])
+    
+    qinv = np.array([
+        [0.49404219145362321, 0.26940632754035232, -0.20775373293546956, 0.063316113280950409],
+        [-3.5335821294291372, -2.9858214051982959, 1.7564674828823401, -0.49491430687210508],
+        [0.48764145508103995, 0.12393820514671119, 0.042377033932401546, -0.019605075150089322],
+        [-3.2465063847340687, -1.5230130554559862, -0.23459121597740057, -0.019452530308797178]
+    ])
+    
+    # Local variables
+    dsinv = 1.0 / d[S-1]
+    epsp, hreje, epsrej, sucrej = 0.0, 0.0, 0.0, False
+    
+    # Compute AUX
+    aux[:] = -b0 * dy
+    for ks in range(S):
+        aux[:] += v[ks] * dys[:, ks]
+    aux[:] *= dsinv
+    
+    # Call to GEVAL
+    ierr = 0
+    r = geval(neqn, t + h, ys[:, S-1], aux, r, ierr, rpar, ipar)
+    nf += 1
+    
+    if ierr == -1:
+        return
+    
+    # Solve the system using the appropriate LAPACK routines
+    if jbnd:
+        r = solve_band_system(neqn, nlj, nuj, declus[:, :, S-1], ldlu, ipvts[:, S-1], r)
+    else:
+        r = solve_system(neqn, declus[:, :, S-1], ldlu, ipvts[:, S-1], r)
+    
+    nfb += 1
+    
+    # Scale result
+    r[:] = -h * d[S-1] * r
+    
+    # Compute the norm of the error
+    eps = snorm(neqn, y, r, h, tolvec, rtol, atol, indgt1, ind)
+    
+    # Step acceptance logic
+    if eps < 1.0:
+        if eps == 0.0:
+            hr = fmax * h
+        elif first or sucrej:
+            first = False
+            hr = zeta * h * eps ** (-0.2)
+        else:
+            hr = zeta * (h ** 2 / hp) * (epsp / eps ** 2) ** 0.2
+        
+        # Accept step
+        y[:] = ys[:, S-1]
+        dy[:] = dys[:, S-1]
+        dysp[:] = dys.copy()
+        t += h
+        
+        if abs(tend - t) < 10.0 * uround * abs(t):
+            t = tend
+        
+        hp = h
+        epsp = eps
+        sucrej = False
+        jacu2d = False
+    else:
+        # Reject step and adjust step size
+        if not first and sucrej:
+            pest = min(5.0, max(pmin, np.log10(eps / epsrej) / np.log10(h / hreje)))
+            hr = zeta * h * eps ** (-1.0 / pest)
+        else:
+            hr = zeta * h * eps ** (-0.2)
+        
+        hreje = h
+        epsrej = eps
+        sucrej = True
+        nreje += 1
+
+
 class PPSIDEDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 2s - 1.
 
@@ -734,7 +951,7 @@ class PPSIDEDAE(DaeSolver):
 
         # maximum number of newton terations as in radaup.f line 234
         if newton_max_iter is None:
-            newton_max_iter = 7 + int((stages - 3) * 2.5)
+            newton_max_iter = 15
         
         assert isinstance(newton_max_iter, int)
         assert newton_max_iter >= 1
@@ -837,7 +1054,7 @@ class PPSIDEDAE(DaeSolver):
 
             h = h_abs * self.direction
             t_new = t + h
-            # print(f"t_new: {t_new}")
+            print(f"t_new: {t_new}")
 
             if self.direction * (t_new - self.t_bound) > 0:
                 t_new = self.t_bound
@@ -862,7 +1079,7 @@ class PPSIDEDAE(DaeSolver):
 
                 converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                     self.fun, t, y, h, Yp0, scale, newton_tol,
-                    Jyp, LUs, self.solve_lu, newton_max_iter)
+                    Jyp, LUs, self.solve_lu, newton_max_iter, atol)
 
                 if not converged:
                     if current_jac:

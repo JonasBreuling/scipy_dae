@@ -46,8 +46,8 @@ if __name__ == "__main__":
     ##############
     start = time.time()
     # method = "BDF"
-    method = "Radau"
-    # method = "PSIDE"
+    # method = "Radau"
+    method = "PSIDE"
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
