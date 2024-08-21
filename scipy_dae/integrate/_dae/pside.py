@@ -99,7 +99,7 @@ DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
-INNER_NEWTON_ITERATIONS = 2 # number of inner iterations
+INNER_NEWTON_ITERATIONS = 1 # number of inner Newton iterations
 
 def LUdecompCrout(A):
     """
@@ -311,77 +311,77 @@ def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
         ###############################
         # original convergence criteria
         ###############################
-        # dY_norm = norm(dY / scale)
-        # if dY_norm_old is not None:
-        #     rate = dY_norm / dY_norm_old
-
-        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
-        #     break
-
-        # # if (rate is not None and rate >= 1.0):
-        # #     break
-
-        # # # TODO: Why this is a bad indicator for divergence of the iteration?
-        # # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol):
-        # #     break
-
-        # if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
-        #     converged = True
-        #     break
-
-        # dY_norm_old = dY_norm
-
-        ##############################
-        # pside.f convergence criteria
-        ##############################
         dY_norm = norm(dY / scale)
+        if dY_norm_old is not None:
+            rate = dY_norm / dY_norm_old
 
-        growth = False
-        diver = False
-        slow = False
-        solved = False
-        exact = False
-
-        # parameters of pside.f
-        tau_ = 0.01
-        kappa = 100.0
-        kmax = 15
-        gamma = 1.0
-        theta = 0.5
-        gfac = 100.0
-        rate1 = 0.1
-
-        # check if solution grows to prevent overflow
-        # TODO: Why only check last stage?
-        growth = np.any(np.abs(Y[-1]) > gfac * np.maximum(np.abs(y), atol))
-        if growth:
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
             break
 
-        # compute rate of convergence and other conditions if not growing
-        rate = rate1
-        ready = growth
-        if not growth:
-            if dY_norm_old is None:
-                exact = (dY_norm == 0.0)
-                solved = exact
-            else:
-                rate = rate ** theta * (dY_norm / dY_norm_old) ** (1 - theta)
-                print(f"rate: {rate}")
-                if rate >= gamma:
-                    diver = True
-                elif (dY_norm * rate < (1.0 - rate) * tau_ or 
-                    dY_norm < kappa * EPS * norm(y / scale)):
-                    solved = True
-                elif (k == kmax or dY_norm * rate ** (kmax - k) > tau_ * (1.0 - rate)):
-                    slow = True
+        # if (rate is not None and rate >= 1.0):
+        #     break
 
-        ready = growth or diver or slow or solved or exact
-        converged = solved or exact
+        # # TODO: Why this is a bad indicator for divergence of the iteration?
+        # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol):
+        #     break
 
-        if ready:
+        if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
+            converged = True
             break
 
         dY_norm_old = dY_norm
+
+        # ##############################
+        # # pside.f convergence criteria
+        # ##############################
+        # dY_norm = norm(dY / scale)
+
+        # growth = False
+        # diver = False
+        # slow = False
+        # solved = False
+        # exact = False
+
+        # # parameters of pside.f
+        # tau_ = 0.01
+        # kappa = 100.0
+        # kmax = 15
+        # gamma = 1.0
+        # theta = 0.5
+        # gfac = 100.0
+        # rate1 = 0.1
+
+        # # check if solution grows to prevent overflow
+        # # TODO: Why only check last stage?
+        # growth = np.any(np.abs(Y[-1]) > gfac * np.maximum(np.abs(y), atol))
+        # if growth:
+        #     break
+
+        # # compute rate of convergence and other conditions if not growing
+        # rate = rate1
+        # ready = growth
+        # if not growth:
+        #     if dY_norm_old is None:
+        #         exact = (dY_norm == 0.0)
+        #         solved = exact
+        #     else:
+        #         rate = rate ** theta * (dY_norm / dY_norm_old) ** (1 - theta)
+        #         # print(f"rate: {rate}")
+        #         if rate >= gamma:
+        #             diver = True
+        #         elif (dY_norm * rate < (1.0 - rate) * tau_ or 
+        #             dY_norm < kappa * EPS * norm(y / scale)):
+        #             solved = True
+        #         elif (k == kmax or dY_norm * rate ** (kmax - k) > tau_ * (1.0 - rate)):
+        #             slow = True
+
+        # ready = growth or diver or slow or solved or exact
+        # converged = solved or exact
+
+        # if ready:
+        #     break
+
+        # dY_norm_old = dY_norm
 
     return converged, k + 1, Y, Yp, Y - y, rate
 
@@ -424,6 +424,58 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
 
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
+
+    #############################
+    # pside.f step-size selection
+    #############################
+
+    # # constants
+    # zeta = 0.8
+    # pmin = 0.1
+    # fmax = 2.0
+    
+    # # Local variables
+    # h = h_abs
+    # hp = h_abs_old
+    # eps = error_norm
+    # epsp = error_norm_old
+    # first = error_norm_old is None or h_abs_old is None
+
+    # # dsinv = 1.0 / D[-1]
+    # # epsp, hreje, epsrej, sucrej = 0.0, 0.0, 0.0, False
+    # sucrej = False
+    # epsrej = 0.0
+    # hreje = 0.0
+        
+    # # step acceptance logic
+    # if eps < 1.0:
+    #     if eps == 0.0:
+    #         hr = fmax * h
+    #     elif first or sucrej:
+    #         first = False
+    #         hr = zeta * h * eps ** (-0.2)
+    #     else:
+    #         hr = zeta * (h ** 2 / hp) * (epsp / eps ** 2) ** 0.2
+        
+    #     # accept step        
+    #     hp = h
+    #     epsp = eps
+    #     sucrej = False
+    #     jacu2d = False
+    # else:
+    #     # reject step and adjust step size
+    #     if not first and sucrej:
+    #         pest = min(5.0, max(pmin, np.log10(eps / epsrej) / np.log10(h / hreje)))
+    #         hr = zeta * h * eps ** (-1.0 / pest)
+    #     else:
+    #         hr = zeta * h * eps ** (-0.2)
+        
+    #     hreje = h
+    #     epsrej = eps
+    #     sucrej = True
+    #     # nreje += 1
+
+    # factor = hr / h
 
     # # nonsmooth limiter
     # factor = max(MIN_FACTOR, min(factor, MAX_FACTOR))
@@ -648,6 +700,7 @@ def vergen(y, Y, dY, h, k, tolvec, rtol, atol, ind, uround):
     return ready, growth, diver, slow, solved, exact, alpha
 
 
+# TODO: Incorporate acceptance logic from here to predict_factor
 def error(ldlu, neqn, y, dy, t, tend, geval, jbnd, nlj, nuj, hp, h, hr, tolvec, rtol, atol,
           indgt1, ind, uround, ierr, rpar, ipar, nreje, nf, nfb, ys, dys, dysp, declus, ipvts, aux, r, first, jacu2d):
     # Constants
@@ -926,7 +979,7 @@ class PPSIDEDAE(DaeSolver):
             self.A, self.A_inv, self.C, self.T, self.TI, self.P, self.P2, 
             self.b0, self.v, self.v2, self.b_hat, self.b_hat2, self.order,
         ) = radau_constants(stages)
-
+        
         self.h_abs_old = None
         self.error_norm_old = None
 
@@ -1046,6 +1099,8 @@ class PPSIDEDAE(DaeSolver):
         current_jac = self.current_jac
         jac = self.jac
 
+        factor = None
+        rejected = False
         step_accepted = False
         message = None
         while not step_accepted:
@@ -1054,7 +1109,7 @@ class PPSIDEDAE(DaeSolver):
 
             h = h_abs * self.direction
             t_new = t + h
-            print(f"t_new: {t_new}")
+            # print(f"t_new: {t_new}")
 
             if self.direction * (t_new - self.t_bound) > 0:
                 t_new = self.t_bound
@@ -1097,11 +1152,13 @@ class PPSIDEDAE(DaeSolver):
             y_new = Y[-1]
             yp_new = Yp[-1]
 
+            # TODO: Use explicit embedded method and only implicit one if error_norm > 1?
+
             # compute implicit embedded method with a single Newton iteration;
             # R(z) = b_hat1 / b_hats2 = DAMPING_RATIO_ERROR_ESTIMATE for z -> oo
             yp_hat_new = (V @ Yp - B0 * yp) / D[-1]
             F = self.fun(t_new, y_new, yp_hat_new)
-            error = self.solve_lu(LUs[-1], -F)
+            error = - h * D[-1] * self.solve_lu(LUs[-1], F)
 
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             error_norm = norm(error / scale)
@@ -1114,27 +1171,37 @@ class PPSIDEDAE(DaeSolver):
                 h_abs *= safety * factor
 
                 LUs = None
+                rejected = True
             else:
+                rejected = False
                 step_accepted = True
 
         # Step is converged and accepted
         recompute_jac = (
             jac is not None 
             and n_iter > 2 
-            and rate > self.jac_recompute_rate
+            and 
+            rate > self.jac_recompute_rate
         )
 
-        factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
-        factor = safety * factor
+        # factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+        # factor *= safety
+        if factor is None:
+            factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+            factor *= safety
 
         # do not alter step-size in deadband
         if (
+            # TODO: This first check yields lots of LU decompositions
             not recompute_jac 
-            and self.controller_deadband[0] <= factor <= self.controller_deadband[1]
+            and 
+            self.controller_deadband[0] <= factor <= self.controller_deadband[1]
         ):
             factor = 1
         else:
             LUs = None
+        # if recompute_jac:
+        #     LUs = None
 
         if recompute_jac:
             Jy, Jyp = self.jac(t_new, y_new, yp_new)

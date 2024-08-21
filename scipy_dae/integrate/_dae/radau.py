@@ -8,9 +8,18 @@ from .dae import DaeSolver
 
 DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
                                    # de Swart proposes 0.067 for s=3.
+# DAMPING_RATIO_ERROR_ESTIMATE = 0.0005
+# DAMPING_RATIO_ERROR_ESTIMATE = 0.067
+DAMPING_RATIO_ERROR_ESTIMATE = 0.01
+# DAMPING_RATIO_ERROR_ESTIMATE = 1e-3
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
+# KAPPA = 0.25
+# KAPPA = 0.5
+
+UNKNOWN_VELOCITIES = False
+# UNKNOWN_VELOCITIES = True
 
 
 def butcher_tableau(s):
@@ -169,7 +178,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     dW = np.empty_like(W)
     converged = False
     rate = None
-    rate_old = None
     for k in range(newton_max_iter):
         for i in range(s):
             F[i] = fun(tau[i], Y[i], Yp[i])
@@ -196,19 +204,17 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         dW_norm = norm(dW / scale)
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
-            # if rate_old is not None:
-            #     rate = np.sqrt(rate_old * rate)
 
-        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
-        #     break
-
-        if (rate is not None and rate >= 1.0):
-            # print(f"rate >= 1")
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
             break
-            # if n_bad_iter > 5:
-            #     break
-            # else:
-            #     n_bad_iter += 1
+
+        # if (rate is not None and rate >= 1.0):
+        #     # print(f"rate >= 1")
+        #     break
+        #     # if n_bad_iter > 5:
+        #     #     break
+        #     # else:
+        #     #     n_bad_iter += 1
 
         # # TODO: Why this is a bad indicator for divergence of the iteration?
         # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol):
@@ -239,13 +245,80 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         #     break
 
         dW_norm_old = dW_norm
-        rate_old = rate
 
     return converged, k + 1, Y, Yp, Z, rate
 
 
-# def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
-def predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, error_norm_oldold, s):
+def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
+                              LU_real, LU_complex, solve_lu,
+                              C, T, TI, A, newton_max_iter):
+    s, n = Yp0.shape
+    ncs = s // 2
+    tau = t + h * C
+
+    Yp = Yp0
+    Y = y + h * A.dot(Yp)
+    V_dot = TI.dot(Yp)
+
+    F = np.empty((s, n))
+
+    dY_norm_old = None
+    dV_dot = np.empty_like(V_dot)
+    converged = False
+    rate = None
+    for k in range(newton_max_iter):
+        for i in range(s):
+            F[i] = fun(tau[i], Y[i], Yp[i])
+
+        if not np.all(np.isfinite(F)):
+            break
+
+        U = TI @ F
+        f_real = -U[0]
+        f_complex = np.empty((ncs, n), dtype=complex)
+        for i in range(ncs):
+            f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
+
+        dV_dot_real = solve_lu(LU_real, f_real)
+        dV_dot_complex = np.empty_like(f_complex)
+        for i in range(ncs):
+            dV_dot_complex[i] = solve_lu(LU_complex[i], f_complex[i])
+
+        dV_dot[0] = dV_dot_real
+        for i in range(ncs):
+            dV_dot[2 * i + 1] = dV_dot_complex[i].real
+            dV_dot[2 * i + 2] = dV_dot_complex[i].imag
+
+        dYp = T.dot(dV_dot)
+        dY = h * A.dot(dYp)
+
+        Yp += dYp
+        Y += dY
+
+        dY_norm = norm(dY / scale)
+        if dY_norm_old is not None:
+            rate = dY_norm / dY_norm_old
+
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
+            break
+
+        # if (rate is not None and rate >= 1.0):
+        #     break
+
+        # # TODO: Why this is a bad indicator for divergence of the iteration?
+        # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol):
+        #     break
+
+        if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
+            converged = True
+            break
+
+        dY_norm_old = dY_norm
+
+    return converged, k + 1, Y, Yp, Y - y, rate
+
+
+def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     """Predict by which factor to increase/decrease the step size.
 
     The algorithm is described in [1]_.
@@ -276,92 +349,6 @@ def predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, e
     .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
            Equations II: Stiff and Differential-Algebraic Problems", Sec. IV.8.
     """
-    # # predictive PID controller
-    # # a = 0.8
-    # a = 1
-    # b = -0.4
-    # c = 0.1
-    # d = -0.2
-    # e = 0
-
-    # # Söderlind2003
-    # # # - H211b
-    # # bb = 2
-    # # a = 1 / bb
-    # # b = 1 / bb
-    # # c = 0
-    # # d = 1 / bb
-    # # e = 0
-
-    # # # - H211 PI
-    # # a = 1 / 6
-    # # b = 1 / 6
-    # # c = 0
-    # # d = 0
-    # # e = 0
-
-    # # # - H312b
-    # # bb = 2
-    # # a = 1 / bb
-    # # b = 2 / bb
-    # # c = 1 / bb
-    # # d = 3 / bb
-    # # e = 1 / bb
-
-    # # # - H312 PID
-    # # a = 1 / 18
-    # # b = 1 / 9
-    # # c = 1 / 18
-    # # d = 0
-    # # e = 0
-
-    # # # - H0321
-    # # a = 5 / 4
-    # # b = 1 / 2
-    # # c = -3 / 4
-    # # d = -1 / 4
-    # # e = -3 / 4
-
-    # # # - H321
-    # # a = 1 / 3
-    # # b = 1 / 18
-    # # c = -5 / 18
-    # # d = -5 / 6
-    # # e = -1 / 6
-
-    # k = s + 1
-    # if (
-    #     error_norm_old is not None 
-    #     and h_abs_old is not None
-    #     or error_norm == 0
-    # ):
-    #     if (
-    #         error_norm_oldold is not None
-    #         and h_abs_oldold is not None
-    #     ):
-    #         # predictive PID controller
-    #         multiplier = (
-    #             error_norm_old ** (-b / k)
-    #             * error_norm_oldold ** (-c / k)
-    #             * (h_abs / h_abs_old) ** (-d)
-    #             * (h_abs_old / h_abs_oldold) ** (-e)
-    #         )
-    #     else:
-    #         # predictive PI controller
-    #         multiplier = (
-    #             error_norm_old ** (-b / k)
-    #             * (h_abs / h_abs_old) ** (-d)
-    #         )
-    # else:
-    #     multiplier = 1
-
-    # with np.errstate(divide='ignore'):
-    #     factor = min(1, multiplier) * error_norm ** (-a / k)
-    #     # factor = multiplier * error_norm ** (-a / k)
-
-
-
-
     if error_norm_old is None or h_abs_old is None or error_norm == 0:
         multiplier = 1
     else:
@@ -369,10 +356,6 @@ def predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, e
 
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
-        # k_kI = 0.25
-        # k_kI = 0.9
-        # k_kI = 2.5
-        # factor = min(1, multiplier) * error_norm ** (-k_kI / (s + 1))
 
     # # nonsmooth limiter
     # factor = max(MIN_FACTOR, min(factor, MAX_FACTOR))
@@ -539,7 +522,7 @@ class RadauDAE(DaeSolver):
                  continuous_error_weight=0.0, jac=None, 
                  jac_sparsity=None, vectorized=False, 
                  first_step=None, newton_max_iter=None,
-                 jac_recompute_rate=1e-3, newton_iter_embedded=1,
+                 jac_recompute_rate=1e-4, newton_iter_embedded=1,
                  controller_deadband=(1.0, 1.2),
                  **extraneous):
         warn_extraneous(extraneous)
@@ -632,21 +615,15 @@ class RadauDAE(DaeSolver):
         if self.h_abs > max_step:
             h_abs = max_step
             h_abs_old = None
-            h_abs_oldold = None
             error_norm_old = None
-            error_norm_oldold = None
         elif self.h_abs < min_step:
             h_abs = min_step
             h_abs_old = None
-            h_abs_oldold = None
             error_norm_old = None
-            error_norm_oldold = None
         else:
             h_abs = self.h_abs
             h_abs_old = self.h_abs_old
-            h_abs_oldold = self.h_abs_oldold
             error_norm_old = self.error_norm_old
-            error_norm_oldold = self.error_norm_oldold
 
         Jy = self.Jy
         Jyp = self.Jyp
@@ -656,6 +633,7 @@ class RadauDAE(DaeSolver):
         current_jac = self.current_jac
         jac = self.jac
 
+        factor = None
         step_accepted = False
         message = None
         while not step_accepted:
@@ -672,24 +650,39 @@ class RadauDAE(DaeSolver):
             h_abs = np.abs(h)
 
             if self.sol is None:
-                Z0 = np.zeros((s, y.shape[0]))
+                if UNKNOWN_VELOCITIES:
+                    Yp0 = np.zeros((s, y.shape[0]))
+                else:
+                    Z0 = np.zeros((s, y.shape[0]))
             else:
-                Z0 = self.sol(t + h * C)[0].T - y
+                if UNKNOWN_VELOCITIES:
+                    Yp0 = self.sol(t + h * C)[1].T
+                else:
+                    Z0 = self.sol(t + h * C)[0].T - y
             scale = atol + np.abs(y) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    LU_real = self.lu(MU_REAL / h * Jyp + Jy)
-                    LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
+                    if UNKNOWN_VELOCITIES:
+                        LU_real = self.lu(Jyp + h / MU_REAL * Jy)
+                        LU_complex = [self.lu(Jyp + h / MU * Jy) for MU in MU_COMPLEX]
+                    else:
+                        LU_real = self.lu(MU_REAL / h * Jyp + Jy)
+                        LU_complex = [self.lu(MU / h * Jyp + Jy) for MU in MU_COMPLEX]
 
-                converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
-                    self.fun, t, y, h, Z0, scale, newton_tol,
-                    LU_real, LU_complex, self.solve_lu,
-                    C, T, TI, A, A_inv, newton_max_iter)
+                if UNKNOWN_VELOCITIES:
+                    converged, n_iter, Y, Yp, Z, rate = solve_collocation_system2(
+                        self.fun, t, y, h, Yp0, scale, newton_tol,
+                        LU_real, LU_complex, self.solve_lu,
+                        C, T, TI, A, newton_max_iter)
+                else:
+                    converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
+                        self.fun, t, y, h, Z0, scale, newton_tol,
+                        LU_real, LU_complex, self.solve_lu,
+                        C, T, TI, A, A_inv, newton_max_iter)
 
                 if not converged:
-                    # print(f"Newton not converged")
                     if current_jac:
                         break
 
@@ -715,7 +708,10 @@ class RadauDAE(DaeSolver):
             # embedded error measures
             if self.newton_iter_embedded == 0:
                 # explicit embedded method with R(z) = +oo for z -> oo
-                error_embedded = h * (yp / MU_REAL + v2 @ Yp)
+                if UNKNOWN_VELOCITIES:
+                    raise NotImplementedError
+                else:
+                    error_embedded = h * (yp / MU_REAL + v2 @ Yp)
             elif self.newton_iter_embedded == 1:
             
                 # compute implicit embedded method with a single Newton iteration;
@@ -723,20 +719,26 @@ class RadauDAE(DaeSolver):
                 # TODO: Store MU_REAL * v during construction.
                 yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
                 F = self.fun(t_new, y_new, yp_hat_new)
-                error_embedded = self.solve_lu(LU_real, -F)
+                if UNKNOWN_VELOCITIES:
+                    error_embedded = -h / MU_REAL * self.solve_lu(LU_real, F)
+                else:
+                    error_embedded = -self.solve_lu(LU_real, F)
             else:
                 # compute implicit embedded method with `newton_iter_embedded`` iterations
-                y_hat_new = y_new.copy() # initial guess
-                for _ in range(self.newton_iter_embedded):
-                    yp_hat_new = MU_REAL * (
-                        (y_hat_new - y) / h
-                        - b0 * yp
-                        - self.b_hat @ Yp
-                    )
-                    F = self.fun(t_new, y_hat_new, yp_hat_new)
-                    y_hat_new -= self.solve_lu(LU_real, F)
+                if UNKNOWN_VELOCITIES:
+                    raise NotImplementedError
+                else:
+                    y_hat_new = y_new.copy() # initial guess
+                    for _ in range(self.newton_iter_embedded):
+                        yp_hat_new = MU_REAL * (
+                            (y_hat_new - y) / h
+                            - b0 * yp
+                            - self.b_hat @ Yp
+                        )
+                        F = self.fun(t_new, y_hat_new, yp_hat_new)
+                        y_hat_new -= self.solve_lu(LU_real, F)
 
-                error_embedded = y_hat_new - y_new 
+                    error_embedded = y_hat_new - y_new 
 
             # mix embedded error with collocation error as proposed in Guglielmi2001/ Guglielmi2003
             error = (
@@ -748,9 +750,7 @@ class RadauDAE(DaeSolver):
             safety = 0.9 * (2 * newton_max_iter + 1) / (2 * newton_max_iter + n_iter)
 
             if error_norm > 1:
-                # factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
-                factor = predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, error_norm_oldold, s)
-                # h_abs *= max(MIN_FACTOR, safety * factor)
+                factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
                 h_abs *= safety * factor
 
                 LU_real = None
@@ -765,10 +765,9 @@ class RadauDAE(DaeSolver):
             and rate > self.jac_recompute_rate
         )
 
-        # factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
-        factor = predict_factor(h_abs, h_abs_old, h_abs_oldold, error_norm, error_norm_old, error_norm_oldold, s)
-        # factor = min(MAX_FACTOR, safety * factor)
-        factor = safety * factor
+        if factor is None:
+            factor = predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s)
+            factor = safety * factor
 
         # do not alter step-size in deadband
         if (
@@ -801,9 +800,7 @@ class RadauDAE(DaeSolver):
         elif jac is not None:
             current_jac = False
 
-        self.h_abs_oldold = self.h_abs_old
         self.h_abs_old = self.h_abs
-        self.error_norm_oldold = error_norm_old
         self.error_norm_old = error_norm
 
         self.h_abs = h_abs * factor
@@ -816,6 +813,8 @@ class RadauDAE(DaeSolver):
         self.yp = yp_new
 
         self.Z = Z
+        self.Y = Y
+        self.Yp = Yp
 
         self.LU_real = LU_real
         self.LU_complex = LU_complex
@@ -824,15 +823,18 @@ class RadauDAE(DaeSolver):
         self.Jyp = Jyp
 
         self.t_old = t
+        # TODO: Simplify computation for Yp as unlnowns
         self.sol = self._compute_dense_output()
 
         return step_accepted, message
 
     def _compute_dense_output(self):
-        Q = np.dot(self.Z.T, self.P)
-        h = self.t - self.t_old
-        Yp = (self.A_inv / h) @ self.Z
-        Zp = Yp - self.yp_old
+        # Q = np.dot(self.Z.T, self.P)
+        # h = self.t - self.t_old
+        # Yp = (self.A_inv / h) @ self.Z
+        Z = self.Y - self.y_old
+        Q = np.dot(Z.T, self.P)
+        Zp = self.Yp - self.yp_old
         Qp = np.dot(Zp.T, self.P)
         return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
@@ -859,16 +861,16 @@ class RadauDenseOutput(DAEDenseOutput):
         p = x**c
         dp = (c / self.h) * (x**(c - 1))
 
-        # 1. compute derivative of interpolation polynomial for y
-        y = np.dot(self.Q, p)
-        y += self.y_old[:, None]
-        yp = np.dot(self.Q, dp)
-
-        # # 2. compute collocation polynomial for y and yp
+        # # 1. compute derivative of interpolation polynomial for y
         # y = np.dot(self.Q, p)
-        # yp = np.dot(self.Qp, p)
         # y += self.y_old[:, None]
-        # yp += self.yp_old[:, None]
+        # yp = np.dot(self.Q, dp)
+
+        # 2. compute collocation polynomial for y and yp
+        y = np.dot(self.Q, p)
+        yp = np.dot(self.Qp, p)
+        y += self.y_old[:, None]
+        yp += self.yp_old[:, None]
 
         # # 3. compute both values by Horner's rule
         # y = np.zeros_like(y)

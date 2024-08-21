@@ -177,6 +177,7 @@ if __name__ == "__main__":
     # method = "BDF"
     method = "Radau"
     # method = "RK23"
+    # method = "PSIDE"
 
     # initial positions
     q0 = np.array([length, 0, 0], dtype=float)
@@ -248,5 +249,6 @@ if __name__ == "__main__":
     ax[3].set_xlabel("h")
     ax[3].grid()
     ax[3].plot(t[1:], np.diff(t), "-ok")
+    ax[3].set_yscale("log")
 
     plt.show()

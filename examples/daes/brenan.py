@@ -46,8 +46,8 @@ if __name__ == "__main__":
     ##############
     start = time.time()
     # method = "BDF"
-    # method = "Radau"
-    method = "PSIDE"
+    method = "Radau"
+    # method = "PSIDE"
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")
@@ -77,8 +77,8 @@ if __name__ == "__main__":
     # visualization
     fig, ax = plt.subplots()
 
-    ax.plot(t, y[0], "--r", label="y1")
-    ax.plot(t, y[1], "--g", label="y2")
+    ax.plot(t, y[0], "--or", label="y1")
+    ax.plot(t, y[1], "--og", label="y2")
 
     ax.plot(t, np.exp(-t) + t * np.sin(t), "-r", label="y1 true")
     ax.plot(t, np.sin(t), "-g", label="y2 true")
