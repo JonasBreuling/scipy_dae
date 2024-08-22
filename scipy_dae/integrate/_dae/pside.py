@@ -101,76 +101,6 @@ MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
 INNER_NEWTON_ITERATIONS = 1 # number of inner Newton iterations
 
-def LUdecompCrout(A):
-    """
-    Perform Crout's LU decomposition on matrix A.
-
-    Args:
-    - A: numpy array, the matrix to decompose
-    
-    Returns:
-    - L: numpy array, lower triangular matrix from Crout's decomposition
-    - U: numpy array, upper triangular matrix from Crout's decomposition
-    """
-    # Get the number of rows and columns
-    R, C = A.shape
-    
-    # Initialize L and U
-    L = np.zeros((R, C))
-    U = np.zeros((R, C))
-    
-    # First column initialization of L and diagonal of U
-    for i in range(R):
-        L[i, 0] = A[i, 0]
-        U[i, i] = 1
-    
-    # First row initialization of U
-    for j in range(1, R):
-        U[0, j] = A[0, j] / L[0, 0]
-    
-    # Fill in L and U for the remaining elements
-    for i in range(1, R):
-        for j in range(1, i + 1):
-            L[i, j] = A[i, j] - np.dot(L[i, :j], U[:j, j])
-        
-        for j in range(i + 1, R):
-            U[i, j] = (A[i, j] - np.dot(L[i, :i], U[:i, j])) / L[i, i]
-    
-    return L, U
-
-
-def LUdecompCrout(A):
-    """
-    Perform Crout's LU decomposition on matrix A.
-    
-    Args:
-    - A: numpy array, the matrix to decompose
-    
-    Returns:
-    - L: numpy array, lower triangular matrix from Crout's decomposition
-    - U: numpy array, upper triangular matrix from Crout's decomposition
-    """
-    # Ensure A is a NumPy array
-    A = np.array(A, dtype=float)
-    n = A.shape[0]
-
-    # Initialize L and U matrices
-    L = np.zeros_like(A)
-    U = np.zeros_like(A)
-
-    # Crout decomposition
-    for j in range(n):
-        # Compute L[:, j]
-        for i in range(j, n):
-            L[i, j] = A[i, j] - np.dot(L[i, :j], U[:j, j])
-
-        # Compute U[j, :]
-        U[j, j] = 1  # Diagonal of U is set to 1
-        for i in range(j + 1, n):
-            U[j, i] = (A[j, i] - np.dot(L[j, :j], U[:j, i])) / L[j, j]
-
-    return L, U
-
 
 def butcher_tableau(s):
     # nodes are given by the zeros of the Radau polynomial, see Hairer1999 (7)
@@ -1238,10 +1168,12 @@ class PPSIDEDAE(DaeSolver):
         return step_accepted, message
 
     def _compute_dense_output(self):
-        Q = np.dot(self.Z.T, self.P)
-        h = self.t - self.t_old
-        Yp = (self.A_inv / h) @ self.Z
-        Zp = Yp - self.yp_old
+        # Q = np.dot(self.Z.T, self.P)
+        # h = self.t - self.t_old
+        # Yp = (self.A_inv / h) @ self.Z
+        Z = self.Y - self.y_old
+        Q = np.dot(Z.T, self.P)
+        Zp = self.Yp - self.yp_old
         Qp = np.dot(Zp.T, self.P)
         return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
@@ -1268,16 +1200,16 @@ class RadauDenseOutput(DAEDenseOutput):
         p = x**c
         dp = (c / self.h) * (x**(c - 1))
 
-        # 1. compute derivative of interpolation polynomial for y
-        y = np.dot(self.Q, p)
-        y += self.y_old[:, None]
-        yp = np.dot(self.Q, dp)
-
-        # # 2. compute collocation polynomial for y and yp
+        # # 1. compute derivative of interpolation polynomial for y
         # y = np.dot(self.Q, p)
-        # yp = np.dot(self.Qp, p)
         # y += self.y_old[:, None]
-        # yp += self.yp_old[:, None]
+        # yp = np.dot(self.Q, dp)
+
+        # 2. compute collocation polynomial for y and yp
+        y = np.dot(self.Q, p)
+        yp = np.dot(self.Qp, p)
+        y += self.y_old[:, None]
+        yp += self.yp_old[:, None]
 
         # # 3. compute both values by Horner's rule
         # y = np.zeros_like(y)
