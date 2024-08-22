@@ -16,9 +16,8 @@ References
        matrices. Bit Numer Math 37, 346-354 (1997).
 """
 
-DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
-                                   # de Swart proposes 0.067 for s=3.
-DAMPING_RATIO_ERROR_ESTIMATE = 0.01
+DAMPING_RATIO_ERROR_ESTIMATE = 0.01 # Hairer (8.19) is obtained by the choice 1.0. 
+                                    # de Swart proposes 0.067 for s=3.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
@@ -96,7 +95,6 @@ def radau_constants(s):
     vander = np.vander(c_hat, increasing=True).T
 
     rhs = 1 / np.arange(1, s + 1)
-    # b_hats2 = 1 / gammas[-1]
     b_hats2 = gammas[-1]
     b_hat1 = DAMPING_RATIO_ERROR_ESTIMATE * b_hats2
     rhs[0] -= b_hat1
@@ -106,7 +104,6 @@ def radau_constants(s):
     v = b - b_hat
 
     rhs2 = 1 / np.arange(1, s + 1)
-    # rhs2[0] -= 1 / gammas[-1]
     rhs2[0] -= gammas[-1]
 
     b_hat2 = np.linalg.solve(vander[:-1, 1:], rhs2)
@@ -123,8 +120,8 @@ def radau_constants(s):
 
 
 def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
-                             LU_real, LU_complex, solve_lu,
-                             C, T, TI, A, A_inv, newton_max_iter):
+                             LUs, solve_lu, C, T, TI, A, A_inv, 
+                             newton_max_iter):
     """Solve the collocation system.
 
     Parameters
@@ -168,9 +165,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     rate : float
         The rate of convergence.
     """
-    raise NotImplementedError
     s, n = Z0.shape
-    ncs = s // 2
     tau = t + h * C
 
     Z = Z0
@@ -192,20 +187,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             break
 
         U = TI @ F
-        f_real = -U[0]
-        f_complex = np.empty((ncs, n), dtype=complex)
-        for i in range(ncs):
-            f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
-
-        dW_real = solve_lu(LU_real, f_real)
-        dW_complex = np.empty_like(f_complex)
-        for i in range(ncs):
-            dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
-
-        dW[0] = dW_real
-        for i in range(ncs):
-            dW[2 * i + 1] = dW_complex[i].real
-            dW[2 * i + 2] = dW_complex[i].imag
+        for i in range(s):
+            dW[i] = solve_lu(LUs[i], -U[i])
 
         dW_norm = norm(dW / scale)
         if dW_norm_old is not None:
@@ -236,20 +219,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
             converged = True
             break
 
-        # # inexact simplified Newton method (https://doi.org/10.1137/S0036142999360573)
-        # # kappa2 = 0.1
-        # kappa2 = 0.01
-        # if (
-        #     dW_norm == 0 
-        #     or rate is not None and (
-        #         rate / (1 - rate) * dW_norm < tol 
-        #         # or dW_norm_old is not None and rate / (1 - rate) * dW_norm < kappa2 * rate**2 * dW_norm_old
-        #         or dW_norm_old is not None and rate / (1 - rate) * dW_norm < kappa2 * rate**2 / (1 - rate) * dW_norm_old
-        #     )
-        # ):
-        #     converged = True
-        #     break
-
         dW_norm_old = dW_norm
 
     return converged, k + 1, Y, Yp, Z, rate
@@ -279,7 +248,6 @@ def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
             break
 
         U = TI @ F
-        dV_dot = np.zeros_like(V_dot)
         for i in range(s):
             dV_dot[i] = solve_lu(LUs[i], -U[i])
 
@@ -553,8 +521,11 @@ class PTIRKDAE(DaeSolver):
 
         # maximum number of newton terations as in radaup.f line 234
         if newton_max_iter is None:
-            # newton_max_iter = 7 + int((stages - 3) * 2.5)
-            newton_max_iter = 15 + int((stages - 3) * 2.5)
+            newton_max_iter = 7 + int((stages - 3) * 2.5)
+            newton_max_iter = 15 + int((stages - 4) * 2.5)
+
+            # # newton_max_iter = 15 + int((stages - 4) * 2.5)
+            # newton_max_iter = 15 + int((stages - 3) * 2.5)
         
         assert isinstance(newton_max_iter, int)
         assert newton_max_iter >= 1
@@ -657,6 +628,7 @@ class PTIRKDAE(DaeSolver):
                     if UNKNOWN_VELOCITIES:
                         LUs = [self.lu(Jyp + h * ga * Jy) for ga in gammas]
                     else:
+                        # LUs = [self.lu(ga / h * Jyp + Jy) for ga in gammas]
                         LUs = [self.lu(1 / (h * ga) * Jyp + Jy) for ga in gammas]
 
                 if UNKNOWN_VELOCITIES:
@@ -693,14 +665,12 @@ class PTIRKDAE(DaeSolver):
             if self.newton_iter_embedded == 0:
                 # explicit embedded method with R(z) = +oo for z -> oo
                 if UNKNOWN_VELOCITIES:
-                    # raise NotImplementedError
                     error_embedded = h * (yp * gammas[-1] + v2 @ Yp)
                 else:
                     error_embedded = h * (yp * gammas[-1] + v2 @ Yp)
             elif self.newton_iter_embedded == 1:
                 # compute implicit embedded method with a single Newton iteration;
                 # R(z) = b_hat1 / b_hats2 = DAMPING_RATIO_ERROR_ESTIMATE for z -> oo
-                # TODO: Store MU_REAL * v during construction.
                 yp_hat_new = (v @ Yp - b0 * yp) / gammas[-1]
                 F = self.fun(t_new, y_new, yp_hat_new)
                 if UNKNOWN_VELOCITIES:
@@ -793,10 +763,12 @@ class PTIRKDAE(DaeSolver):
         return step_accepted, message
 
     def _compute_dense_output(self):
-        Q = np.dot(self.Z.T, self.P)
-        h = self.t - self.t_old
-        Yp = (self.A_inv / h) @ self.Z
-        Zp = Yp - self.yp_old
+        # Q = np.dot(self.Z.T, self.P)
+        # h = self.t - self.t_old
+        # Yp = (self.A_inv / h) @ self.Z
+        Z = self.Y - self.y_old
+        Q = np.dot(Z.T, self.P)
+        Zp = self.Yp - self.yp_old
         Qp = np.dot(Zp.T, self.P)
         return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
@@ -823,6 +795,7 @@ class RadauDenseOutput(DAEDenseOutput):
         p = x**c
         dp = (c / self.h) * (x**(c - 1))
 
+        # TODO: This seems to be a better initial guess
         # 1. compute derivative of interpolation polynomial for y
         y = np.dot(self.Q, p)
         y += self.y_old[:, None]
