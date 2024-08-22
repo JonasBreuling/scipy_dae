@@ -8,15 +8,10 @@ from .dae import DaeSolver
 
 DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
                                    # de Swart proposes 0.067 for s=3.
-# DAMPING_RATIO_ERROR_ESTIMATE = 0.0005
-# DAMPING_RATIO_ERROR_ESTIMATE = 0.067
 DAMPING_RATIO_ERROR_ESTIMATE = 0.01
-# DAMPING_RATIO_ERROR_ESTIMATE = 1e-3
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
-# KAPPA = 0.25
-# KAPPA = 0.5
 
 UNKNOWN_VELOCITIES = False
 # UNKNOWN_VELOCITIES = True
@@ -522,7 +517,7 @@ class RadauDAE(DaeSolver):
                  continuous_error_weight=0.0, jac=None, 
                  jac_sparsity=None, vectorized=False, 
                  first_step=None, newton_max_iter=None,
-                 jac_recompute_rate=1e-4, newton_iter_embedded=1,
+                 jac_recompute_rate=1e-3, newton_iter_embedded=1,
                  controller_deadband=(1.0, 1.2),
                  **extraneous):
         warn_extraneous(extraneous)

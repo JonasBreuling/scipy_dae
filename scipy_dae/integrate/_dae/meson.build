@@ -6,6 +6,7 @@ py3.install_sources([
     'dae.py',
     'radau.py',
     'pside.py',
+    'ptirk.py',
   ],
   subdir: 'scipy_dae/integrate/_dae'
 )

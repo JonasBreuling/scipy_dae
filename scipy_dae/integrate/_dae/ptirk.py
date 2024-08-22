@@ -73,8 +73,8 @@ def radau_constants(s):
     # Section 3.2.2 in [2]
     T_L, T_U = LUdecompCrout(A)
     B = T_L
-    Z_0 = A - B
-    Z_oo = np.eye(*(B.shape)) - T_U
+    # Z_0 = A - B
+    # Z_oo = np.eye(*(B.shape)) - T_U
 
     # compute Butcher transformation that eliminates rhs of B = L + D splitting 
     lambdas, V = eig(B)
@@ -96,7 +96,8 @@ def radau_constants(s):
     vander = np.vander(c_hat, increasing=True).T
 
     rhs = 1 / np.arange(1, s + 1)
-    b_hats2 = 1 / gammas[-1]
+    # b_hats2 = 1 / gammas[-1]
+    b_hats2 = gammas[-1]
     b_hat1 = DAMPING_RATIO_ERROR_ESTIMATE * b_hats2
     rhs[0] -= b_hat1
     rhs -= b_hats2
@@ -105,7 +106,8 @@ def radau_constants(s):
     v = b - b_hat
 
     rhs2 = 1 / np.arange(1, s + 1)
-    rhs2[0] -= 1 / gammas[-1]
+    # rhs2[0] -= 1 / gammas[-1]
+    rhs2[0] -= gammas[-1]
 
     b_hat2 = np.linalg.solve(vander[:-1, 1:], rhs2)
     v2 = b_hat2 - b
@@ -358,63 +360,6 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
     return factor
 
 
-# def PTIRK(A):
-#     # Section 3.2.2 in [2]
-#     T_L, T_U = LUdecompCrout(A)
-#     B = T_L
-#     Z_0 = A - B
-#     Z_oo = np.eye(*(B.shape)) - T_U
-
-#     # compute Butcher transformation that eliminate rhs
-#     lambdas, V = eig(B)
-#     Gammas, T = cdf2rdf(lambdas, V)
-#     gammas = np.diag(Gammas)
-
-#     TI = np.linalg.inv(T)
-#     assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), B)
-#     assert np.allclose(np.linalg.inv(V) @ B @ V, np.diag(lambdas))
-#     assert np.allclose(T @ Gammas @ TI, B)
-#     assert np.allclose(TI @ B @ T, Gammas)
-
-#     return B, Z_0, Z_oo
-
-# B, Z_0, Z_00 = PTIRK(radau_butcher_tableau(2)[0])
-# assert np.allclose(
-#     B,
-#     np.array([
-#         [0.4167, 0.0000],
-#         [0.7500, 0.4000],
-#     ]),
-#     rtol=0,
-#     atol=1e-4,
-# )
-
-# B, Z_0, Z_00 = PTIRK(radau_butcher_tableau(3)[0])
-# assert np.allclose(
-#     B,
-#     np.array([
-#         [0.1968, 0.0000, 0.0000],
-#         [0.3944, 0.4234, 0.0000],
-#         [0.3764, 0.6378, 0.2000],
-#     ]),
-#     rtol=0,
-#     atol=1e-4,
-# )
-
-# B, Z_0, Z_00 = PTIRK(radau_butcher_tableau(4)[0])
-# assert np.allclose(
-#     B,
-#     np.array([
-#         [0.1130, 0.0000, 0.0000, 0.0000],
-#         [0.2344, 0.2905, 0.0000, 0.0000],
-#         [0.2167, 0.4834, 0.3083, 0.0000],
-#         [0.2205, 0.4668, 0.4414, 0.1176],
-#     ]),
-#     rtol=0,
-#     atol=1e-4,
-# )
-
-
 class PTIRKDAE(DaeSolver):
     """Implicit Runge-Kutta method of Radau IIA family of order 2s - 1.
 
@@ -608,7 +553,8 @@ class PTIRKDAE(DaeSolver):
 
         # maximum number of newton terations as in radaup.f line 234
         if newton_max_iter is None:
-            newton_max_iter = 7 + int((stages - 3) * 2.5)
+            # newton_max_iter = 7 + int((stages - 3) * 2.5)
+            newton_max_iter = 15 + int((stages - 3) * 2.5)
         
         assert isinstance(newton_max_iter, int)
         assert newton_max_iter >= 1
@@ -709,20 +655,18 @@ class PTIRKDAE(DaeSolver):
             while not converged:
                 if LUs is None:
                     if UNKNOWN_VELOCITIES:
-                        LUs = [self.lu(Jyp + h * MU * Jy) for MU in gammas]
+                        LUs = [self.lu(Jyp + h * ga * Jy) for ga in gammas]
                     else:
-                        LUs = [self.lu(1 / (h * MU) * Jyp + Jy) for MU in gammas]
+                        LUs = [self.lu(1 / (h * ga) * Jyp + Jy) for ga in gammas]
 
                 if UNKNOWN_VELOCITIES:
                     converged, n_iter, Y, Yp, Z, rate = solve_collocation_system2(
-                        self.fun, t, y, h, Yp0, scale, newton_tol,
-                        LUs, self.solve_lu,
-                        c, T, TI, A, newton_max_iter)
+                        self.fun, t, y, h, Yp0, scale, newton_tol, LUs, 
+                        self.solve_lu, c, T, TI, A, newton_max_iter)
                 else:
                     converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
-                        self.fun, t, y, h, Z0, scale, newton_tol,
-                        LUs, self.solve_lu,
-                        c, T, TI, A, A_inv, newton_max_iter)
+                        self.fun, t, y, h, Z0, scale, newton_tol, LUs, 
+                        self.solve_lu, c, T, TI, A, A_inv, newton_max_iter)
 
                 if not converged:
                     if current_jac:
@@ -749,7 +693,8 @@ class PTIRKDAE(DaeSolver):
             if self.newton_iter_embedded == 0:
                 # explicit embedded method with R(z) = +oo for z -> oo
                 if UNKNOWN_VELOCITIES:
-                    raise NotImplementedError
+                    # raise NotImplementedError
+                    error_embedded = h * (yp * gammas[-1] + v2 @ Yp)
                 else:
                     error_embedded = h * (yp * gammas[-1] + v2 @ Yp)
             elif self.newton_iter_embedded == 1:

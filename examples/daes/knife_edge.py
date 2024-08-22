@@ -7,6 +7,7 @@ m = 1.25
 Theta = 0.13
 a = 0.1
 g = 9.81
+np.random.seed(1234)
 Omega = 2 * np.random.rand(1)[0]
 alpha = np.random.rand(1)[0]
 salpha = np.sin(alpha)
@@ -97,7 +98,6 @@ if __name__ == "__main__":
     ##############
     # method = "BDF"
     method = "Radau"
-    # method = "PSIDE"
     start = time.time()
     sol = solve_dae(F, t_span, vy0, vyp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
