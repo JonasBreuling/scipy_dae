@@ -6,9 +6,8 @@ from .base import DAEDenseOutput
 from .dae import DaeSolver
 
 
-DAMPING_RATIO_ERROR_ESTIMATE = 0.8 # Hairer (8.19) is obtained by the choice 1.0. 
-                                   # de Swart proposes 0.067 for s=3.
-DAMPING_RATIO_ERROR_ESTIMATE = 0.01
+DAMPING_RATIO_ERROR_ESTIMATE = 0.01 # Hairer (8.19) is obtained by the choice 1.0. 
+                                    # de Swart proposes 0.067 for s=3.
 MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
