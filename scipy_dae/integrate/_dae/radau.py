@@ -228,7 +228,9 @@ def solve_collocation_system2(fun, t, y, h, Y0, Yp0, scale, tol,
     tau = t + h * C
 
     Yp = Yp0
-    Y = Y0
+    Y = y + h * A.dot(Yp)
+    # TODO: Why is this bad?
+    # Y = Y0
     V_dot = TI.dot(Yp)
 
     F = np.empty((s, n))
@@ -621,6 +623,9 @@ class RadauDAE(DaeSolver):
                     # note: this only works when we exrapolate the derivative 
                     # of the collocation polynomial but do not use the sth order 
                     # collocation polynomial for the derivatives as well.
+                    # Yp0 = self.sol(t + h * C)[1].T
+                    # # Z0 = self.sol(t + h * C)[0].T - y
+                    # # Yp0 = (1 / h) * A_inv @ Z0
                     Y0, Yp0 = map(np.transpose, self.sol(t + h * C))
                 else:
                     Z0 = self.sol(t + h * C)[0].T - y
