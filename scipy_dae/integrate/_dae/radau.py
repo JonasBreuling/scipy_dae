@@ -203,16 +203,8 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
 
-        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
-        #     break
-
-        if (rate is not None and rate >= 1.0):
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
             break
-
-        # # TODO: Why this is a bad indicator for divergence of the iteration?
-        # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol):
-        # #     print(f"rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol")
-        #     break
 
         W += dW
         Z = T.dot(W)
@@ -278,15 +270,8 @@ def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
         if dY_norm_old is not None:
             rate = dY_norm / dY_norm_old
 
-        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
-        #     break
-
-        if (rate is not None and rate >= 1.0):
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
             break
-
-        # # TODO: Why this is a bad indicator for divergence of the iteration?
-        # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol):
-        #     break
 
         if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
             converged = True
@@ -627,7 +612,7 @@ class RadauDAE(DaeSolver):
 
             if self.sol is None:
                 if UNKNOWN_VELOCITIES:
-                    Yp0 = np.zeros((s, y.shape[0]))
+                    Yp0 = np.tile(yp, s).reshape(s, -1)
                 else:
                     Z0 = np.zeros((s, y.shape[0]))
             else:
