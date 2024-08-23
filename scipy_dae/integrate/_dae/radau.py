@@ -32,6 +32,12 @@ def butcher_tableau(s):
             ri[q] = c[i] ** (q + 1) / (q + 1)
         A[i] = np.linalg.solve(Mi, ri)
 
+    # alternative computation of coefficent matrix
+    V = np.vander(c, increasing=True)
+    R = np.diag(1 / np.arange(1, s + 1))
+    A = np.diag(c) @ V @ R @ np.linalg.inv(V)
+    # A = np.linalg.solve(V.T, (np.diag(c) @ V @ R).T).T
+
     b = A[-1, :]
     p = 2 * s - 1
     return A, b, c, p
@@ -650,6 +656,7 @@ class RadauDAE(DaeSolver):
                     Z0 = np.zeros((s, y.shape[0]))
             else:
                 if UNKNOWN_VELOCITIES:
+                    # note: this only works when we exrapolate the derivative of the collocation polynomial but do not use the sth order collocation polynomial for the derivatives as well.
                     Yp0 = self.sol(t + h * C)[1].T
                 else:
                     Z0 = self.sol(t + h * C)[0].T - y
@@ -710,7 +717,6 @@ class RadauDAE(DaeSolver):
             
                 # compute implicit embedded method with a single Newton iteration;
                 # R(z) = b_hat1 / b_hats2 = DAMPING_RATIO_ERROR_ESTIMATE for z -> oo
-                # TODO: Store MU_REAL * v during construction.
                 yp_hat_new = MU_REAL * (v @ Yp - b0 * yp)
                 F = self.fun(t_new, y_new, yp_hat_new)
                 if UNKNOWN_VELOCITIES:
@@ -775,21 +781,6 @@ class RadauDAE(DaeSolver):
 
         if recompute_jac:
             Jy, Jyp = self.jac(t_new, y_new, yp_new)
-            # use better approximation for Jacobian (https://doi.org/10.1016/j.cam.2011.05.027)
-            # Jy, Jyp = self.jac(
-            #     t_new + h * np.sum(C) / s,
-            #     y_new + np.sum(Z, axis=0) / s,
-            #     # ((self.A_inv / h) @ (Z + np.sum(Z, axis=0) / s))[-1],
-            #     ((self.A_inv / h) @ (np.sum(Z, axis=0) / s))[-1],
-            # )
-            # c = np.sum(C) / s
-            # Z0 = self.sol(t + h * c)[0].T - y
-            # Jy, Jyp = self.jac(
-            #     t_new + h * np.sum(C) / s,
-            #     y_new + np.sum(Z, axis=0) / s,
-            #     # ((self.A_inv / h) @ (Z + np.sum(Z, axis=0) / s))[-1],
-            #     ((self.A_inv / h) @ (np.sum(Z, axis=0) / s))[-1],
-            # )
             current_jac = True
         elif jac is not None:
             current_jac = False
@@ -817,7 +808,6 @@ class RadauDAE(DaeSolver):
         self.Jyp = Jyp
 
         self.t_old = t
-        # TODO: Simplify computation for Yp as unlnowns
         self.sol = self._compute_dense_output()
 
         return step_accepted, message
@@ -855,16 +845,16 @@ class RadauDenseOutput(DAEDenseOutput):
         p = x**c
         dp = (c / self.h) * (x**(c - 1))
 
-        # # 1. compute derivative of interpolation polynomial for y
-        # y = np.dot(self.Q, p)
-        # y += self.y_old[:, None]
-        # yp = np.dot(self.Q, dp)
-
-        # 2. compute collocation polynomial for y and yp
+        # 1. compute derivative of interpolation polynomial for y
         y = np.dot(self.Q, p)
-        yp = np.dot(self.Qp, p)
         y += self.y_old[:, None]
-        yp += self.yp_old[:, None]
+        yp = np.dot(self.Q, dp)
+
+        # # 2. compute collocation polynomial for y and yp
+        # y = np.dot(self.Q, p)
+        # yp = np.dot(self.Qp, p)
+        # y += self.y_old[:, None]
+        # yp += self.yp_old[:, None]
 
         # # 3. compute both values by Horner's rule
         # y = np.zeros_like(y)
