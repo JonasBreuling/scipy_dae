@@ -29,7 +29,7 @@ def run_weissinger():
     # tolerances and initial step size
     rtols = 10**(-(4 + ms / 4))
     atols = rtols
-    h0s = 1e-2 * rtols
+    h0s = 1e2 * rtols
 
     # time span
     t0 = np.sqrt(0.5)

@@ -81,7 +81,6 @@ def sol_true(t):
 
 def run_knife_edge():
     # exponents
-    # m_max = 
     m_max = 32
     ms = np.arange(m_max + 1)
 

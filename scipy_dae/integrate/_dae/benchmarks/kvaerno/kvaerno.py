@@ -32,8 +32,7 @@ def true_sol(t):
 
 def run_kvaerno():
     # exponents
-    # m_max = 32
-    m_max = 10
+    m_max = 32
     ms = np.arange(m_max + 1)
 
     # tolerances and initial step size

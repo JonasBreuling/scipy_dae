@@ -6,10 +6,8 @@ from .base import DAEDenseOutput
 from .dae import DaeSolver
 
 
-DAMPING_RATIO_ERROR_ESTIMATE = 0.01 # Hairer (8.19) is obtained by the choice 1.0. 
+DAMPING_RATIO_ERROR_ESTIMATE = 0.05 # Hairer (8.19) is obtained by the choice 1.0. 
                                     # de Swart proposes 0.067 for s=3.
-MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
-MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
 
 # UNKNOWN_VELOCITIES = False
@@ -205,16 +203,11 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if dW_norm_old is not None:
             rate = dW_norm / dW_norm_old
 
-        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
-            break
-
-        # if (rate is not None and rate >= 1.0):
-        #     # print(f"rate >= 1")
+        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
         #     break
-        #     # if n_bad_iter > 5:
-        #     #     break
-        #     # else:
-        #     #     n_bad_iter += 1
+
+        if (rate is not None and rate >= 1.0):
+            break
 
         # # TODO: Why this is a bad indicator for divergence of the iteration?
         # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol):
@@ -229,20 +222,6 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
         if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
             converged = True
             break
-
-        # # inexact simplified Newton method (https://doi.org/10.1137/S0036142999360573)
-        # # kappa2 = 0.1
-        # kappa2 = 0.01
-        # if (
-        #     dW_norm == 0 
-        #     or rate is not None and (
-        #         rate / (1 - rate) * dW_norm < tol 
-        #         # or dW_norm_old is not None and rate / (1 - rate) * dW_norm < kappa2 * rate**2 * dW_norm_old
-        #         or dW_norm_old is not None and rate / (1 - rate) * dW_norm < kappa2 * rate**2 / (1 - rate) * dW_norm_old
-        #     )
-        # ):
-        #     converged = True
-        #     break
 
         dW_norm_old = dW_norm
 
@@ -299,11 +278,11 @@ def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
         if dY_norm_old is not None:
             rate = dY_norm / dY_norm_old
 
-        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
-            break
-
-        # if (rate is not None and rate >= 1.0):
+        # if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
         #     break
+
+        if (rate is not None and rate >= 1.0):
+            break
 
         # # TODO: Why this is a bad indicator for divergence of the iteration?
         # if (rate is not None and rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol):
@@ -356,9 +335,6 @@ def predict_factor(h_abs, h_abs_old, error_norm, error_norm_old, s):
 
     with np.errstate(divide='ignore'):
         factor = min(1, multiplier) * error_norm ** (-1 / (s + 1))
-
-    # # nonsmooth limiter
-    # factor = max(MIN_FACTOR, min(factor, MAX_FACTOR))
 
     # smooth limiter
     factor = 1 + KAPPA * np.arctan((factor - 1) / KAPPA)
@@ -656,8 +632,12 @@ class RadauDAE(DaeSolver):
                     Z0 = np.zeros((s, y.shape[0]))
             else:
                 if UNKNOWN_VELOCITIES:
-                    # note: this only works when we exrapolate the derivative of the collocation polynomial but do not use the sth order collocation polynomial for the derivatives as well.
+                    # note: this only works when we exrapolate the derivative 
+                    # of the collocation polynomial but do not use the sth order 
+                    # collocation polynomial for the derivatives as well.
                     Yp0 = self.sol(t + h * C)[1].T
+                    # Z0 = self.sol(t + h * C)[0].T - y
+                    # Yp0 = (1 / h) * A_inv @ Z0
                 else:
                     Z0 = self.sol(t + h * C)[0].T - y
             scale = atol + np.abs(y) * rtol
@@ -813,13 +793,15 @@ class RadauDAE(DaeSolver):
         return step_accepted, message
 
     def _compute_dense_output(self):
-        # Q = np.dot(self.Z.T, self.P)
-        # h = self.t - self.t_old
-        # Yp = (self.A_inv / h) @ self.Z
-        Z = self.Y - self.y_old
-        Q = np.dot(Z.T, self.P)
-        Zp = self.Yp - self.yp_old
+        Q = np.dot(self.Z.T, self.P)
+        h = self.t - self.t_old
+        Yp = (self.A_inv / h) @ self.Z
+        Zp = Yp - self.yp_old
         Qp = np.dot(Zp.T, self.P)
+        # Z = self.Y - self.y_old
+        # Q = np.dot(Z.T, self.P)
+        # Zp = self.Yp - self.yp_old
+        # Qp = np.dot(Zp.T, self.P)
         return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
 
     def _dense_output_impl(self):
