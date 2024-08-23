@@ -58,7 +58,7 @@ def test_integration_robertson_ode(method):
                             continuous_error_weight=continuous_error_weight)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
-            assert res.nfev < 3200
+            assert res.nfev < 3300
             assert res.njev < 150
 
 
@@ -104,7 +104,7 @@ def test_integration_robertson_dae(method):
 
     else: # Radau
         for stages, continuous_error_weight in product(
-            [3, 5], # stages
+            [3, 5, 7], # stages
             [0.0, 0.5, 1.0], # continuous_error_weight
         ):
             res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,

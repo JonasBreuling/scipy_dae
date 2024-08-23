@@ -12,8 +12,8 @@ MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
 MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 KAPPA = 1 # Factor of the smooth limiter
 
-UNKNOWN_VELOCITIES = False
-# UNKNOWN_VELOCITIES = True
+# UNKNOWN_VELOCITIES = False
+UNKNOWN_VELOCITIES = True
 
 
 def butcher_tableau(s):
