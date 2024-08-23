@@ -174,10 +174,9 @@ if __name__ == "__main__":
     t_eval = np.linspace(t0, t1, num=int(1e4))
     t_eval = None
 
+    # method = "RK23"
     # method = "BDF"
     method = "Radau"
-    # method = "RK23"
-    # method = "PSIDE"
 
     # initial positions
     q0 = np.array([length, 0, 0], dtype=float)
@@ -213,7 +212,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=5)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=3)
     # sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval, atol=atol, rtol=rtol)
     end = time.time()
     t = sol.t

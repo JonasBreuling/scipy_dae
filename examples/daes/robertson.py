@@ -95,11 +95,7 @@ if __name__ == "__main__":
 
     ##############
     # dae solution
-    ##############
-    # method = "Radau"
-    # method = "PSIDE"
-    method = "PTIRK"
-    
+    ##############    
     start = time.time()
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, jac=jac, dense_output=True)
     end = time.time()
