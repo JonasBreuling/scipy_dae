@@ -220,7 +220,7 @@ def solve_collocation_system(fun, t, y, h, Z0, scale, tol,
     return converged, k + 1, Y, Yp, Z, rate
 
 
-def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
+def solve_collocation_system2(fun, t, y, h, Y0, Yp0, scale, tol,
                               LU_real, LU_complex, solve_lu,
                               C, T, TI, A, newton_max_iter):
     s, n = Yp0.shape
@@ -228,7 +228,7 @@ def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
     tau = t + h * C
 
     Yp = Yp0
-    Y = y + h * A.dot(Yp)
+    Y = Y0
     V_dot = TI.dot(Yp)
 
     F = np.empty((s, n))
@@ -612,6 +612,7 @@ class RadauDAE(DaeSolver):
 
             if self.sol is None:
                 if UNKNOWN_VELOCITIES:
+                    Y0 = np.tile(y, s).reshape(s, -1)
                     Yp0 = np.tile(yp, s).reshape(s, -1)
                 else:
                     Z0 = np.zeros((s, y.shape[0]))
@@ -620,9 +621,7 @@ class RadauDAE(DaeSolver):
                     # note: this only works when we exrapolate the derivative 
                     # of the collocation polynomial but do not use the sth order 
                     # collocation polynomial for the derivatives as well.
-                    Yp0 = self.sol(t + h * C)[1].T
-                    # Z0 = self.sol(t + h * C)[0].T - y
-                    # Yp0 = (1 / h) * A_inv @ Z0
+                    Y0, Yp0 = map(np.transpose, self.sol(t + h * C))
                 else:
                     Z0 = self.sol(t + h * C)[0].T - y
             scale = atol + np.abs(y) * rtol
@@ -639,7 +638,7 @@ class RadauDAE(DaeSolver):
 
                 if UNKNOWN_VELOCITIES:
                     converged, n_iter, Y, Yp, Z, rate = solve_collocation_system2(
-                        self.fun, t, y, h, Yp0, scale, newton_tol,
+                        self.fun, t, y, h, Y0, Yp0, scale, newton_tol,
                         LU_real, LU_complex, self.solve_lu,
                         C, T, TI, A, newton_max_iter)
                 else:
