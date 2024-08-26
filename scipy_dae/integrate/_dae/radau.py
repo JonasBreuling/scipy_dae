@@ -229,6 +229,7 @@ def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
 
     Yp = Yp0
     Y = y + h * A.dot(Yp)
+    # TODO:
     V_dot = TI.dot(Yp)
 
     F = np.empty((s, n))
@@ -265,6 +266,90 @@ def solve_collocation_system2(fun, t, y, h, Yp0, scale, tol,
 
         Yp += dYp
         Y += dY
+
+        dY_norm = norm(dY / scale)
+        if dY_norm_old is not None:
+            rate = dY_norm / dY_norm_old
+
+        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dY_norm > tol)):
+            break
+
+        if (dY_norm == 0 or rate is not None and rate / (1 - rate) * dY_norm < tol):
+            converged = True
+            break
+
+        dY_norm_old = dY_norm
+
+    return converged, k + 1, Y, Yp, Y - y, rate
+
+
+def solve_collocation_system3(fun, t, y, yp, h, Zp0, scale, tol,
+                              LU_real, LU_complex, solve_lu,
+                              C, T, TI, A, newton_max_iter):
+    s, n = Zp0.shape
+    ncs = s // 2
+    tau = t + h * C
+
+    Zp = Zp0
+    Yp = yp + Zp
+    Y = y + h * A.dot(yp + Zp)
+    W_dot = TI.dot(Zp)
+
+    F = np.empty((s, n))
+
+    dY_norm_old = None
+    dW_dot = np.zeros_like(W_dot)
+    converged = False
+    rate = None
+    for k in range(newton_max_iter):
+        for i in range(s):
+            F[i] = fun(tau[i], Y[i], Yp[i])
+
+        if not np.all(np.isfinite(F)):
+            break
+
+        U = TI @ F
+        f_real = -U[0]
+        f_complex = np.empty((ncs, n), dtype=complex)
+        for i in range(ncs):
+            f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
+
+        dW_dot_real = solve_lu(LU_real, f_real)
+        dW_dot_complex = np.empty_like(f_complex)
+        for i in range(ncs):
+            dW_dot_complex[i] = solve_lu(LU_complex[i], f_complex[i])
+
+        dW_dot[0] = dW_dot_real
+        for i in range(ncs):
+            dW_dot[2 * i + 1] = dW_dot_complex[i].real
+            dW_dot[2 * i + 2] = dW_dot_complex[i].imag
+
+        dYp = T.dot(dW_dot)
+        dY = h * A.dot(dYp)
+
+        Yp += dYp
+        Y += dY
+
+        # # W_dot += dW_dot
+        # # Zp = T.dot(W_dot)
+        # # Yp = yp + Zp
+        # # dY = Y - (y + h * A.dot(Yp))
+        # # Y = y + h * A.dot(Yp)
+        # # # dY = h * A.dot(Yp)
+        # # # Y = y + dY
+
+        # W_dot += dW_dot
+        # Zp = T.dot(W_dot)
+        # Yp = yp + Zp
+        # # dY = Y - (y + h * A.dot(Yp))
+        # dY = h * A.dot(T.dot(dW_dot))
+        # Y = y + h * A.dot(Yp)
+
+        # # dZp = T.dot(dW_dot)
+        # # dYp = dZp
+        # # dY = h * A.dot(dYp)
+        # # Yp += dYp
+        # # Y += dY
 
         dY_norm = norm(dY / scale)
         if dY_norm_old is not None:
@@ -612,16 +697,18 @@ class RadauDAE(DaeSolver):
 
             if self.sol is None:
                 if UNKNOWN_VELOCITIES:
-                    Y0 = np.tile(y, s).reshape(s, -1)
+                    # Y0 = np.tile(y, s).reshape(s, -1)
                     Yp0 = np.tile(yp, s).reshape(s, -1)
+                    # Zp0 = np.zeros((s, y.shape[0]))
                 else:
                     Z0 = np.zeros((s, y.shape[0]))
             else:
                 if UNKNOWN_VELOCITIES:
-                    # note: this only works when we exrapolate the derivative 
+                    # note: this only works when we extrapolate the derivative 
                     # of the collocation polynomial but do not use the sth order 
                     # collocation polynomial for the derivatives as well.
                     Yp0 = self.sol(t + h * C)[1].T
+                    # Zp0 = self.sol(t + h * C)[1].T - yp
                     # # Z0 = self.sol(t + h * C)[0].T - y
                     # # Yp0 = (1 / h) * A_inv @ Z0
                 else:
@@ -643,6 +730,10 @@ class RadauDAE(DaeSolver):
                         self.fun, t, y, h, Yp0, scale, newton_tol,
                         LU_real, LU_complex, self.solve_lu,
                         C, T, TI, A, newton_max_iter)
+                    # converged, n_iter, Y, Yp, Z, rate = solve_collocation_system3(
+                    #     self.fun, t, y, yp, h, Zp0, scale, newton_tol,
+                    #     LU_real, LU_complex, self.solve_lu,
+                    #     C, T, TI, A, newton_max_iter)
                 else:
                     converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
                         self.fun, t, y, h, Z0, scale, newton_tol,
