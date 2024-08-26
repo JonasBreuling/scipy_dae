@@ -24,6 +24,9 @@ The [Kármán vortex street](https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_vort
 
 [![Karman](https://github.com/user-attachments/assets/3f5202f7-7666-4e4a-94dc-26f0759abef7)](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/von_Karman.gif)
 
+![Karman small](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/von_Karman_small.gif)
+
+
 ## Basic usage
 
 The Robertson problem of semi-stable chemical reaction is a simple system of differential algebraic equations of index 1. It demonstrates the basic usage of the package.
