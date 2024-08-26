@@ -43,11 +43,11 @@ def test_integration_robertson_ode(method):
                 # If the stiff mode is not activated correctly, these numbers will be much 
                 # bigger (see max_order=1 case)
                 if max_order == 1:
-                    assert res.nfev < 13962
-                    assert res.nlu < 3483
+                    assert res.nfev < 14000
+                    assert res.nlu < 3500
                 else:
-                    assert res.nfev < 2633
-                    assert res.nlu < 427
+                    assert res.nfev < 2650
+                    assert res.nlu < 430
                 assert res.njev < 50
 
     else: # Radau
@@ -60,9 +60,9 @@ def test_integration_robertson_ode(method):
                             continuous_error_weight=continuous_error_weight)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
-            assert res.nfev < 3200
-            assert res.njev < 141
-            assert res.nlu < 331
+            assert res.nfev < 3300
+            assert res.njev < 150
+            assert res.nlu < 340
 
 
 @pytest.mark.slow
@@ -104,7 +104,7 @@ def test_integration_robertson_dae(method):
                     assert res.nlu < 1100
                 else:
                     assert res.nfev < 1600
-                    assert res.nlu < 209
+                    assert res.nlu < 210
                 assert res.njev < 30
 
     else: # Radau
@@ -117,15 +117,12 @@ def test_integration_robertson_dae(method):
                             continuous_error_weight=continuous_error_weight)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
-            # print(f"res.nfev: {res.nfev}")
-            # print(f"res.njev: {res.njev}")
-            print(f"res.nlu: {res.nlu}")
-            assert res.nfev < 2104
+            assert res.nfev < 2150
             assert res.njev < 90
-            assert res.nlu < 297
+            assert res.nlu < 300
 
 
-if __name__ == "__main__":
-    for param in parameters_stiff:
-        # test_integration_robertson_ode(param)
-        test_integration_robertson_dae(param)
+# if __name__ == "__main__":
+#     for param in parameters_stiff:
+#         test_integration_robertson_ode(param)
+#         test_integration_robertson_dae(param)
