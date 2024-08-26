@@ -9,7 +9,7 @@
 <a href="https://pypi.org/project/scipy_dae/"><img alt="PyPI" src="https://img.shields.io/pypi/v/scipy_dae"></a>
 </p>
 
-Python implementation of solvers for differential algebraic equations (DAE's) and implicit differential equations (IDE's) that should be added to scipy one day. See the [GitHub repository](https://github.com/JonasBreuling/scipy_dae).
+Python implementation of solvers for differential algebraic equations (DAE's) and implicit differential equations (IDE's) that should be added to scipy one day.
 
 Currently, two different methods are implemented.
 

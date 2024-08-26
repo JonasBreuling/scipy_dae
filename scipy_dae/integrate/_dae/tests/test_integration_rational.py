@@ -66,10 +66,12 @@ def test_integration_rational(first_step, vectorized, method, t_span, jac, jac_s
     assert_equal(res.status, 0)
 
     if method == "BDF":
+        assert_(0 < res.nfev < 31)
         assert_(0 < res.njev < 3)
-        assert_(0 < res.nlu < 10)
+        assert_(0 < res.nlu < 7)
     else: # Radau
-        assert_(0 < res.njev < 4)
+        assert_(0 < res.nfev < 46)
+        assert_(0 < res.njev < 3)
         assert_(0 < res.nlu < 13)
 
     y_true = sol_rational(res.t)
@@ -92,6 +94,6 @@ def test_integration_rational(first_step, vectorized, method, t_span, jac, jac_s
 
     assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-15, atol=1e-15)
 
-# if __name__ == "__main__":
-#     for param in parameters_rational:
-#         test_integration_rational(*param)
+if __name__ == "__main__":
+    for param in parameters_rational:
+        test_integration_rational(*param)
