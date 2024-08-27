@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 from scipy.integrate import solve_ivp
 
@@ -13,12 +14,15 @@ def smoothstep2(x, x_min=0, x_max=1):
 EPS = 1e-6
 
 t0 = 0
-t1 = 10
+# t1 = 10
+t1 = 2
+# # t1 = 3
+# t1 = 10
 
 # geometry of the rod
 length = 1 # [m]
-# width = 1e-2 # [m]
-width = 1e-3 # [m]
+width = 1e-2 # [m]
+# width = 1e-3 # [m]
 density = 8.e3  # [kg / m^3]
 
 # material properties
@@ -48,6 +52,20 @@ EA = E * A
 GA = G * A
 
 M = np.diag([A, A, I]) * density * length**3 / 3
+M_inv = np.diag([1 / A, 1 / A, 1 / I]) / density / length**3 * 3
+
+
+A = 0.5
+omega = 2 * np.pi * 0.5
+
+def e(t):
+    return A * np.sin(omega * t)
+
+def e_t(t):
+    return omega * A * np.cos(omega * t)
+
+def e_tt(t):
+    return -omega**2 * A * np.sin(omega * t)
 
 
 def A_IB(phi):
@@ -57,32 +75,36 @@ def A_IB(phi):
         [sphi,  cphi],
     ])
 
-def df_int(xi, vq):
+
+def df_int(t, xi, vq):
     x, y, phi = vq
+
+    y += e(t)
 
     A_IB_ = A_IB(phi * xi)
     n = A_IB_ @ np.diag([E * A, G * A]) @ (
-        A_IB_.T @ vq[:2] / length - np.array([1, 0])
+        A_IB_.T @ np.array([x, y]) / length - np.array([1, 0])
     )
     m = E * I * phi / length
 
     K1 = np.array([
         [1,  0, 0],
         [0,  1, 0],
-        [y, -x, 1]
+        [y, -x, 1],
+        # [xi * y, -xi * x, 1],
     ])
 
     return K1 @ np.array([*n, m])
 
 
-def f_int(vq):
+def f_int(t, vq):
     # one point quadrature
     x = np.array([0])
     w = np.array([2])
     
-    # # two point quadrature
-    # x = np.array([-np.sqrt(1 / 3), np.sqrt(1 / 3)])
-    # w = np.array([1, 1])
+    # two point quadrature
+    x = np.array([-np.sqrt(1 / 3), np.sqrt(1 / 3)])
+    w = np.array([1, 1])
 
     # transform from [-1, 1] on [0, 1]
     b = 1
@@ -90,7 +112,7 @@ def f_int(vq):
     w = (b - a) / 2 * w
     x = (a + b) / 2 + (b - a) / 2 * x
 
-    return np.sum([df_int(xi, vq) * wi for (xi, wi) in zip(x, w)], axis=0)
+    return np.sum([df_int(t, xi, vq) * wi for (xi, wi) in zip(x, w)], axis=0)
 
     # # exact internal forces
     # x, y, phi = vq
@@ -132,7 +154,8 @@ def f_int(vq):
 
 
 def m(t):
-    m_max = E * I / length * 2
+    return 0
+    m_max = E * I / length * np.pi #* 0.5
     return m_max * (
         smoothstep2(t, 0, 4)
         - smoothstep2(t, 4, 4.1)
@@ -141,6 +164,7 @@ def m(t):
     #     return t * m_max
     # else:
     #     return 0.0
+
 
 def f_ext(t, vq):
     return np.array([
@@ -156,8 +180,11 @@ def F(t, vy, vyp):
 
     return np.concatenate([
         vqp - vu,
-        M @ vup + f_int(vq) - f_ext(t, vq),
+        M @ (vup + np.array([0, e_tt(t), 0])) + f_int(t, vq) - f_ext(t, vq),
+        # M @ vup + f_int(t, vq) - f_ext(t, vq),
+        # vup + M_inv @ (f_int(vq) - f_ext(t, vq)),
     ])
+
 
 def f(t, vy):
     vq, vu = vy[:3], vy[3:]
@@ -171,8 +198,8 @@ def f(t, vy):
 if __name__ == "__main__":
     # time span
     t_span = (t0, t1)
-    t_eval = np.linspace(t0, t1, num=int(1e4))
-    t_eval = None
+    t_eval = np.linspace(t0, t1, num=int(1e3))
+    # t_eval = None
 
     # method = "RK23"
     # method = "BDF"
@@ -206,13 +233,14 @@ if __name__ == "__main__":
     print(f"F0: {F0}")
 
     # solver options
-    atol = rtol = 1e-5
+    # atol = rtol = 1e-5
+    atol = rtol = 1e-2
 
     ##############
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=5)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=3)
     # sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval, atol=atol, rtol=rtol)
     end = time.time()
     t = sol.t
@@ -249,5 +277,43 @@ if __name__ == "__main__":
     ax[3].grid()
     ax[3].plot(t[1:], np.diff(t), "-ok")
     ax[3].set_yscale("log")
+
+    ###########
+    # animation
+    ###########
+
+    # prepare data for animation
+    frames = len(t)
+    target_frames = min(frames, 100)
+    # target_frames = frames
+    frac = max(1, int(np.ceil(frames / target_frames)))
+    animation_time = 3
+    # animation_time = t1
+    interval = animation_time * 1000 / target_frames
+
+    t = t[::frac]
+    y = y[:, ::frac]
+
+    target_frames = y.shape[1]
+
+    fig, ax = plt.subplots()
+    ax.set_xlim(-0.5 * length, 1.5 * length)
+    ax.set_ylim(-length, length)
+
+    centerline, = ax.plot([], [], "-ok")
+
+    xi = np.linspace(0, 1)
+
+    def update(t, vy):
+        x, y, phi, u, v, omega = vy
+        centerline.set_data(xi * x, e(t) + xi * (y - e(t)))
+        return centerline,
+
+    def animate(i):
+        update(t[i], y[:, i])
+
+    anim = FuncAnimation(
+        fig, animate, frames=target_frames, interval=interval, blit=False, repeat=True
+    )
 
     plt.show()
