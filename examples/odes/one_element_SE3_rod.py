@@ -71,8 +71,6 @@ class SE3Rod:
     def __init__(self, scale_units=False):
         # geometry of the rod
         length = np.pi / 2
-        # length = 1
-        length = 0.75
         width = 1e-3 # [m]
         density = 8.e3  # [kg / m^3]
 
@@ -112,15 +110,19 @@ class SE3Rod:
 
         self.K = np.diag([self.EA, self.GA, self.EI])
 
-        # TODO:
-        self.M = np.diag([A, A, I]) * density * length**3 / 3
-        # self.M = np.diag([A, A, I]) * density * length / 3
+        self.M = np.diag([A, A, I]) * density * length / 3
 
         # initial conditions
-        self.q0 = np.array([length, 0, 0], dtype=float)
+        # self.q0 = np.array([length, 0, 0], dtype=float)
+        c = 0.25
+        phi0 = c * 2 * np.pi
+        self.q0 = np.array([length / phi0 * np.sin(phi0), length / phi0 * (1 - np.cos(phi0)), phi0], dtype=float)
         self.u0 = np.array([0, 0, 0], dtype=float)
         q_dot0 = self.u0
         u_dot0 = np.array([0, 0, 0], dtype=float)
+
+        # reference strain measure
+        self.epsilon0 = np.array([1, 0, 0], dtype=float)
 
         self.t0 = t0
         self.t1 = t1
@@ -142,7 +144,7 @@ class SE3Rod:
         psi = xi * psi01
         return (xi * T_SO3(psi).T @ T_SO3_inv(psi01).T @ np.array([x, y, 0]))[:2]
 
-    def epsilon(self, q):
+    def epsilon_bar(self, q):
         """Strain measures."""
         x, y, phi = q
 
@@ -157,7 +159,7 @@ class SE3Rod:
             x * g + 0.5 * phi * y,
             y * g - 0.5 * phi * x,
             phi,
-        ]) / self.length
+        ])
     
     def W(self, q):
         x, y, phi = q
@@ -173,23 +175,35 @@ class SE3Rod:
             # https://www.wolframalpha.com/input?i=taylor+series+%281+-+cos%28c+*+x%29%29+%2F+x
             off_diag = phi / 2 - phi**3 / 24 + phi**5 / 720
 
-        ga_x, ga_y, kappa = self.epsilon(q)
+        ga_x_bar, ga_y_bar, kappa_bar = self.epsilon_bar(q)
         
         return np.array([
-            [      diag,   -off_diag, 0],
-            [  off_diag,        diag, 0],
-            [0.5 * ga_y, -0.5 * ga_x, 1],
-        ]) * self.length
+            [          diag,       -off_diag, 0],
+            [      off_diag,            diag, 0],
+            [0.5 * ga_y_bar, -0.5 * ga_x_bar, 1],
+        ])
         
     def la(self, q):
-        return self.K @ (self.epsilon(q) - self.epsilon(self.q0))
+        return self.K @ (self.epsilon_bar(q) / self.length - self.epsilon0)
 
     def f_ext(self, t):
-        m_max = 2 * np.pi * self.EI / self.length * 0.5
-        m = m_max * (
-            smoothstep5(t, self.t0, 0.5 * self.t1)
-            - smoothstep5(t, 0.5 * self.t1, 0.51 * self.t1)
-        )
+        m_max = 2 * np.pi * self.EI / self.length * 0.49
+        # m_max = np.pi * self.EI / self.length * 0.2
+        # # m = m_max * (
+        # #     smoothstep5(t, self.t0, 0.5 * self.t1)
+        # #     - smoothstep5(t, 0.5 * self.t1, 0.51 * self.t1)
+        # # )
+
+        if t <= 0.5 * t1:
+            m = m_max * smoothstep5(t, self.t0, 0.5 * self.t1)
+            # m = m_max * t / (0.5 * t1)
+        else:
+            m = 0
+
+        m = 0
+
+        # m = m_max * smoothstep5(t, self.t0, self.t1)
+    
         return np.array([0, 0, m])
 
     def F(self, t, y, yp):
@@ -198,8 +212,7 @@ class SE3Rod:
 
         return np.concatenate([
             qp - u,
-            # TODO: Why this * self.length?
-            self.M @ up + self.W(q) @ self.la(q) - self.f_ext(t) * self.length,
+            self.M @ up + self.W(q) @ self.la(q) - self.f_ext(t),
         ])
 
 
@@ -230,19 +243,19 @@ if __name__ == "__main__":
     ##############
     t_span = (t0, t1)
     t_eval = np.linspace(t0, t1, num=int(1e3))
-    # t_eval = None
+    t_eval = None
 
     # method = "BDF"
     method = "Radau"
 
-    atol = rtol = 1e-5
-    # atol = rtol = 1e-2
+    # atol = rtol = 1e-5
+    atol = rtol = 1e-3
 
     ##############
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(rod.F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=5)
+    sol = solve_dae(rod.F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=3)
     end = time.time()
     t = sol.t
     y = sol.y
@@ -258,7 +271,7 @@ if __name__ == "__main__":
     ###############
     # visualization
     ###############
-    fig, ax = plt.subplots(4, 1)
+    fig, ax = plt.subplots(5, 1)
 
     ax[0].set_xlabel("t")
     ax[0].set_xlabel("x")
@@ -276,10 +289,15 @@ if __name__ == "__main__":
     ax[2].plot(t, y[2], "-ok")
 
     ax[3].set_xlabel("t")
-    ax[3].set_xlabel("h")
+    ax[3].set_xlabel("m(t)")
     ax[3].grid()
-    ax[3].plot(t[1:], np.diff(t), "-ok")
-    ax[3].set_yscale("log")
+    ax[3].plot(t, np.array([rod.f_ext(ti)[-1] for ti in t]), "-ok")
+
+    ax[4].set_xlabel("t")
+    ax[4].set_xlabel("h")
+    ax[4].grid()
+    ax[4].plot(t[1:], np.diff(t), "-ok")
+    ax[4].set_yscale("log")
 
     ###########
     # animation

@@ -15,14 +15,15 @@ EPS = 1e-6
 
 t0 = 0
 # t1 = 10
-t1 = 2
-# # t1 = 3
-# t1 = 10
+# t1 = 2
+# t1 = 3
+t1 = 10
+# t1 = 10e2
 
 # geometry of the rod
 length = 1 # [m]
-width = 1e-2 # [m]
-# width = 1e-3 # [m]
+# length = 1e2
+width = 1e-3 # [m]
 density = 8.e3  # [kg / m^3]
 
 # material properties
@@ -51,21 +52,8 @@ I = width**4 / 12
 EA = E * A
 GA = G * A
 
-M = np.diag([A, A, I]) * density * length**3 / 3
-M_inv = np.diag([1 / A, 1 / A, 1 / I]) / density / length**3 * 3
-
-
-A = 0.5
-omega = 2 * np.pi * 0.5
-
-def e(t):
-    return A * np.sin(omega * t)
-
-def e_t(t):
-    return omega * A * np.cos(omega * t)
-
-def e_tt(t):
-    return -omega**2 * A * np.sin(omega * t)
+M = np.diag([A, A, I]) * density * length / 3
+M_inv = np.diag([1 / A, 1 / A, 1 / I]) / density / length * 3
 
 
 def A_IB(phi):
@@ -78,8 +66,6 @@ def A_IB(phi):
 
 def df_int(t, xi, vq):
     x, y, phi = vq
-
-    y += e(t)
 
     A_IB_ = A_IB(phi * xi)
     n = A_IB_ @ np.diag([E * A, G * A]) @ (
@@ -180,9 +166,7 @@ def F(t, vy, vyp):
 
     return np.concatenate([
         vqp - vu,
-        M @ (vup + np.array([0, e_tt(t), 0])) + f_int(t, vq) - f_ext(t, vq),
-        # M @ vup + f_int(t, vq) - f_ext(t, vq),
-        # vup + M_inv @ (f_int(vq) - f_ext(t, vq)),
+        M @ vup + f_int(t, vq) - f_ext(t, vq),
     ])
 
 
@@ -207,6 +191,10 @@ if __name__ == "__main__":
 
     # initial positions
     q0 = np.array([length, 0, 0], dtype=float)
+
+    c = 0.25
+    phi0 = c * 2 * np.pi
+    q0 = np.array([length / phi0 * np.sin(phi0), length / phi0 * (1 - np.cos(phi0)), phi0], dtype=float)
 
     # r_OP1 = np.array([0.76738219, 0.54021608]) * 1e3
     # phi1 = 1.22664684
@@ -240,7 +228,7 @@ if __name__ == "__main__":
     # dae solution
     ##############
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=3)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=5)
     # sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval, atol=atol, rtol=rtol)
     end = time.time()
     t = sol.t
@@ -306,7 +294,7 @@ if __name__ == "__main__":
 
     def update(t, vy):
         x, y, phi, u, v, omega = vy
-        centerline.set_data(xi * x, e(t) + xi * (y - e(t)))
+        centerline.set_data(xi * x, xi * y)
         return centerline,
 
     def animate(i):
