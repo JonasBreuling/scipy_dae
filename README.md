@@ -88,6 +88,7 @@ More examples are given in the [examples](examples/) directory, which includes
 * ordinary differential equations (ODE's)
     * [Van der Pol oscillator](examples/odes/van_der_pol.py)
     * [Sparse brusselator](examples/odes/sparse_brusselator.py)
+    * [Stiff SE(3) Cosserat rod](examples/odes/se3_cosserat_rod.py)
 * differential algebraic equations (DAE's)
     * [Robertson problem (index 1)](examples/daes/robertson.py)
     * [Stiff transistor amplifier (index 1)](examples/daes/stiff_transistor_amplifier.py)
