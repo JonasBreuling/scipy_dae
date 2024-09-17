@@ -104,7 +104,7 @@ More examples are given in the [examples](examples/) directory, which includes
 
 ## Work-precision
 
-In order to investigate the work precision of the implemented solvers, we use different DAE examples with differentiation index 1, 2 and 3 as well as IDE example.
+In order to investigate the work precision of the implemented solvers, we use different DAE examples with differentiation index 1, 2 and 3 as well as IDE examples.
 
 ### Index 1 DAE - Brenan
 

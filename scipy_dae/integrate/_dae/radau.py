@@ -682,8 +682,8 @@ class RadauDAE(DaeSolver):
                 else:
                     error_embedded = -self.solve_lu(LU_real, F)
             else:
-                # compute implicit embedded method with `newton_iter_embedded`` iterations
-                yp_hat_new0 = -(y / h + + b_hat1_implicit * yp + self.b_hat_implicit @ Yp) / MU_REAL 
+                # compute implicit embedded method with `newton_iter_embedded` iterations
+                yp_hat_new0 = -(y / h + b_hat1_implicit * yp + self.b_hat_implicit @ Yp) / MU_REAL 
                 y_hat_new = y_new.copy() # initial guess
                 for _ in range(self.newton_iter_embedded):
                     yp_hat_new = yp_hat_new0 + y_hat_new / (h * MU_REAL)
