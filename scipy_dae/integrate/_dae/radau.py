@@ -15,26 +15,30 @@ UNKNOWN_VELOCITIES = True
 
 
 def butcher_tableau(s):
-    # nodes are given by the zeros of the Radau polynomial, see Hairer1999 (7)
+    """
+    Compute the Butcher tableau of an s-stage Radau IIA method as outlined in [1]_ and [2]_.
+
+    Parameters
+    ----------
+    s : int
+       Number of stages.
+
+    References
+    ----------
+    .. [1] E. Hairer, G. Wanner, "Solving Ordinary Differential Equations II:
+           Stiff and Differential-Algebraic Problems", Sec. IV.5.
+    .. [2] W. Hoffmann, J. J. B. De Swart, "Approximating Runge-Kutta matrices by triangular matrices"
+    """
+    # nodes are given by the zeros of the Radau polynomial, see Hairer (7)
     poly = Poly([0, 1]) ** (s - 1) * Poly([-1, 1]) ** s
     poly_der = poly.deriv(s - 1)
     c = poly_der.roots()
 
-    # compute coefficients a_ij, see Hairer1999 (11)
-    A = np.zeros((s, s))
-    for i in range(s):
-        Mi = np.zeros((s, s))
-        ri = np.zeros(s)
-        for q in range(s):
-            Mi[q] = c**q
-            ri[q] = c[i] ** (q + 1) / (q + 1)
-        A[i] = np.linalg.solve(Mi, ri)
-
-    # alternative computation of coefficent matrix
+    # computation of coefficent matrix as shown in 
+    # Hoffmann Section 2 or Hairer Section IV.5 (5.6)
     V = np.vander(c, increasing=True)
     R = np.diag(1 / np.arange(1, s + 1))
     A = np.diag(c) @ V @ R @ np.linalg.inv(V)
-    # A = np.linalg.solve(V.T, (np.diag(c) @ V @ R).T).T
 
     b = A[-1, :]
     p = 2 * s - 1
