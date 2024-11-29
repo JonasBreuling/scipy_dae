@@ -29,23 +29,39 @@ def butcher_tableau(s):
            Stiff and Differential-Algebraic Problems", Sec. IV.5.
     .. [2] W. Hoffmann, J. J. B. De Swart, "Approximating Runge-Kutta matrices by triangular matrices"
     """
-    # nodes are given by the zeros of the Radau polynomial, see Hairer (7)
+    # quadrature nodes are given by the zeros of the right Radau polynomial,
+    # see Hairer (5.2)
     poly = Poly([0, 1]) ** (s - 1) * Poly([-1, 1]) ** s
     poly_der = poly.deriv(s - 1)
     c = poly_der.roots()
 
-    # computation of coefficent matrix as shown in 
-    # Hoffmann Section 2 or Hairer Section IV.5 (5.6)
+    # the coefficent matrix is computed according to  Hoffmann Section 2 or 
+    # Hairer Section IV.5 (5.6) (requires some work to see the equivalence)
     V = np.vander(c, increasing=True)
     R = np.diag(1 / np.arange(1, s + 1))
     A = np.diag(c) @ V @ R @ np.linalg.inv(V)
 
+    # since the method is stiffly accurate we can simply extract the 
+    # quadrature weights
     b = A[-1, :]
+
+    # the quadrature order
     p = 2 * s - 1
+
     return A, b, c, p
 
 
 def radau_constants(s):
+    """Compute all constants required for the integration method, depending on the Radau IIA Butcher tableau.
+
+    References
+    ----------
+    .. [1] E. Hairer, G. Wanner, "Solving Ordinary Differential Equations II:
+           Stiff and Differential-Algebraic Problems", Sec. IV.8.
+    .. [2] J. de Swart, G. Söderlind, "On the construction of error estimators for 
+           implicit Runge-Kutta methods", Journal of Computational and Applied 
+           Mathematics, 86, pp. 347-358, 1997.
+    """
     # Butcher tableau
     A, b, c, p = butcher_tableau(s)
 
@@ -70,7 +86,7 @@ def radau_constants(s):
     Gammas, T = cdf2rdf(lambdas, V)
     TI = np.linalg.inv(T)
 
-    # check if everything worked
+    # sanity checks
     assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A)
     assert np.allclose(np.linalg.inv(V) @ A @ V, np.diag(lambdas))
     assert np.allclose(T @ Gammas @ TI, A)
@@ -88,13 +104,13 @@ def radau_constants(s):
     c_hat = np.array([0, *c])
     vander = np.vander(c_hat, increasing=True).T
 
-    # explicit embedded method
+    # explicit embedded method as proposed in Hairer (8.16)
     rhs_explicit = 1 / np.arange(1, s + 1)
     rhs_explicit[0] -= gammas[0]
     b_hat_explicit = np.linalg.solve(vander[:-1, 1:], rhs_explicit)
     v_explicit = b_hat_explicit - b
 
-    # implicit embedded method
+    # implicit embedded method as proposed in de Swart (12.1)
     rhs_implicit = 1 / np.arange(1, s + 1)
     b_hats_implicit = gammas[0] # real eigenvalue of A
     b_hat1_implicit = DAMPING_RATIO_ERROR_ESTIMATE * b_hats_implicit
