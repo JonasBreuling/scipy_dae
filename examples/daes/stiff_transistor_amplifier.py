@@ -52,7 +52,7 @@ def F(t, y, yp):
 
 # time span
 t0 = 0
-t1 = 0.15
+t1 = 0.2
 t_span = (t0, t1)
 t_eval = np.linspace(t0, t1, num=int(1e3))
 
@@ -61,6 +61,7 @@ method = "Radau"
 
 # consistent initial conditions
 up0 = np.zeros_like(y0)
+up0[2] = (f(y0[1] - y0[2]) - y0[2] / R3) / C2
 print(f"u0: {y0}")
 print(f"up0: {up0}")
 y0, up0, fnorm = consistent_initial_conditions(F, t0, y0, up0)
@@ -69,11 +70,12 @@ print(f"up0: {up0}")
 print(f"fnorm: {fnorm}")
 
 # solver options
-atol = rtol = 1e-6
+atol = 1e-3
+rtol = 1e-6
 
 # dae solution
 start = time.time()
-sol = solve_dae(F, t_span, y0, up0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=7)
+sol = solve_dae(F, t_span, y0, up0, atol=atol, rtol=rtol, method=method, t_eval=t_eval, stages=5)
 end = time.time()
 print(f"elapsed time: {end - start}")
 t = sol.t
@@ -118,4 +120,5 @@ ax.plot(t, Ue(t), label="input voltage Ue(t)")
 ax.plot(t, y[4], label="output voltage U5(t)")
 ax.grid()
 ax.legend()
+
 plt.show()

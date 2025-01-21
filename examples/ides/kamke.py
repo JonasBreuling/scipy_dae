@@ -3,44 +3,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae
 
-
-"""Weissinger's implicit differential equation, see [1] and problem I.543 in [2].
+"""
+Problem I.542 of E. Kamke.
 
 References:
------------ 
-..[1]_ https://www.mathworks.com/help/matlab/ref/ode15i.html#bu7u4dt-1
-..[2]_ E. Kamke, Differentialgleichungen - Lösungsmethoden und Lösungen, Bd. 1, 1948, p. 389.
+-----------
+..[1] E. Kamke, Differentialgleichungen - Lösungsmethoden und Lösungen, Bd. 1, 1948, p. 389.
 """
-def F(t, y, yp):
-    return (
-        t * y**2 * yp**3 
-        - y**3 * yp**2 
-        + t * (t**2 + 1) * yp 
-        - t**2 * y
-    )
 
-def jac(t, y, yp):
-    Jy = np.array([
-        2 * t * y * yp**3
-        - 3 * y**2 * yp**2  
-        - t**2 * y,
-    ])
-    Jyp = np.array([
-        3 * t * y**2 * yp**2 
-        - 2 * y**3 * yp 
-        + t * (t**2 + 1)
-    ])
-    return Jy, Jyp
+C = 1
+
+def F(t, y, yp):
+    return 16 * y**2 * yp**3 + 2 * t * yp - y
 
 
 def true_sol(t):
-    return np.atleast_1d(np.sqrt(t**2 + 0.5)), np.atleast_1d(t / np.sqrt(t**2 + 0.5))
+    return np.atleast_1d(np.sqrt(C * t + 2 * C**3)), np.atleast_1d(C / np.sqrt(C * t + 2 * C**3))
 
 
 if __name__ == "__main__":
     # time span
-    t0 = np.sqrt(0.5)
-    t1 = 10
+    t0 = 0
+    t1 = 1e3
     t_span = (t0, t1)
 
     # method = "BDF"
@@ -54,7 +38,7 @@ if __name__ == "__main__":
 
     # run the solver
     start = time.time()
-    sol = solve_dae(F, t_span, y0, yp0, jac=jac, atol=atol, rtol=rtol, method=method)
+    sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     t = sol.t
     y = sol.y
@@ -68,7 +52,7 @@ if __name__ == "__main__":
     print(f"nlu: {sol.nlu}")
 
     # error
-    error = np.linalg.norm(y[:, -1] - np.sqrt(t1**2 + 0.5))
+    error = np.linalg.norm(y[:, -1] - true_sol(t1)[0])
     print(f"error: {error}")
 
     # visualization
