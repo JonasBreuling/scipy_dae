@@ -91,6 +91,7 @@ More examples are given in the [examples](examples/) directory, which includes
     * [Stiff SE(3) Cosserat rod](examples/odes/se3_cosserat_rod.py)
 * differential algebraic equations (DAE's)
     * [Robertson problem (index 1)](examples/daes/robertson.py)
+    * [Akzo Nobel problem (index 1)](examples/daes/akzo_nobel.py)
     * [Stiff transistor amplifier (index 1)](examples/daes/stiff_transistor_amplifier.py)
     * [Brenan's problem (index 1)](examples/daes/brenan.py)
     * [Kvaernø's problem (index 1)](examples/daes/kvaerno.py)
