@@ -24,6 +24,32 @@ The [Kármán vortex street](https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_vort
 
 [![Karman](https://github.com/user-attachments/assets/3f5202f7-7666-4e4a-94dc-26f0759abef7)](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/von_Karman.gif)
 
+## Install
+### Install through pip
+To install scipy-dae package you can run the command
+```
+pip install scipy-dae
+```
+
+### Install through git repository
+To install the package through git installation you can download the repository and install it through
+```
+pip install .
+```
+
+### Install for developing and testing
+An editable developer mode can be installed via
+
+```bash
+python -m pip install -e .[dev]
+```
+
+The tests can be started using
+
+```bash
+python -m pytest --cov
+```
+
 ## Basic usage
 
 The Robertson problem of semi-stable chemical reaction is a simple system of differential algebraic equations of index 1. It demonstrates the basic usage of the package.
@@ -263,16 +289,4 @@ Starting at $t_0 = 0.5$, this problem is solved for $atol = rtol = 10^{-(4 + m /
 
 ![Kvaerno_work_precision](https://raw.githubusercontent.com/JonasBreuling/scipy_dae/main/data/img/Kvaerno_work_precision.png)
 
-## Install
 
-An editable developer mode can be installed via
-
-```bash
-python -m pip install -e .[dev]
-```
-
-The tests can be started using
-
-```bash
-python -m pytest --cov
-```
