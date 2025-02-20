@@ -40,9 +40,9 @@ jobs:
       run: pytest --cov app ${{ env.CODECOV_ATS_TESTS }}
 
     - name: Upload coverage data
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: covdata
+        name: covdata-${{ matrix.os }}
         path: coverage.xml
 
     - name: Upload coverage reports to Codecov
