@@ -49,6 +49,4 @@ jobs:
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
       with:
-        # see https://github.com/actions/upload-artifact/issues/480
-        pattern: covdata-*
         token: ${{ secrets.CODECOV_TOKEN }}
