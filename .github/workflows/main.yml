@@ -42,10 +42,13 @@ jobs:
     - name: Upload coverage data
       uses: actions/upload-artifact@v4
       with:
+        # see https://github.com/actions/upload-artifact/issues/480
         name: covdata-${{ matrix.os }}
         path: coverage.xml
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
       with:
+        # see https://github.com/actions/upload-artifact/issues/480
+        pattern: covdata-*
         token: ${{ secrets.CODECOV_TOKEN }}
