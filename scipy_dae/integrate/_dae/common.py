@@ -126,9 +126,6 @@ class DaeSolution:
         return ys, yps
 
 
-# TODO: Compare this with
-# - ddassl.f by Petzold
-# - epsode.f by Bryne and Hindmarsh
 def select_initial_step(t0, y0, yp0, t_bound, rtol, atol, max_step):
     """Empirically select a good initial step.
 
@@ -194,7 +191,7 @@ def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None,
     
         References
     ----------
-    .. [1] L. F. Shampine, "Solving 0 = F(t, y(t), y′(t)) in Matlab", Journal 
+    .. [1] L. F. Shampine, "Solving 0 = F(t, y(t), y'(t)) in Matlab", Journal 
            of Numerical Mathematics, vol. 10, no. 4, 2002, pp. 291-310.
     """
     n = len(y0)
