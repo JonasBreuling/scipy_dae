@@ -160,18 +160,28 @@ def select_initial_step(t0, y0, yp0, t_bound, rtol, atol, max_step):
 
     References
     ----------
-    .. [1] TODO: Find a reference.
+    .. [1] L. F. Shampine, "Starting an ODE solver", November 1977.
     """
-    min_step = 0.0
+    safety = 0.8
+    min_step = 16 * EPS * abs(t0)
     threshold = atol / rtol
     hspan = abs(t_bound - t0)
 
-    # compute an initial step size h using yp = y'(t0)
+    # compute scaling
     wt = np.maximum(np.abs(y0), threshold)
-    rh = 1.25 * np.linalg.norm(yp0 / wt, np.inf) / np.sqrt(rtol)
+
+    # error
+    e = np.linalg.norm(yp0 / wt, np.inf)
+
+    # reciprocal step size
+    rh = e / np.sqrt(rtol) / safety
+
+    # compute an initial step size
     h_abs = min(max_step, hspan)
     if h_abs * rh > 1:
         h_abs = 1 / rh
+
+    # ensure h_abs >= min_step
     h_abs = max(h_abs, min_step)
     return h_abs
 
@@ -220,8 +230,8 @@ def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None,
     if not (isinstance(rtol, float) and rtol > 0):
         raise ValueError("Relative tolerance must be a positive scalar.")
     
-    if rtol < 100 * np.finfo(float).eps:
-        rtol = 100 * np.finfo(float).eps
+    if rtol < 100 * EPS:
+        rtol = 100 * EPS
         print(f"Relative tolerance increased to {rtol}")
     
     if np.any(np.array(atol) <= 0):
@@ -235,28 +245,12 @@ def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None,
     Jy, Jyp = jac(t0, y0, yp0)
     
     scale_f = atol + np.abs(f) * rtol
-    # z0 = np.concatenate([y0, yp0])
-    # scale_z = atol + np.abs(z0) * rtol
-    # dz_norm_old = None
-    # rate_z = None
-    # tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
 
     for _ in range(newton_maxiter):
         for _ in range(chord_iter):
             dy, dyp = solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp)            
             y0 += dy
             yp0 += dyp
-
-            # dz = np.concatenate([dy, dyp])
-            # with np.errstate(divide='ignore'):
-            #     dz_norm = norm(dz / scale_z)
-            # if dz_norm_old is not None:
-            #     rate_z = dz_norm / dz_norm_old
-
-            # if (dz_norm == 0 or (rate_z is not None and rate_z / (1 - rate_z) * dz_norm < safety * tol)):
-            #     return y0, yp0, f
-            
-            # dz_norm_old = dz_norm
 
             f = fun(t0, y0, yp0, *args)
             error = norm(f / scale_f)
@@ -271,7 +265,7 @@ def consistent_initial_conditions(fun, t0, y0, yp0, jac=None, fixed_y0=None,
 def qrank(A):
     """Compute QR-decomposition with column pivoting of A and estimate the rank."""
     Q, R, p = qr(A, pivoting=True)
-    tol = max(A.shape) * np.finfo(float).eps * abs(R[0, 0])
+    tol = max(A.shape) * EPS * abs(R[0, 0])
     rank = np.sum(abs(np.diag(R)) > tol)
     return rank, Q, R, p
 
@@ -353,10 +347,17 @@ def solve_underdetermined_system(f, Jy, Jyp, free_y, free_yp):
         # [S21, S22] [w1] = d2
         #            [w2]
         # using column pivoting QR-decomposition
-        w_ = np.zeros(RS.shape[1])
-        w_[:rankS] = solve_triangular(RS[:rankS, :rankS], (QS.T @ d2[:rankS]))
-        w = np.zeros_like(w_)
-        w[pS] = w_
+        # [RS11, RS12] [v1] = [c1]
+        # [   0,    0] [v2]   [c2]
+        # with v2 = 0 this gives
+        # RS11 @ v1 = c1
+        c = QS.T @ d2
+        v = np.zeros(RS.shape[1])
+        v[:rankS] = solve_triangular(RS[:rankS, :rankS], c[:rankS])
+
+        # apply permutation
+        w = np.zeros_like(v)
+        w[pS] = v
 
         # set w2' = 0 and solve the remaining system
         # [R11] w1' = d1 - [S11, S12] [w1]
