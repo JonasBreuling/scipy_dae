@@ -58,7 +58,7 @@ def test_check_arguments(method):
     )
 
     # All components of the initial state `y0` must be finite.
-    y0 = np.arange(1, 3) * np.infty
+    y0 = np.arange(1, 3) * np.inf
     yp0 = np.arange(2)
     t_span = (0, 1)
     with pytest.raises(ValueError) as excinfo:
@@ -70,7 +70,7 @@ def test_check_arguments(method):
     
     # All components of the initial state `yp0` must be finite.
     y0 = np.arange(2)
-    yp0 = np.arange(1, 3) * np.infty
+    yp0 = np.arange(1, 3) * np.inf
     t_span = (0, 1)
     with pytest.raises(ValueError) as excinfo:
         solve_dae(F, t_span, y0, yp0, method=method)
