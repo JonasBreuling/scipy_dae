@@ -76,7 +76,7 @@ def test_events(method, event_options):
     t0, t1 = t0, t0 + Dt
     t_span = (t0, t1)
     y0, yp0 = solution(t0)
-    rtol = atol = 1e-10
+    rtol = atol = 1e-12
 
     sol = solve_dae(f, t_span, y0, yp0, method=method, rtol=rtol, atol=atol, events=events)
 
