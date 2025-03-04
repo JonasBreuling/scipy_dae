@@ -152,7 +152,6 @@ class BDFDAE(DaeSolver):
 
         It is generally recommended to provide the Jacobians rather than
         relying on a finite-difference approximation.
-    # TODO: Adapt and test this.
     jac_sparsity : {None, array_like, sparse matrix}, optional
         Defines a sparsity structure of the Jacobian matrix for a
         finite-difference approximation. Its shape must be (n, n). This argument
@@ -160,9 +159,6 @@ class BDFDAE(DaeSolver):
         elements in *each* row, providing the sparsity structure will greatly
         speed up the computations [4]_. A zero entry means that a corresponding
         element in the Jacobian is always zero. If None (default), the Jacobian
-    # t_eval = np.concatenate((t, t + t1)) / 2
-    t_eval = np.array([t0, *(t0 + 1e-3 + np.cumsum(np.diff(t)))])
-    # t_eval = np.concatenate((t, t + t1, t + 2 * t1)) / 3
         is assumed to be dense.
     vectorized : bool, optional
         Whether `fun` can be called in a vectorized fashion. Default is False.
@@ -231,8 +227,9 @@ class BDFDAE(DaeSolver):
                  NDF_strategy="stability", **extraneous):
         warn_extraneous(extraneous)
         super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, 
-                         first_step, max_step, vectorized, jac, 
-                         jac_sparsity, support_complex=True)
+                         first_step=first_step, max_step=max_step, 
+                         vectorized=vectorized, jac=jac, 
+                         jac_sparsity=jac_sparsity, support_complex=True)
         
         self.newton_tol = max(10 * EPS / rtol, min(0.03, rtol ** 0.5))
 

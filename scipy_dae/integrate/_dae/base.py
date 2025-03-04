@@ -46,9 +46,7 @@ def check_arguments(fun, y0, yp0, support_complex):
 
     return fun_wrapped, y0, yp0
 
-# TODO:
-# - check documentation
-# - add consistent initial conditions somehow
+
 class DaeSolver:
     """Base class for DAE solvers.
 
@@ -102,17 +100,11 @@ class DaeSolver:
     y0 : array_like, shape (n,)
         Initial state.
     yp0 : array_like, shape (n,), optional
-        Initial derivative. If the derivative is not given by the user, it is 
-        esimated using??? => TODO: See Petzold/ Shampine and coworkers how 
-        this is done.
+        Initial derivative. It it is assumed that the value is consistent, 
+        i.e. f(t0, y0, yp0) = 0.
     t_bound : float
         Boundary time --- the integration won't continue beyond it. It also
         determines the direction of the integration.
-    var_index : array_like, shape (n,), optional
-        Differentiation index of the respective row of f(t, y, y') = 0. 
-        Depending on this index, the error estimates are scaled by the 
-        stepsize h**(index - 1) in order to ensure convergence.
-        Default is None, which means all equations are differential equations.
     vectorized : bool
         Whether `fun` can be called in a vectorized fashion. Default is False.
 
@@ -166,7 +158,7 @@ class DaeSolver:
     TOO_SMALL_STEP = "Required step size is less than spacing between numbers."
 
     def __init__(self, fun, t0, y0, yp0, t_bound, rtol, atol, 
-                 first_step=None, max_step=np.inf, vectorized=False,
+                 first_step=None, max_step=np.inf, vectorized=False, 
                  jac=None, jac_sparsity=None, support_complex=False):
         self.t_old = None
         self.t = t0
@@ -281,7 +273,7 @@ class DaeSolver:
                 #     lambda t, yp: self.fun_vectorized(t, y, yp), 
                 #     t, yp, f, self.atol, self.jac_factor_yp, sparsity_yp)
                 
-                # TODO: This choice is better but not optimal!
+                # note: this choice is better but not optimal
                 threshold = self.atol / self.rtol
                 Jy, self.jac_factor_y = num_jac(
                     lambda t, y: self.fun_vectorized(t, y, yp), 
@@ -422,6 +414,7 @@ class DaeSolver:
 
     def _dense_output_impl(self):
         raise NotImplementedError
+
 
 class DAEDenseOutput:
     """Base class for local interpolant over step made by an ODE solver.

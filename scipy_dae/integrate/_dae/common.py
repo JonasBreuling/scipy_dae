@@ -1,6 +1,6 @@
 from itertools import groupby
 import numpy as np
-# TODO: use sparse QR when available in scipy
+# note: use sparse QR when available in scipy
 from scipy.linalg import qr, solve_triangular
 from scipy.integrate._ivp.common import norm, EPS
 from scipy.optimize._numdiff import approx_derivative

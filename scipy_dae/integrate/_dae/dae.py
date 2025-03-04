@@ -5,12 +5,12 @@
 
 import inspect
 import numpy as np
-from scipy.integrate._ivp.ivp import prepare_events, handle_events, find_active_events
+from scipy.integrate._ivp.ivp import prepare_events, find_active_events
 from .base import DaeSolver
 from .bdf import BDFDAE
 from .radau import RadauDAE
 from scipy.optimize import OptimizeResult
-from .common import DaeSolution
+from .common import DaeSolution, EPS
 
 
 METHODS = {
@@ -27,32 +27,115 @@ class DaeResult(OptimizeResult):
     pass
 
 
+def solve_event_equation(event, sol, t_old, t):
+    """Solve an equation corresponding to an ODE event.
+
+    The equation is ``event(t, y(t), y#(t)) = 0``, here ``y(t)`` and ``y'(t)`` 
+    are known from an DAE solver using some sort of interpolation. It is solved by
+    `scipy.optimize.brentq` with xtol=atol=4*EPS.
+
+    Parameters
+    ----------
+    event : callable
+        Function ``event(t, y, yp)``.
+    sol : callable
+        Function ``sol(t)`` which evaluates an DAE solution between `t_old`
+        and `t`.
+    t_old, t : float
+        Previous and new values of time. They will be used as a bracketing
+        interval.
+
+    Returns
+    -------
+    root : float
+        Found solution.
+    """
+    from scipy.optimize import brentq
+    return brentq(lambda t: event(t, *sol(t)), t_old, t,
+                  xtol=4 * EPS, rtol=4 * EPS)
+
+
+def handle_events(sol, events, active_events, event_count, max_events,
+                  t_old, t):
+    """Helper function to handle events.
+
+    Parameters
+    ----------
+    sol : DenseOutput
+        Function ``sol(t)`` which evaluates an ODE solution between `t_old`
+        and  `t`.
+    events : list of callables, length n_events
+        Event functions with signatures ``event(t, y, yp)``.
+    active_events : ndarray
+        Indices of events which occurred.
+    event_count : ndarray
+        Current number of occurrences for each event.
+    max_events : ndarray, shape (n_events,)
+        Number of occurrences allowed for each event before integration
+        termination is issued.
+    t_old, t : float
+        Previous and new values of time.
+
+    Returns
+    -------
+    root_indices : ndarray
+        Indices of events which take zero between `t_old` and `t` and before
+        a possible termination.
+    roots : ndarray
+        Values of t at which events occurred.
+    terminate : bool
+        Whether a terminal event occurred.
+    """
+    roots = [solve_event_equation(events[event_index], sol, t_old, t)
+             for event_index in active_events]
+
+    roots = np.asarray(roots)
+
+    if np.any(event_count[active_events] >= max_events[active_events]):
+        if t > t_old:
+            order = np.argsort(roots)
+        else:
+            order = np.argsort(-roots)
+        active_events = active_events[order]
+        roots = roots[order]
+        t = np.nonzero(event_count[active_events]
+                       >= max_events[active_events])[0][0]
+        active_events = active_events[:t + 1]
+        roots = roots[:t + 1]
+        terminate = True
+    else:
+        terminate = False
+
+    return active_events, roots, terminate
+
+
 # TODO:
-# - add events depending on y'(t)?
-def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None, 
-              dense_output=False, events=None, vectorized=False, 
-              args=None, **options):
+# - add number of solve LGS's as done by matlab.
+# - add var_index in error estimate
+def solve_dae(fun, t_span, y0, yp0, method="Radau", t_eval=None, 
+              dense_output=False, events=None, var_index=None,
+              vectorized=False, args=None, **options):
     """Solve an initial value problem for a system of differential algebraic 
-    equations (DAE's).
+    equations (DAEs).
 
     This function numerically integrates a system of implicit ordinary 
     differential equations given an initial value::
 
         f(t, y, y') = 0
         y(t0) = y0
-        y'(t0) = y_dot0
+        y'(t0) = yp0
 
     Here t is a 1-D independent variable (time), y(t) is an N-D vector-valued 
     function (state), y'(t) is an N-D vector-valued function (state 
     derivative) and an N-D vector-valued function f(t, y, y') determines the 
     implicit differential algebraic equations.
     The goal is to find y(t) and y'(t) approximately satisfying the differential
-    algebraic equations, given initial values y(t0)=y0 and y'(t0)=y_dot0.
+    algebraic equations, given initial values y(t0)=y0 and y'(t0)=yp0.
 
     Some of the solvers support integration in the complex domain, but note
     that the function f must be complex-differentiable (satisfy Cauchy-Riemann 
     equations [11]_).
-    To solve a problem in the complex domain, pass y0 or y_dot0 with a complex 
+    To solve a problem in the complex domain, pass y0 or yp0 with a complex 
     data type. Another option always available is to rewrite your problem for 
     real and imaginary parts separately.
 
@@ -62,7 +145,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         Function defining the DAE system: ``f(t, y, y_dot) = 0``. The calling 
         signature is ``fun(t, y, y_dot)``, where ``t`` is a scalar and 
         ``y, y_dot`` are ndarrays with 
-        ``len(y) = len(y_dot) = len(y0) = len(y_dot0)``. Additional 
+        ``len(y) = len(y_dot) = len(y0) = len(yp0)``. Additional 
         arguments need to be passed if ``args`` is used (see documentation of
         ``args`` argument). ``fun`` must return an array of the same shape as
         ``y`` and ``y_dot``. See `vectorized` for more information.
@@ -73,8 +156,8 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     y0 : array_like, shape (n,)
         Initial state. For problems in the complex domain, pass `y0` with a
         complex data type (even if the initial value is purely real).
-    y_dot0 : array_like, shape (n,)
-        Initial derivative. For problems in the complex domain, pass `y_dot0` 
+    yp0 : array_like, shape (n,)
+        Initial derivative. For problems in the complex domain, pass `yp0` 
         with a complex data type (even if the initial value is purely real).
     method : string or `DaeSolver`, optional
         Integration method to use:
@@ -100,11 +183,11 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     events : callable, or list of callables, optional
         Events to track. If None (default), no events will be tracked.
         Each event occurs at the zeros of a continuous function of time and
-        state. Each function must have the signature ``event(t, y)`` where
+        state. Each function must have the signature ``event(t, y, y')`` where
         additional argument have to be passed if ``args`` is used (see
         documentation of ``args`` argument). Each function must return a
         float. The solver will find an accurate value of `t` at which
-        ``event(t, y(t)) = 0`` using a root-finding algorithm. By default,
+        ``event(t, y(t), y'(t)) = 0`` using a root-finding algorithm. By default,
         all zeros will be found. The solver looks for a sign change over
         each step, so if multiple zero crossings occur within one step,
         events may be missed. Additionally each `event` function might
@@ -123,22 +206,27 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
         You can assign attributes like ``event.terminal = True`` to any
         function in Python.
-    # vectorized : bool, optional
-    #     Whether `fun` can be called in a vectorized fashion. Default is False.
+    var_index : array_like, shape (n,), optional
+        Differentiation index of the respective row of f(t, y, y') = 0. 
+        Depending on this index, the error estimates are scaled by the 
+        stepsize h**(index - 1) in order to ensure convergence.
+        Default is None, which means all equations are differential equations.
+    vectorized : bool, optional
+        Whether `fun` can be called in a vectorized fashion. Default is False.
 
-    #     If ``vectorized`` is False, `fun` will always be called with ``y`` of
-    #     shape ``(n,)``, where ``n = len(y0)``.
+        If ``vectorized`` is False, `fun` will always be called with ``y`` of
+        shape ``(n,)``, where ``n = len(y0)``.
 
-    #     If ``vectorized`` is True, `fun` may be called with ``y`` of shape
-    #     ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
-    #     such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
-    #     the returned array is the time derivative of the state corresponding
-    #     with a column of ``y``).
+        If ``vectorized`` is True, `fun` may be called with ``y`` of shape
+        ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
+        such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
+        the returned array is the time derivative of the state corresponding
+        with a column of ``y``).
 
-    #     Setting ``vectorized=True`` allows for faster finite difference
-    #     approximation of the Jacobian by methods 'Radau' and 'BDF', but
-    #     will result in slower execution for other methods and for 'Radau' and
-    #     'BDF' in some circumstances (e.g. small ``len(y0)``).
+        Setting ``vectorized=True`` allows for faster finite difference
+        approximation of the Jacobian by methods 'Radau' and 'BDF', but
+        will result in slower execution for other methods and for 'Radau' and
+        'BDF' in some circumstances (e.g. small ``len(y0)``).
     args : tuple, optional
         Additional arguments to pass to the user-defined functions.  If given,
         the additional arguments are passed to all user-defined functions.
@@ -177,7 +265,6 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
             * If (array_like, array_like) or (sparse_matrix, sparse_matrix) 
               the Jacobian matrices are assumed to be constant.
-            # TODO: Add constant J_y'!
             * If callable, the Jacobians are assumed to depend on both
               t, y and y'; it will be called as ``jac(t, y, y')``, as necessary.
               Additional arguments have to be passed if ``args`` is
@@ -205,6 +292,8 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         Time points.
     y : ndarray, shape (n, n_points)
         Values of the solution at `t`.
+    yp : ndarray, shape (n, n_points)
+        Values of the derivative at `t`.
     sol : `DaeSolution` or None
         Found solution as `DaeSolution` instance; None if `dense_output` was
         set to False.
@@ -220,7 +309,6 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         Number of evaluations of the Jacobian.
     nlu : int
         Number of LU decompositions.
-    # TODO: Add number of solve LGS's as done by matlab.
     status : int
         Reason for algorithm termination:
 
@@ -265,6 +353,9 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
 
     """
+    if var_index is not None:
+        raise NotImplementedError("This feature is not implemented yet.")
+    
     if method not in METHODS and not (
             inspect.isclass(method) and issubclass(method, DaeSolver)):
         raise ValueError(f"`method` must be one of {METHODS} or DaeSolver class.")
@@ -284,13 +375,12 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
             )
             raise TypeError(suggestion_tuple) from exp
 
-        def fun(t, x, x_dot, fun=fun):
-            return fun(t, x, x_dot, *args)
-        
-        # TODO: Add validate jac here already, since Jacobians are required for all methods!
+        def fun(t, y, yp, fun=fun):
+            return fun(t, y, yp, *args)
+
         jac = options.get('jac')
         if callable(jac):
-            options['jac'] = lambda t, x, x_dot: jac(t, x, x_dot, *args)
+            options['jac'] = lambda t, y, yp: jac(t, y, yp, *args)
 
     if t_eval is not None:
         t_eval = np.asarray(t_eval)
@@ -315,12 +405,12 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
     if method in METHODS:
         method = METHODS[method]
 
-    solver = method(fun, t0, y0, y_dot0, t_bound, vectorized=vectorized, **options)
+    solver = method(fun, t0, y0, yp0, t_bound, vectorized=vectorized, **options)
 
     if t_eval is None:
         ts = [t0]
         ys = [y0]
-        yps = [y_dot0]
+        yps = [yp0]
     elif t_eval is not None and dense_output:
         ts = []
         ti = [t0]
@@ -341,14 +431,16 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
             # The original event function is passed as a keyword argument to the
             # lambda to keep the original function in scope (i.e., avoid the
             # late binding closure "gotcha").
-            events = [lambda t, x, event=event: event(t, x, *args)
+            events = [lambda t, y, yp, event=event: event(t, y, yp, *args)
                       for event in events]
-        g = [event(t0, y0) for event in events]
+        g = [event(t0, y0, yp0) for event in events]
         t_events = [[] for _ in range(len(events))]
         y_events = [[] for _ in range(len(events))]
+        yp_events = [[] for _ in range(len(events))]
     else:
         t_events = None
         y_events = None
+        yp_events = None
 
     status = None
     while status is None:
@@ -373,7 +465,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
         if events is not None:
             # raise NotImplementedError("Events are not ready yet")
-            g_new = [event(t, y) for event in events]
+            g_new = [event(t, y, yp) for event in events]
             active_events = find_active_events(g, g_new, event_dir)
             if active_events.size > 0:
                 if sol is None:
@@ -386,12 +478,14 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
 
                 for e, te in zip(root_indices, roots):
                     t_events[e].append(te)
-                    y_events[e].append(sol(te))
+                    ye, ype = sol(te)
+                    y_events[e].append(ye)
+                    yp_events[e].append(ype)
 
                 if terminate:
                     status = 1
                     t = roots[-1]
-                    y = sol(t)
+                    y, yp = sol(t)
 
             g = g_new
 
@@ -429,6 +523,7 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         # raise NotImplementedError("Events are not ready yet")
         t_events = [np.asarray(te) for te in t_events]
         y_events = [np.asarray(ye) for ye in y_events]
+        yp_events = [np.asarray(ype) for ype in yp_events]
 
     if t_eval is None:
         ts = np.array(ts)
@@ -448,5 +543,5 @@ def solve_dae(fun, t_span, y0, y_dot0, method="Radau", t_eval=None,
         sol = None
 
     return DaeResult(t=ts, y=ys, yp=yps, sol=sol, t_events=t_events, y_events=y_events,
-                     nfev=solver.nfev, njev=solver.njev, nlu=solver.nlu,
-                     status=status, message=message, success=status>=0)
+                     yp_events=yp_events, nfev=solver.nfev, njev=solver.njev, 
+                     nlu=solver.nlu, status=status, message=message, success=status>=0)

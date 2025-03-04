@@ -1,4 +1,4 @@
-# scipy_dae - solving differential algebraic equations (DAE's) and implicit differential equations (IDE's) in Python
+# scipy_dae - solving differential algebraic equations (DAEs) and implicit differential equations (IDEs) in Python
 
 <p align="center">
 <a href="https://github.com/JonasBreuling/scipy_dae/actions/workflows/main.yml/badge.svg"><img alt="Actions Status" src="https://github.com/JonasBreuling/scipy_dae/actions/workflows/main.yml/badge.svg"></a>
@@ -9,7 +9,7 @@
 <a href="https://pypi.org/project/scipy_dae/"><img alt="PyPI" src="https://img.shields.io/pypi/v/scipy_dae"></a>
 </p>
 
-Python implementation of solvers for differential algebraic equations (DAE's) and implicit differential equations (IDE's) that should be added to scipy one day.
+Python implementation of solvers for differential algebraic equations (DAEs) and implicit differential equations (IDEs) that should be added to scipy one day.
 
 Currently, two different methods are implemented.
 
@@ -111,11 +111,11 @@ plt.show()
 
 More examples are given in the [examples](examples/) directory, which includes
 
-* ordinary differential equations (ODE's)
+* ordinary differential equations (ODEs)
     * [Van der Pol oscillator](examples/odes/van_der_pol.py)
     * [Sparse brusselator](examples/odes/sparse_brusselator.py)
     * [Stiff SE(3) Cosserat rod](examples/odes/se3_cosserat_rod.py)
-* differential algebraic equations (DAE's)
+* differential algebraic equations (DAEs)
     * [Robertson problem (index 1)](examples/daes/robertson.py)
     * [Akzo Nobel problem (index 1)](examples/daes/akzo_nobel.py)
     * [Stiff transistor amplifier (index 1)](examples/daes/stiff_transistor_amplifier.py)
@@ -126,7 +126,7 @@ More examples are given in the [examples](examples/) directory, which includes
     * [Cartesian pendulum (index 3)](examples/daes/pendulum.py)
     * [Particle on circular track (index 3)](examples/daes/arevalo.py)
     * [Andrews' squeezer mechanism (index 3)](examples/daes/andrews.py)
-* implicit differential equations (IDE's)
+* implicit differential equations (IDEs)
     * [Weissinger's implicit equation](examples/ides/weissinger.py)
     * [Problem I.542 of E. Kamke](examples/ides/kamke.py)
     * [Jackiewicz' implicit equation](examples/ides/jackiewicz.py)
@@ -177,7 +177,7 @@ $$
 \end{aligned}
 $$
 
-Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we transform the semi-explicit form into a general form as proposed by [Gear](https://doi.org/10.1137/0909004). The resulting index 1 system is given as
+Since the implemented solvers are designed for index 1 DAEs we have to perform some sort of index reduction. Therefore, we transform the semi-explicit form into a general form as proposed by [Gear](https://doi.org/10.1137/0909004). The resulting index 1 system is given as
 
 $$
 \begin{aligned}
@@ -226,7 +226,7 @@ $$
 \end{aligned}
 $$
 
-Since the implemented solvers are designed for index 1 DAE's we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting index 1 system is given as
+Since the implemented solvers are designed for index 1 DAEs we have to perform some sort of index reduction. Therefore, we use the [stabilized index 1 formulation of Hiller and Anantharaman](https://doi.org/10.1002/nme.1620320803). The resulting index 1 system is given as
 
 $$
 \begin{aligned}

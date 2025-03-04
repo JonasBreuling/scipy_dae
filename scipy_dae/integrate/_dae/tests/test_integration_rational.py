@@ -94,6 +94,6 @@ def test_integration_rational(first_step, vectorized, method, t_span, jac, jac_s
 
     assert_allclose(res.sol(res.t)[0], res.y, rtol=1e-15, atol=1e-15)
 
-if __name__ == "__main__":
-    for param in parameters_rational:
-        test_integration_rational(*param)
+# if __name__ == "__main__":
+#     for param in parameters_rational:
+#         test_integration_rational(*param)
