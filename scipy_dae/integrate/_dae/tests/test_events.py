@@ -84,6 +84,6 @@ def test_events(method, event_options):
     assert_allclose(sol.y_events, y_events, rtol=1e-7, atol=1e-7)
     assert_allclose(sol.yp_events, yp_events, rtol=1e-7, atol=1e-7)
 
-if __name__ == "__main__":
-    for param in parameters:
-        test_events(*param)
+# if __name__ == "__main__":
+#     for param in parameters:
+#         test_events(*param)
