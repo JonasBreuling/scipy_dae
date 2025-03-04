@@ -1,6 +1,6 @@
 project(
   'scipy_dae', 
-  version: '0.0.6',
+  version: '0.0.8',
   meson_version: '>= 1.1.0',
 )
 

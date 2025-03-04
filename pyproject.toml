@@ -10,7 +10,7 @@ authors = [
 ]
 description = "Python implementation of solvers for differential algebraic equations (DAEs) and implicit differential equations (IDEs) that should be added to scipy one day."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
   "numpy>=2.0.1",
   "scipy>=1.14.0",
