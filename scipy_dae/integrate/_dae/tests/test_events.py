@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from itertools import product
 from numpy.testing import assert_allclose
 from scipy_dae.integrate import solve_dae
 
@@ -19,7 +20,7 @@ def solution(t):
         np.atleast_1d(np.cos(t)),
     )
 
-parameters = [
+events = [
     (
         event1, 
         [np.array([0, np.pi])], 
@@ -61,19 +62,28 @@ parameters = [
     ),
 ]
 
-@pytest.mark.parametrize("events, t_events, y_events, yp_events", parameters)
-def test_events(events, t_events, y_events, yp_events):
-    t0, t1 = 0, 2 * np.pi
+parameters = product(
+    ["BDF", "Radau"], # method
+    events, # event_options
+)
+
+@pytest.mark.parametrize("method, event_options", parameters)
+def test_events(method, event_options):
+    events, t_events, y_events, yp_events = event_options
+
+    t0 = -0.1
+    Dt = 2 * np.pi
+    t0, t1 = t0, t0 + Dt
     t_span = (t0, t1)
     y0, yp0 = solution(t0)
     rtol = atol = 1e-10
 
-    sol = solve_dae(f, t_span, y0, yp0, rtol=rtol, atol=atol, events=events)
+    sol = solve_dae(f, t_span, y0, yp0, method=method, rtol=rtol, atol=atol, events=events)
 
     assert_allclose(sol.t_events, t_events, rtol=1e-7, atol=1e-7)
     assert_allclose(sol.y_events, y_events, rtol=1e-7, atol=1e-7)
     assert_allclose(sol.yp_events, yp_events, rtol=1e-7, atol=1e-7)
 
-# if __name__ == "__main__":
-#     for param in parameters:
-#         test_events(*param)
+if __name__ == "__main__":
+    for param in parameters:
+        test_events(*param)
