@@ -16,7 +16,6 @@ J_linear = (
     np.eye(2),
 )
 
-
 J_linear_sparse = (
     -csc_matrix(jac_linear()),
     identity(2, format="csc"),
@@ -25,7 +24,7 @@ J_linear_sparse = (
 
 parameters_linear = product(
     ["BDF", "Radau"], # method
-    [None, J_linear, J_linear_sparse] # jac
+    [None, J_linear, J_linear_sparse], # jac
 )
 @pytest.mark.parametrize("method, jac", parameters_linear)
 def test_integration_linear(method, jac):

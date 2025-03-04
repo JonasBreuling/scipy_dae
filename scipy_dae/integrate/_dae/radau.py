@@ -426,7 +426,6 @@ class RadauDAE(DaeSolver):
 
         It is generally recommended to provide the Jacobian rather than
         relying on a finite-difference approximation.
-    # TODO: Adapt and test this.
     jac_sparsity : {None, array_like, sparse matrix}, optional
         Defines a sparsity structure of the Jacobian matrix for a
         finite-difference approximation. Its shape must be (n, n). This argument
@@ -504,7 +503,10 @@ class RadauDAE(DaeSolver):
                  controller_deadband=(1.0, 1.2),
                  **extraneous):
         warn_extraneous(extraneous)
-        super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, first_step, max_step, vectorized, jac, jac_sparsity)
+        super().__init__(fun, t0, y0, yp0, t_bound, rtol, atol, 
+                         first_step=first_step, max_step=max_step, 
+                         vectorized=vectorized, jac=jac, 
+                         jac_sparsity=jac_sparsity)
 
         assert stages % 2 == 1
         self.stages = stages
@@ -520,7 +522,7 @@ class RadauDAE(DaeSolver):
         self.error_norm_oldold = None
 
         # modify tolerances as in radau.f line 824ff and 920ff
-        # TODO: This rescaling leads to a saturation of the convergence
+        # TODO: Document this rescaling
         EXPMNS = (stages + 1) / (2 * stages)
         # print(f"atol: {atol}")
         # print(f"rtol: {rtol}")
