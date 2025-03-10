@@ -14,6 +14,14 @@ def event1(t, y, yp):
 def event2(t, y, yp):
     return yp
 
+def event3(t, y, yp):
+    return y
+event3.terminal = True
+
+def event4(t, y, yp):
+    return yp
+event4.terminal = True
+
 def solution(t):
     return (
         np.atleast_1d(np.sin(t)),
@@ -59,6 +67,18 @@ events = [
             np.array([1, 1, -1, -1]),
             np.array([0, 0, 0, 0]),
         ],
+    ),
+    (
+        event3, 
+        [np.array([0])], 
+        [np.array([0])], 
+        [np.array([1])], 
+    ),
+    (
+        event4, 
+        [np.array([np.pi / 2])], 
+        [np.array([1])], 
+        [np.array([0])], 
     ),
 ]
 
