@@ -10,9 +10,6 @@ DAMPING_RATIO_ERROR_ESTIMATE = 0.05 # Hairer (8.19) is obtained by the choice 1.
                                     # de Swart proposes 0.067 for s=3.
 KAPPA = 1 # factor of the smooth limiter
 
-# UNKNOWN_VELOCITIES = False
-UNKNOWN_VELOCITIES = True
-
 
 def butcher_tableau(s):
     """
@@ -133,112 +130,7 @@ def radau_constants(s):
     return A, A_inv, c, T, TI, P, P2, b_hat1_implicit, v_implicit, v_explicit, MU_REAL, MU_COMPLEX, b_hat_implicit, b_hat_explicit, p
 
 
-def solve_collocation_system_Z(fun, t, y, h, Z0, scale, tol,
-                               LU_real, LU_complex, solve_lu,
-                               C, T, TI, A, A_inv, newton_max_iter):
-    """Solve the collocation system.
-
-    Parameters
-    ----------
-    fun : callable
-        Right-hand side of the system.
-    t : float
-        Current time.
-    y : ndarray, shape (n,)
-        Current state.
-    h : float
-        Step to try.
-    Z0 : ndarray, shape (s, n)
-        Initial guess for the solution. It determines new values of `y` at
-        ``t + h * C`` as ``y + Z0``, where ``C`` is the Radau method constants.
-    scale : ndarray, shape (n)
-        Problem tolerance scale, i.e. ``rtol * abs(y) + atol``.
-    tol : float
-        Tolerance to which solve the system. This value is compared with
-        the normalized by `scale` error.
-    LU_real, LU_complex
-        LU decompositions of the system Jacobians.
-    solve_lu : callable
-        Callable which solves a linear system given a LU decomposition. The
-        signature is ``solve_lu(LU, b)``.
-    C : ndarray, shape (s,)
-        Array containing the Radau IIA nodes.
-    T, TI : ndarray, shape (s, s)
-        Transformation matrix and inverse of the methods coefficient matrix A.
-    A_inv : ndarray, shape (s, s)
-        Inverse the methods coefficient matrix A.
-
-    Returns
-    -------
-    converged : bool
-        Whether iterations converged.
-    n_iter : int
-        Number of completed iterations.
-    Z : ndarray, shape (3, n)
-        Found solution.
-    rate : float
-        The rate of convergence.
-    """
-    s, n = Z0.shape
-    ncs = s // 2
-    tau = t + h * C
-
-    Z = Z0
-    W = TI.dot(Z0)
-    Yp = (A_inv / h) @ Z
-    Y = y + Z
-
-    F = np.empty((s, n))
-
-    dW_norm_old = None
-    dW = np.empty_like(W)
-    converged = False
-    rate = None
-    for k in range(newton_max_iter):
-        for i in range(s):
-            F[i] = fun(tau[i], Y[i], Yp[i])
-
-        if not np.all(np.isfinite(F)):
-            break
-
-        U = TI @ F
-        f_real = -U[0]
-        f_complex = np.empty((ncs, n), dtype=complex)
-        for i in range(ncs):
-            f_complex[i] = -(U[2 * i + 1] + 1j * U[2 * i + 2])
-
-        dW_real = solve_lu(LU_real, f_real)
-        dW_complex = np.empty_like(f_complex)
-        for i in range(ncs):
-            dW_complex[i] = solve_lu(LU_complex[i], f_complex[i])
-
-        dW[0] = dW_real
-        for i in range(ncs):
-            dW[2 * i + 1] = dW_complex[i].real
-            dW[2 * i + 2] = dW_complex[i].imag
-
-        dW_norm = norm(dW / scale)
-        if dW_norm_old is not None:
-            rate = dW_norm / dW_norm_old
-
-        if (rate is not None and (rate >= 1 or rate ** (newton_max_iter - k) / (1 - rate) * dW_norm > tol)):
-            break
-
-        W += dW
-        Z = T.dot(W)
-        Yp = (A_inv / h) @ Z
-        Y = y + Z
-
-        if (dW_norm == 0 or rate is not None and rate / (1 - rate) * dW_norm < tol):
-            converged = True
-            break
-
-        dW_norm_old = dW_norm
-
-    return converged, k + 1, Y, Yp, Z, rate
-
-
-def solve_collocation_system_Yp(fun, t, y, h, Yp0, scale, tol,
+def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
                                 LU_real, LU_complex, solve_lu,
                                 C, T, TI, A, newton_max_iter):
     s, n = Yp0.shape
@@ -629,43 +521,27 @@ class RadauDAE(DaeSolver):
             h_abs = np.abs(h)
 
             if self.sol is None:
-                if UNKNOWN_VELOCITIES:
-                    Yp0 = np.tile(yp, s).reshape(s, -1)
-                else:
-                    Z0 = np.zeros((s, y.shape[0]))
+                Yp0 = np.tile(yp, s).reshape(s, -1)
             else:
-                if UNKNOWN_VELOCITIES:
-                    # note: this only works when we extrapolate the derivative 
-                    # of the collocation polynomial but do not use the sth order 
-                    # collocation polynomial for the derivatives as well.
-                    Yp0 = self.sol(t + h * C)[1].T
-                    # # Zp0 = self.sol(t + h * C)[1].T - yp
-                    # Z0 = self.sol(t + h * C)[0].T - y
-                    # Yp0 = (1 / h) * A_inv @ Z0
-                else:
-                    Z0 = self.sol(t + h * C)[0].T - y
+                # note: this only works when we extrapolate the derivative 
+                # of the collocation polynomial but do not use the sth order 
+                # collocation polynomial for the derivatives as well.
+                Yp0 = self.sol(t + h * C)[1].T
+                # # Zp0 = self.sol(t + h * C)[1].T - yp
+                # Z0 = self.sol(t + h * C)[0].T - y
+                # Yp0 = (1 / h) * A_inv @ Z0
             scale = atol + np.abs(y) * rtol
 
             converged = False
             while not converged:
                 if LU_real is None or LU_complex is None:
-                    if UNKNOWN_VELOCITIES:
-                        LU_real = self.lu(Jyp + h * MU_REAL * Jy)
-                        LU_complex = [self.lu(Jyp + h * MU * Jy) for MU in MU_COMPLEX]
-                    else:
-                        LU_real = self.lu(1 / (MU_REAL * h) * Jyp + Jy)
-                        LU_complex = [self.lu(1 / (MU * h) * Jyp + Jy) for MU in MU_COMPLEX]
+                    LU_real = self.lu(Jyp + h * MU_REAL * Jy)
+                    LU_complex = [self.lu(Jyp + h * MU * Jy) for MU in MU_COMPLEX]
 
-                if UNKNOWN_VELOCITIES:
-                    converged, n_iter, Y, Yp, Z, rate = solve_collocation_system_Yp(
-                        self.fun, t, y, h, Yp0, scale, newton_tol,
-                        LU_real, LU_complex, self.solve_lu,
-                        C, T, TI, A, newton_max_iter)
-                else:
-                    converged, n_iter, Y, Yp, Z, rate = solve_collocation_system_Z(
-                        self.fun, t, y, h, Z0, scale, newton_tol,
-                        LU_real, LU_complex, self.solve_lu,
-                        C, T, TI, A, A_inv, newton_max_iter)
+                converged, n_iter, Y, Yp, Z, rate = solve_collocation_system(
+                    self.fun, t, y, h, Yp0, scale, newton_tol,
+                    LU_real, LU_complex, self.solve_lu,
+                    C, T, TI, A, newton_max_iter)
 
                 if not converged:
                     if current_jac:
@@ -699,10 +575,7 @@ class RadauDAE(DaeSolver):
                 # R(z) = b_hat1 / b_hats2 = DAMPING_RATIO_ERROR_ESTIMATE for z -> oo
                 yp_hat_new = (v_implicit @ Yp - b_hat1_implicit * yp) / MU_REAL
                 F = self.fun(t_new, y_new, yp_hat_new)
-                if UNKNOWN_VELOCITIES:
-                    error_embedded = -h * MU_REAL * self.solve_lu(LU_real, F)
-                else:
-                    error_embedded = -self.solve_lu(LU_real, F)
+                error_embedded = -h * MU_REAL * self.solve_lu(LU_real, F)
             else:
                 # compute implicit embedded method with `newton_iter_embedded` iterations
                 yp_hat_new0 = -(y / h + b_hat1_implicit * yp + self.b_hat_implicit @ Yp) / MU_REAL 
@@ -710,10 +583,7 @@ class RadauDAE(DaeSolver):
                 for _ in range(self.newton_iter_embedded):
                     yp_hat_new = yp_hat_new0 + y_hat_new / (h * MU_REAL)
                     F = self.fun(t_new, y_hat_new, yp_hat_new)
-                    if UNKNOWN_VELOCITIES:
-                        y_hat_new -= h * MU_REAL * self.solve_lu(LU_real, F)
-                    else:
-                        y_hat_new -= self.solve_lu(LU_real, F)
+                    y_hat_new -= h * MU_REAL * self.solve_lu(LU_real, F)
 
                 error_embedded = y_hat_new - y_new 
 

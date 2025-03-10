@@ -51,18 +51,20 @@ def test_integration_robertson_ode(method):
                 assert res.njev < 50
 
     else: # Radau
-        for stages, continuous_error_weight in product(
+        for stages, continuous_error_weight, newton_iter_embedded in product(
             [3, 5, 7], # stages
             [0.0, 0.5, 1.0], # continuous_error_weight
+            [0, 1, 2], # newton_iter_embedded
         ):
             res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
                             atol=atol, method=method, stages=stages,
-                            continuous_error_weight=continuous_error_weight)
+                            continuous_error_weight=continuous_error_weight,
+                            newton_iter_embedded=newton_iter_embedded)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
             assert res.nfev < 3300
             assert res.njev < 150
-            assert res.nlu < 340
+            assert res.nlu < 370
 
 
 @pytest.mark.slow
@@ -108,13 +110,15 @@ def test_integration_robertson_dae(method):
                 assert res.njev < 30
 
     else: # Radau
-        for stages, continuous_error_weight in product(
+        for stages, continuous_error_weight, newton_iter_embedded in product(
             [3, 5, 7], # stages
             [0.0, 0.5, 1.0], # continuous_error_weight
+            [0, 1, 2], # newton_iter_embedded
         ):
             res = solve_dae(F_robertson, tspan, y0, yp0, rtol=rtol,
                             atol=atol, method=method, stages=stages,
-                            continuous_error_weight=continuous_error_weight)
+                            continuous_error_weight=continuous_error_weight,
+                            newton_iter_embedded=newton_iter_embedded)
 
             # If the stiff mode is not activated correctly, these numbers will be much bigger
             assert res.nfev < 2150
