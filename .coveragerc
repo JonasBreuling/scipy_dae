@@ -1,0 +1,4 @@
+[run]
+omit = 
+    scipy_dae/integrate/_dae/benchmarks/*
+    scipy_dae/integrate/_dae/tests/*
