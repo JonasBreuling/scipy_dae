@@ -34,9 +34,9 @@ def butcher_tableau(s):
 
     # the coefficent matrix is computed according to  Hoffmann Section 2 or 
     # Hairer Section IV.5 (5.6) (requires some work to see the equivalence)
-    V = np.vander(c, increasing=True)
+    Vc = np.vander(c, increasing=True)
     R = np.diag(1 / np.arange(1, s + 1))
-    A = np.diag(c) @ V @ R @ np.linalg.inv(V)
+    A = np.diag(c) @ Vc @ R @ np.linalg.inv(Vc)
 
     # since the method is stiffly accurate we can simply extract the 
     # quadrature weights
@@ -66,26 +66,26 @@ def radau_constants(s):
     A_inv = np.linalg.inv(A)
 
     # eigenvalues and corresponding eigenvectors of coefficient matrix
-    lambdas, V = eig(A)
+    lambdas, Q = eig(A)
 
     # sort eigenvalues and permut eigenvectors accordingly
     idx = np.argsort(lambdas)[::-1]
     lambdas = lambdas[idx]
-    V = V[:, idx]
+    Q = Q[:, idx]
 
     # scale eigenvectors to get a "nice" transformation matrix (used by original 
-    # scipy code) and at the same time minimizes the condition number of V
+    # scipy code) and at the same time minimizes the condition number of Q
     for i in range(s):
-        V[:, i] /= V[-1, i]
+        Q[:, i] /= Q[-1, i]
 
     # convert complex eigenvalues and eigenvectors to real eigenvalues 
     # in a block diagonal form and the associated real eigenvectors
-    Gammas, T = cdf2rdf(lambdas, V)
+    Gammas, T = cdf2rdf(lambdas, Q)
     TI = np.linalg.inv(T)
 
     # sanity checks
-    assert np.allclose(V @ np.diag(lambdas) @ np.linalg.inv(V), A)
-    assert np.allclose(np.linalg.inv(V) @ A @ V, np.diag(lambdas))
+    assert np.allclose(Q @ np.diag(lambdas) @ np.linalg.inv(Q), A)
+    assert np.allclose(np.linalg.inv(Q) @ A @ Q, np.diag(lambdas))
     assert np.allclose(T @ Gammas @ TI, A)
     assert np.allclose(TI @ A @ T, Gammas)
 
@@ -99,12 +99,12 @@ def radau_constants(s):
     
     # compute embedded method for error estimate
     c_hat = np.array([0, *c])
-    vander = np.vander(c_hat, increasing=True).T
+    Vc_hat = np.vander(c_hat, increasing=True).T
 
     # explicit embedded method as proposed in Hairer (8.16)
     rhs_explicit = 1 / np.arange(1, s + 1)
     rhs_explicit[0] -= gammas[0]
-    b_hat_explicit = np.linalg.solve(vander[:-1, 1:], rhs_explicit)
+    b_hat_explicit = np.linalg.solve(Vc_hat[:-1, 1:], rhs_explicit)
     v_explicit = b_hat_explicit - b
 
     # implicit embedded method as proposed in de Swart (12.1)
@@ -113,26 +113,30 @@ def radau_constants(s):
     b_hat1_implicit = DAMPING_RATIO_ERROR_ESTIMATE * b_hats_implicit
     rhs_implicit[0] -= b_hat1_implicit
     rhs_implicit -= b_hats_implicit
-    b_hat_implicit = np.linalg.solve(vander[:-1, 1:], rhs_implicit)
+    b_hat_implicit = np.linalg.solve(Vc_hat[:-1, 1:], rhs_implicit)
     v_implicit = b - b_hat_implicit
 
-    # compute the inverse of the Vandermonde matrix to get the interpolation matrix P
-    P = np.linalg.inv(vander)[1:, 1:]
+    # compute the inverse of the Vandermonde matrix to get the inverse 
+    # interpolation matrix
+    P = np.linalg.inv(Vc_hat[1:, 1:])
 
-    # compute coefficients using Vandermonde matrix
-    vander2 = np.vander(c, increasing=True)
-    P2 = np.linalg.inv(vander2)
+    # inverse Vandermonde matrix for collocation error
+    Vc = np.vander(c, increasing=True)
+    P2 = np.linalg.inv(Vc)
 
     # these linear combinations are used in the algorithm
     MU_REAL = gammas[0]
     MU_COMPLEX = alphas -1j * betas
 
-    return A, A_inv, c, T, TI, P, P2, b_hat1_implicit, v_implicit, v_explicit, MU_REAL, MU_COMPLEX, b_hat_implicit, b_hat_explicit, p
+    return (
+        A, A_inv, c, T, TI, P, P2, b_hat1_implicit, v_implicit, v_explicit, 
+        MU_REAL, MU_COMPLEX, b_hat_implicit, b_hat_explicit, p,
+    )
 
 
 def solve_collocation_system(fun, t, y, h, Yp0, scale, tol,
-                                LU_real, LU_complex, solve_lu,
-                                C, T, TI, A, newton_max_iter):
+                             LU_real, LU_complex, solve_lu,
+                             C, T, TI, A, newton_max_iter):
     s, n = Yp0.shape
     ncs = s // 2
     tau = t + h * C
@@ -523,13 +527,8 @@ class RadauDAE(DaeSolver):
             if self.sol is None:
                 Yp0 = np.tile(yp, s).reshape(s, -1)
             else:
-                # note: this only works when we extrapolate the derivative 
-                # of the collocation polynomial but do not use the sth order 
-                # collocation polynomial for the derivatives as well.
+                # improved guess by extrapolating the collocation polynomial
                 Yp0 = self.sol(t + h * C)[1].T
-                # # Zp0 = self.sol(t + h * C)[1].T - yp
-                # Z0 = self.sol(t + h * C)[0].T - y
-                # Yp0 = (1 / h) * A_inv @ Z0
             scale = atol + np.abs(y) * rtol
 
             converged = False
@@ -660,30 +659,24 @@ class RadauDAE(DaeSolver):
         return step_accepted, message
 
     def _compute_dense_output(self):
-        # Q = np.dot(self.Z.T, self.P)
-        # h = self.t - self.t_old
-        # Yp = (self.A_inv / h) @ self.Z
-        # Zp = Yp - self.yp_old
-        # Qp = np.dot(Zp.T, self.P)
         Z = self.Y - self.y_old
-        Q = np.dot(Z.T, self.P)
+        ZP = np.dot(Z.T, self.P)
         Zp = self.Yp - self.yp_old
-        Qp = np.dot(Zp.T, self.P)
-        return RadauDenseOutput(self.t_old, self.t, self.y_old, Q, self.yp_old, Qp)
+        ZpP = np.dot(Zp.T, self.P)
+        return RadauDenseOutput(self.t_old, self.t, self.y_old, ZP, ZpP)
 
     def _dense_output_impl(self):
         return self.sol
 
 
 class RadauDenseOutput(DAEDenseOutput):
-    def __init__(self, t_old, t, y_old, Q, yp_old, Qp):
+    def __init__(self, t_old, t, y_old, ZP, ZpP):
         super().__init__(t_old, t)
         self.h = t - t_old
-        self.Q = Q
-        self.Qp = Qp
-        self.order = Q.shape[1] - 1
+        self.ZP = ZP
+        self.ZpP = ZpP
+        self.order = ZP.shape[1] - 1
         self.y_old = y_old
-        self.yp_old = yp_old
 
     def _call_impl(self, t):
         x = (t - self.t_old) / self.h
@@ -694,25 +687,10 @@ class RadauDenseOutput(DAEDenseOutput):
         p = x**c
         dp = (c / self.h) * (x**(c - 1))
 
-        # 1. compute derivative of interpolation polynomial for y
-        y = np.dot(self.Q, p)
+        # compute derivative of interpolation polynomial for y
+        y = np.dot(self.ZP, p)
         y += self.y_old[:, None]
-        yp = np.dot(self.Q, dp)
-
-        # # 2. compute collocation polynomial for y and yp
-        # y = np.dot(self.Q, p)
-        # yp = np.dot(self.Qp, p)
-        # y += self.y_old[:, None]
-        # yp += self.yp_old[:, None]
-
-        # # 3. compute both values by Horner's rule
-        # y = np.zeros_like(y)
-        # yp = np.zeros_like(y)
-        # for i in range(self.order, -1, -1):
-        #     y = self.Q[:, i][:, None] + y * x[None, :]
-        #     yp = y + yp * x[None, :]
-        # y = self.y_old[:, None] + y * x[None, :]
-        # yp /= self.h
+        yp = np.dot(self.ZP, dp)
 
         if t.ndim == 0:
             y = np.squeeze(y)
