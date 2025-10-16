@@ -4,21 +4,36 @@ import matplotlib.pyplot as plt
 from scipy_dae.integrate import solve_dae, consistent_initial_conditions
 
 
-"""Index 1 DAE found in Chapter 4 of Brenan1996.
+"""Index 2 DAE found in Section 3.1 of Brenan1996.
 
 References:
 -----------
 Brenan1996: https://doi.org/10.1137/1.9781611971224.ch4
 """
+
+eta = -2
+
+def g(t):
+    return np.sin(t)
+
+def gp(t):
+    return np.cos(t)
+
+def gpp(t):
+    return -np.sin(t)
+
+
+# TODO: How to perform index reduction?
 def F(t, y, yp):
     y1, y2 = y
     y1p, y2p = yp
 
     F = np.zeros_like(y, dtype=np.common_type(y, yp))
-    F[0] = y1p - t * y2p + y1 - (1 + t) * y2
-    # # TODO: Derive analytical solution for this problem
-    # F[0] = y1p - (1 / t) * y2p + y1 - (1 + 1 / t) * y2
-    F[1] = y2 - np.sin(t)
+    # index 2
+    # F[0] = y1 + eta * t * y2 - g(t)
+    # index 1
+    F[0] = y1p + eta * y2 + eta * t * y2p - gp(t)
+    F[1] = y1p + eta * t * y2p + (1 + eta) * y2
 
     return F
 
@@ -27,14 +42,14 @@ def true_sol(t):
     return (
         np.array(
             [
-                np.exp(-t) + t * np.sin(t),
-                np.sin(t),
+                g(t) + eta * t * gp(t),
+                -gp(t),
             ]
         ),
         np.array(
             [
-                -np.exp(-t) + np.sin(t) + t * np.cos(t),
-                np.cos(t),
+                gp(t) + eta * gp(t) + eta * t * gpp(t),
+                -gpp(t),
             ]
         ),
     )
@@ -42,13 +57,12 @@ def true_sol(t):
 
 if __name__ == "__main__":
     # time span
-    # t0 = 0
     t0 = 1
-    t1 = 1e2
+    t1 = 1e1
     t_span = (t0, t1)
 
     # tolerances
-    rtol = atol = 1.5e-8
+    rtol = atol = 1e-6
 
     # initial conditions
     y0 = np.array([1, 0], dtype=float)
@@ -57,17 +71,18 @@ if __name__ == "__main__":
 
     print(f"y0: {y0}")
     print(f"yp0: {yp0}")
-    y0, yp0, fnorm = consistent_initial_conditions(F, t0, y0, yp0)
-    print(f"y0: {y0}")
-    print(f"yp0: {yp0}")
-    print(f"fnorm: {fnorm}")
+    print(f"fnorm: {np.linalg.norm(F(t0, y0, yp0))}")
+    # y0, yp0, fnorm = consistent_initial_conditions(F, t0, y0, yp0)
+    # print(f"y0: {y0}")
+    # print(f"yp0: {yp0}")
+    # print(f"fnorm: {fnorm}")
 
     ##############
     # dae solution
     ##############
     start = time.time()
-    # method = "BDF"
-    method = "Radau"
+    method = "BDF"
+    # method = "Radau"
     sol = solve_dae(F, t_span, y0, yp0, atol=atol, rtol=rtol, method=method)
     end = time.time()
     print(f"elapsed time: {end - start}")

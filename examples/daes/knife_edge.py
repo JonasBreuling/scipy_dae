@@ -116,6 +116,28 @@ if __name__ == "__main__":
     print(f"njev: {sol.njev}")
     print(f"nlu: {sol.nlu}")
 
+    # export solution
+    import sys
+    from pathlib import Path
+
+    header = "t, x, y, phi, u, v, omega, La, x_dot, y_dot, phi_dot, u_dot, v_dot, omega_dot, la"
+
+    data = np.vstack((
+        t[None, :],
+        y,
+        yp,
+    )).T
+
+    path = Path(sys.modules["__main__"].__file__)
+
+    np.savetxt(
+        path.parent / (path.stem + ".txt"),
+        data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
     # visualization
     fig, ax = plt.subplots(3, 3)
 
