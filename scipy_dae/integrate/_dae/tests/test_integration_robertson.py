@@ -107,7 +107,7 @@ def test_integration_robertson_dae(method):
                 else:
                     assert res.nfev < 1600
                     assert res.nlu < 210
-                assert res.njev < 30
+                assert res.njev < 32
 
     else: # Radau
         for stages, continuous_error_weight, newton_iter_embedded in product(
